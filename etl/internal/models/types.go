@@ -81,14 +81,139 @@ type Kamerstukdossier struct {
 	Kamer             string   `xml:"kamer"`
 }
 
-type PaginationInfo struct {
-	CurrentSkiptoken string
-	NextSkiptoken    string
-	Category         string
-	HasMore          bool
+type OfficielePublicatie struct {
+	XMLName                   xml.Name                    `xml:"officiele-publicatie"`
+	NoNamespaceSchemaLocation string                      `xml:"noNamespaceSchemaLocation,attr"`
+	Metadata                  OfficielePublicatieMetadata `xml:"metadata"`
+	Kamerstuk                 *Kamerstuk                  `xml:"kamerstuk"`
 }
 
-// for parsing parliamentary XML documents
+type OfficielePublicatieMetadata struct {
+	Meta []OfficielePublicatieMetaRecord `xml:"meta"`
+}
+
+type OfficielePublicatieMetaRecord struct {
+	Name    string `xml:"name,attr"`
+	Scheme  string `xml:"scheme,attr"`
+	Content string `xml:"content,attr"`
+}
+
+type Kamerstuk struct {
+	Kamerstukkop Kamerstukkop `xml:"kamerstukkop"`
+	Dossier      []Dossier    `xml:"dossier"`
+	Stuk         Stuk         `xml:"stuk"`
+}
+
+type Kamerstukkop struct {
+	Tekstregels []Tekstregel `xml:"tekstregel"`
+}
+
+type Tekstregel struct {
+	Inhoud string `xml:"inhoud,attr"`
+	Value  string `xml:",chardata"`
+}
+
+type Dossier struct {
+	Dossiernummer Dossiernummer `xml:"dossiernummer"`
+	Titel         string        `xml:"titel"`
+}
+
+type Dossiernummer struct {
+	Dossiernr string `xml:"dossiernr"`
+}
+
+type Stuk struct {
+	Stuknr     Stuknr     `xml:"stuknr"`
+	Titel      string     `xml:"titel"`
+	Datumtekst Datumtekst `xml:"datumtekst"`
+	Algemeen   []Algemeen `xml:"algemeen"`
+}
+
+type Stuknr struct {
+	Nr          string      `xml:",chardata"`
+	Ondernummer Ondernummer `xml:"ondernummer"`
+}
+
+type Ondernummer struct {
+	Kamer string `xml:"kamer,attr"`
+	Value string `xml:",chardata"`
+}
+
+type Datumtekst struct {
+	Value string `xml:",chardata"`
+	Datum Datum  `xml:"datum"`
+}
+
+type Datum struct {
+	Isodatum string `xml:"isodatum,attr"`
+	Value    string `xml:",chardata"`
+}
+
+type Algemeen struct {
+	VrijeTekst    *VrijeTekst    `xml:"vrije-tekst"`
+	TekstSluiting *TekstSluiting `xml:"tekst-sluiting"`
+}
+
+type VrijeTekst struct {
+	Tekst TekstContent `xml:"tekst"`
+}
+
+type TekstContent struct {
+	Status  string    `xml:"status,attr"`
+	Als     []Al      `xml:"al"`
+	AlGroep []AlGroep `xml:"al-groep"`
+}
+
+type Al struct {
+	Text   string   `xml:",chardata"`
+	Nadruk []Nadruk `xml:"nadruk"`
+	Noot   []Noot   `xml:"noot"`
+	ExtRef []ExtRef `xml:"extref"`
+}
+
+type AlGroep struct {
+	Als []Al `xml:"al"`
+}
+
+type Nadruk struct {
+	Type  string `xml:"type,attr"`
+	Value string `xml:",chardata"`
+}
+
+type Noot struct {
+	ID     string `xml:"id,attr"`
+	Type   string `xml:"type,attr"`
+	NootNr string `xml:"noot.nr"`
+	NootAl NootAl `xml:"noot.al"`
+}
+
+type NootAl struct {
+	Text   string   `xml:",chardata"`
+	ExtRef []ExtRef `xml:"extref"`
+}
+
+type ExtRef struct {
+	Doc    string `xml:"doc,attr"`
+	Soort  string `xml:"soort,attr"`
+	Status string `xml:"status,attr"`
+	Value  string `xml:",chardata"`
+}
+
+type TekstSluiting struct {
+	Ondertekening Ondertekening `xml:"ondertekening"`
+}
+
+type Ondertekening struct {
+	Functie string `xml:"functie"`
+	Naam    Naam   `xml:"naam"`
+}
+
+type Naam struct {
+	Voornaam   string `xml:"voornaam"`
+	Achternaam string `xml:"achternaam"`
+}
+
+// Legacy document structure for kamerwrk documents
 type KamerDocument struct {
 	XMLName   xml.Name         `xml:"kamerwrk"`
 	Kamer     string           `xml:"kamer,attr"`
@@ -190,6 +315,8 @@ type ParsedDocument struct {
 	Footnotes    []ParsedFootnote       `json:"footnotes"`
 	Metadata     map[string]interface{} `json:"metadata"`
 	FullText     string                 `json:"full_text"`
+	Date         *time.Time             `json:"date,omitempty"`
+	Dossiers     []ParsedDossier        `json:"dossiers,omitempty"`
 }
 
 type ParsedSubject struct {
@@ -213,4 +340,56 @@ type ParsedFootnote struct {
 	ID      string `json:"id"`
 	Number  string `json:"number"`
 	Content string `json:"content"`
+}
+
+type ParsedDossier struct {
+	Number string `json:"number"`
+	Title  string `json:"title"`
+}
+
+type PaginationInfo struct {
+	CurrentSkiptoken string
+	NextSkiptoken    string
+	Category         string
+	HasMore          bool
+}
+
+// Error tracking structures
+type ImportStats struct {
+	TotalProcessed   int            `json:"total_processed"`
+	SuccessfulParsed int            `json:"successful_parsed"`
+	ParseErrors      int            `json:"parse_errors"`
+	StorageErrors    int            `json:"storage_errors"`
+	DocumentTypes    map[string]int `json:"document_types"`
+	ErrorsByCategory map[string]int `json:"errors_by_category"`
+	ErrorDetails     []ErrorDetail  `json:"error_details"`
+}
+
+type ErrorDetail struct {
+	DocumentID   string `json:"document_id"`
+	ErrorType    string `json:"error_type"`
+	ErrorMessage string `json:"error_message"`
+	Timestamp    string `json:"timestamp"`
+}
+
+func NewImportStats() *ImportStats {
+	return &ImportStats{
+		DocumentTypes:    make(map[string]int),
+		ErrorsByCategory: make(map[string]int),
+		ErrorDetails:     make([]ErrorDetail, 0),
+	}
+}
+
+func (s *ImportStats) AddError(docID, errorType, message string) {
+	s.ErrorDetails = append(s.ErrorDetails, ErrorDetail{
+		DocumentID:   docID,
+		ErrorType:    errorType,
+		ErrorMessage: message,
+		Timestamp:    time.Now().Format(time.RFC3339),
+	})
+	s.ErrorsByCategory[errorType]++
+}
+
+func (s *ImportStats) IncrementDocumentType(docType string) {
+	s.DocumentTypes[docType]++
 }

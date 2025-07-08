@@ -15,6 +15,7 @@ type Importer struct {
 	client  *api.Client
 	parser  *parser.Parser
 	storage storage.Storage
+	stats   *models.ImportStats
 }
 
 func New(client *api.Client, parser *parser.Parser, storage storage.Storage) *Importer {
@@ -22,7 +23,12 @@ func New(client *api.Client, parser *parser.Parser, storage storage.Storage) *Im
 		client:  client,
 		parser:  parser,
 		storage: storage,
+		stats:   models.NewImportStats(),
 	}
+}
+
+func (i *Importer) GetStats() *models.ImportStats {
+	return i.stats
 }
 
 // imports entities for a specific category
@@ -115,14 +121,21 @@ func (i *Importer) processDossier(ctx context.Context, dossier *models.Kamerstuk
 		parsedDoc, err := i.parser.ParseDocument(docData)
 		if err != nil {
 			log.Printf("Error parsing document %s: %v", dossier.Nummer, err)
+			i.stats.AddError(dossier.Nummer, "parse_error", err.Error())
+			i.stats.ParseErrors++
 		} else {
+			i.stats.IncrementDocumentType(parsedDoc.DocumentType)
 			// save parsed document (this contains the full text)
 			if err := i.storage.SaveParsedDocument(ctx, parsedDoc); err != nil {
 				log.Printf("Error saving parsed document %s: %v", parsedDoc.ID, err)
+				i.stats.AddError(parsedDoc.ID, "storage_error", err.Error())
+				i.stats.StorageErrors++
 			} else {
 				log.Printf("Successfully parsed and saved document %s", parsedDoc.ID)
+				i.stats.SuccessfulParsed++
 			}
 		}
+		i.stats.TotalProcessed++
 	}
 
 	return nil
@@ -144,15 +157,22 @@ func (i *Importer) ImportSingleDossier(ctx context.Context, nummer string, toevo
 		parsedDoc, err := i.parser.ParseDocument(docData)
 		if err != nil {
 			log.Printf("Error parsing document %s-%d: %v", nummer, volgnummer, err)
+			i.stats.AddError(fmt.Sprintf("%s-%d", nummer, volgnummer), "parse_error", err.Error())
+			i.stats.ParseErrors++
 			continue
 		}
 
+		i.stats.IncrementDocumentType(parsedDoc.DocumentType)
 		// save the document (has the full text)
 		if err := i.storage.SaveParsedDocument(ctx, parsedDoc); err != nil {
 			log.Printf("Error saving parsed document %s: %v", parsedDoc.ID, err)
+			i.stats.AddError(parsedDoc.ID, "storage_error", err.Error())
+			i.stats.StorageErrors++
 		} else {
 			log.Printf("Successfully parsed and saved document %s", parsedDoc.ID)
+			i.stats.SuccessfulParsed++
 		}
+		i.stats.TotalProcessed++
 
 		// Rate limiting
 		// time.Sleep(50 * time.Millisecond)

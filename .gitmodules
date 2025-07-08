@@ -1,0 +1,3 @@
+[submodule "etl/schemas/opendataportaal"]
+	path = etl/schemas/opendataportaal
+	url = https://github.com/TweedeKamerDerStaten-Generaal/OpenDataPortaal.git
