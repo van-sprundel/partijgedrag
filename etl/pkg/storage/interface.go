@@ -12,6 +12,12 @@ type Storage interface {
 	SaveVotingResult(ctx context.Context, result interface{}) error
 	SaveIndividueleStemming(ctx context.Context, vote interface{}) error
 
+	SaveODataZaakBatch(ctx context.Context, zaken []interface{}) error
+	SaveODataBesluitBatch(ctx context.Context, besluiten []interface{}) error
+	SaveODataStemmingBatch(ctx context.Context, stemmingen []interface{}) error
+	SaveVotingResultBatch(ctx context.Context, results []interface{}) error
+	SaveIndividueleStemingBatch(ctx context.Context, votes []interface{}) error
+
 	Close() error
 }
 

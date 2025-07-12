@@ -13,6 +13,7 @@ import (
 
 	"gorm.io/driver/postgres"
 	"gorm.io/gorm"
+	"gorm.io/gorm/clause"
 	"gorm.io/gorm/logger"
 )
 
@@ -48,6 +49,199 @@ func NewGormPostgresStorage(config config.StorageConfig) (*GormPostgresStorage, 
 	return &GormPostgresStorage{
 		db: db,
 	}, nil
+}
+
+func (s *GormPostgresStorage) SaveODataZaakBatch(ctx context.Context, zaken []interface{}) error {
+	if len(zaken) == 0 {
+		return nil
+	}
+
+	log.Printf("Starting batch save of %d zaken...", len(zaken))
+	var dbZaken []models.Zaak
+	successCount := 0
+
+	for i, zaakData := range zaken {
+		odataZaak, err := s.convertToODataZaak(zaakData)
+		if err != nil {
+			log.Printf("Warning: failed to convert zaak %d in batch: %v", i, err)
+			continue
+		}
+
+		// Save raw data
+		if err := s.saveRawOData(ctx, "zaak", odataZaak.ID, zaakData); err != nil {
+			log.Printf("Warning: failed to save raw zaak data for %s: %v", odataZaak.ID, err)
+		}
+
+		dbZaak := s.mapZaakToDB(odataZaak)
+		dbZaken = append(dbZaken, *dbZaak)
+		successCount++
+
+		// save related actors
+		for _, actor := range odataZaak.ZaakActor {
+			if err := s.saveZaakActor(ctx, odataZaak.ID, &actor); err != nil {
+				log.Printf("Warning: failed to save zaak actor for %s: %v", odataZaak.ID, err)
+			}
+		}
+	}
+
+	log.Printf("Processed %d/%d zaken successfully, now batch inserting...", successCount, len(zaken))
+
+	if err := s.db.WithContext(ctx).Clauses(clause.OnConflict{
+		UpdateAll: true,
+	}).CreateInBatches(dbZaken, 1000).Error; err != nil {
+		return fmt.Errorf("batch insert failed for %d zaken: %w", len(dbZaken), err)
+	}
+
+	log.Printf("Successfully batch saved %d zaken", len(dbZaken))
+	return nil
+}
+
+func (s *GormPostgresStorage) SaveODataBesluitBatch(ctx context.Context, besluiten []interface{}) error {
+	if len(besluiten) == 0 {
+		return nil
+	}
+
+	log.Printf("Starting batch save of %d besluiten...", len(besluiten))
+	var dbBesluiten []models.Besluit
+	successCount := 0
+
+	for i, besluitData := range besluiten {
+		odataBesluit, err := s.convertToODataBesluit(besluitData)
+		if err != nil {
+			log.Printf("Warning: failed to convert besluit %d in batch: %v", i, err)
+			continue
+		}
+
+		// save raw data
+		if err := s.saveRawOData(ctx, "besluit", odataBesluit.ID, besluitData); err != nil {
+			log.Printf("Warning: failed to save raw besluit data for %s: %v", odataBesluit.ID, err)
+		}
+
+		dbBesluit := s.mapBesluitToDB(odataBesluit)
+		dbBesluiten = append(dbBesluiten, *dbBesluit)
+		successCount++
+	}
+
+	log.Printf("Processed %d/%d besluiten successfully, now batch inserting...", successCount, len(besluiten))
+
+	if err := s.db.WithContext(ctx).Clauses(clause.OnConflict{
+		UpdateAll: true,
+	}).CreateInBatches(dbBesluiten, 1000).Error; err != nil {
+		return fmt.Errorf("batch insert failed for %d besluiten: %w", len(dbBesluiten), err)
+	}
+
+	log.Printf("Successfully batch saved %d besluiten", len(dbBesluiten))
+	return nil
+}
+
+func (s *GormPostgresStorage) SaveODataStemmingBatch(ctx context.Context, stemmingen []interface{}) error {
+	if len(stemmingen) == 0 {
+		return nil
+	}
+
+	log.Printf("Starting batch save of %d stemmingen...", len(stemmingen))
+	var dbStemmingen []models.Stemming
+	successCount := 0
+
+	for i, stemmingData := range stemmingen {
+		odataStemming, err := s.convertToODataStemming(stemmingData)
+		if err != nil {
+			log.Printf("Warning: failed to convert stemming %d in batch: %v", i, err)
+			continue
+		}
+
+		if err := s.saveRawOData(ctx, "stemming", odataStemming.ID, stemmingData); err != nil {
+			log.Printf("Warning: failed to save raw stemming data for %s: %v", odataStemming.ID, err)
+		}
+
+		// save related entities
+		if odataStemming.Persoon != nil {
+			if err := s.savePersoon(ctx, odataStemming.Persoon); err != nil {
+				log.Printf("Warning: failed to save persoon for stemming %s: %v", odataStemming.ID, err)
+			}
+		}
+
+		if odataStemming.Fractie != nil {
+			if err := s.saveFractie(ctx, odataStemming.Fractie); err != nil {
+				log.Printf("Warning: failed to save fractie for stemming %s: %v", odataStemming.ID, err)
+			}
+		}
+
+		dbStemming := s.mapStemmingToDB(odataStemming)
+		dbStemmingen = append(dbStemmingen, *dbStemming)
+		successCount++
+	}
+
+	log.Printf("Processed %d/%d stemmingen successfully, now batch inserting...", successCount, len(stemmingen))
+
+	if err := s.db.WithContext(ctx).Clauses(clause.OnConflict{
+		UpdateAll: true,
+	}).CreateInBatches(dbStemmingen, 1000).Error; err != nil {
+		return fmt.Errorf("batch insert failed for %d stemmingen: %w", len(dbStemmingen), err)
+	}
+
+	log.Printf("Successfully batch saved %d stemmingen", len(dbStemmingen))
+	return nil
+}
+
+func (s *GormPostgresStorage) SaveVotingResultBatch(ctx context.Context, results []interface{}) error {
+	if len(results) == 0 {
+		return nil
+	}
+
+	log.Printf("Starting batch save of %d voting results...", len(results))
+	var dbResults []models.VotingResult
+	successCount := 0
+
+	for i, resultData := range results {
+		odataResult, err := s.convertToODataVotingResult(resultData)
+		if err != nil {
+			log.Printf("Warning: failed to convert voting result %d in batch: %v", i, err)
+			continue
+		}
+
+		dbResult := s.mapVotingResultToDB(odataResult)
+		dbResults = append(dbResults, *dbResult)
+		successCount++
+	}
+
+	log.Printf("Processed %d/%d voting results successfully, now batch inserting...", successCount, len(results))
+
+	if err := s.db.WithContext(ctx).Clauses(clause.OnConflict{
+		UpdateAll: true,
+	}).CreateInBatches(dbResults, 1000).Error; err != nil {
+		return fmt.Errorf("batch insert failed for %d voting results: %w", len(dbResults), err)
+	}
+
+	log.Printf("Successfully batch saved %d voting results", len(dbResults))
+	return nil
+}
+
+func (s *GormPostgresStorage) SaveIndividueleStemingBatch(ctx context.Context, votes []interface{}) error {
+	if len(votes) == 0 {
+		return nil
+	}
+
+	var dbVotes []models.IndividueleStemming
+	for _, voteData := range votes {
+		odataVote, err := s.convertToODataIndividueleStemming(voteData)
+		if err != nil {
+			log.Printf("Warning: failed to convert individual vote in batch: %v", err)
+			continue
+		}
+
+		dbVote := s.mapIndividueleStemmingToDB(odataVote)
+		dbVotes = append(dbVotes, *dbVote)
+	}
+
+	if err := s.db.WithContext(ctx).Clauses(clause.OnConflict{
+		UpdateAll: true,
+	}).CreateInBatches(dbVotes, 1000).Error; err != nil {
+		return fmt.Errorf("batch insert failed for %d individual votes: %w", len(dbVotes), err)
+	}
+
+	log.Printf("Successfully batch saved %d individual votes", len(dbVotes))
+	return nil
 }
 
 func (s *GormPostgresStorage) Close() error {
@@ -300,20 +494,6 @@ func (s *GormPostgresStorage) convertToODataIndividueleStemming(data interface{}
 	}
 
 	return &vote, nil
-}
-
-func (s *GormPostgresStorage) convertToODataMotionSubmitter(data interface{}) (*odata.MotionSubmitter, error) {
-	jsonData, err := json.Marshal(data)
-	if err != nil {
-		return nil, err
-	}
-
-	var submitter odata.MotionSubmitter
-	if err := json.Unmarshal(jsonData, &submitter); err != nil {
-		return nil, err
-	}
-
-	return &submitter, nil
 }
 
 func (s *GormPostgresStorage) mapZaakToDB(odata *odata.Zaak) *models.Zaak {

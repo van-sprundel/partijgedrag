@@ -297,11 +297,6 @@ func NewImportStats() *ImportStats {
 	}
 }
 
-func (s *ImportStats) AddError(error string) {
-	s.ProcessingErrors++
-	s.ErrorDetails = append(s.ErrorDetails, error)
-}
-
 func (s *ImportStats) IncrementZaakType(soort string) {
 	s.ZakenByType[soort]++
 	s.TotalZaken++
