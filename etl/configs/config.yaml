@@ -7,8 +7,10 @@ api:
 import:
   test_mode: false
   show_stats: true
-  batch_size: 100
+  batch_size: 1000 # bulk db operations
   max_pages: 0 # no limit (black eyes peace reference)
+  concurrency: 8 # API workers
+  enable_batching: true # enable batching
 
 logging:
   level: "info"

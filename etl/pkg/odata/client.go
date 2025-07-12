@@ -25,7 +25,6 @@ func NewClient(config config.APIConfig) *Client {
 	}
 }
 
-// QueryOptions represents OData query parameters
 type QueryOptions struct {
 	Filter    string
 	Expand    string
@@ -37,7 +36,6 @@ type QueryOptions struct {
 	Count     bool
 }
 
-// BuildQuery constructs the OData query URL
 func (c *Client) BuildQuery(entitySet string, options QueryOptions) string {
 	baseURL := fmt.Sprintf("%s/%s", c.baseURL, entitySet)
 	params := url.Values{}
@@ -73,18 +71,16 @@ func (c *Client) BuildQuery(entitySet string, options QueryOptions) string {
 	return baseURL
 }
 
-// ExecuteQuery executes an OData query and returns the raw JSON response
 func (c *Client) ExecuteQuery(ctx context.Context, entitySet string, options QueryOptions) ([]byte, error) {
 	queryURL := c.BuildQuery(entitySet, options)
 	return c.MakeRequest(ctx, queryURL)
 }
 
-// GetMotiesWithVotes gets all motions with their associated decisions and votes
 func (c *Client) GetMotiesWithVotes(ctx context.Context, skip int, top int) ([]byte, error) {
 	options := QueryOptions{
 		Filter: "verwijderd eq false and Soort eq 'Motie'",
 		Expand: "Besluit($filter=Verwijderd eq false;$expand=Stemming($filter=Verwijderd eq false;$expand=Persoon,Fractie))",
-		// Don't set Top to enable proper pagination with nextLink
+		// dont set top to enable proper pagination with nextlink
 		Skip: skip,
 	}
 

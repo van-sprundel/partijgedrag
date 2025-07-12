@@ -46,7 +46,25 @@ func main() {
 	defer store.Close()
 
 	client := odata.NewClient(cfg.API)
-	imp := importer.NewImporter(client, store)
+
+	concurrency := cfg.Import.Concurrency
+	if concurrency <= 0 {
+		concurrency = 8
+	}
+
+	batchSize := cfg.Import.BatchSize
+	if batchSize <= 0 {
+		batchSize = 1000
+	}
+
+	var imp *importer.Importer
+	if cfg.Import.EnableBatching {
+		log.Printf("Using high-performance mode: %d workers, batch size %d", concurrency, batchSize)
+		imp = importer.NewImporterWithConfig(client, store, concurrency, batchSize)
+	} else {
+		log.Println("Using standard mode")
+		imp = importer.NewImporter(client, store)
+	}
 
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()

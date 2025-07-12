@@ -19,10 +19,12 @@ type APIConfig struct {
 }
 
 type ImportConfig struct {
-	TestMode  bool `yaml:"test_mode"`
-	ShowStats bool `yaml:"show_stats"`
-	BatchSize int  `yaml:"batch_size"`
-	MaxPages  int  `yaml:"max_pages"`
+	TestMode       bool `yaml:"test_mode"`
+	ShowStats      bool `yaml:"show_stats"`
+	BatchSize      int  `yaml:"batch_size"`
+	MaxPages       int  `yaml:"max_pages"`
+	Concurrency    int  `yaml:"concurrency"`
+	EnableBatching bool `yaml:"enable_batching"`
 }
 
 type LoggingConfig struct {
