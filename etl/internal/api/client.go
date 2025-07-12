@@ -2,6 +2,7 @@ package api
 
 import (
 	"context"
+	"etl/internal/config"
 	"fmt"
 	"io"
 	"net/http"
@@ -9,21 +10,17 @@ import (
 	"time"
 )
 
-const (
-	BaseURL = "https://gegevensmagazijn.tweedekamer.nl/SyncFeed/2.0/Feed"
-)
-
 type Client struct {
 	httpClient *http.Client
 	baseURL    string
 }
 
-func NewClient() *Client {
+func NewClient(config config.APIConfig) *Client {
 	return &Client{
 		httpClient: &http.Client{
 			Timeout: 30 * time.Second,
 		},
-		baseURL: BaseURL,
+		baseURL: config.ODataBaseURL,
 	}
 }
 
@@ -47,6 +44,11 @@ func (c *Client) FetchDocument(ctx context.Context, nummer string, toevoeging st
 
 	docURL := c.buildDocumentURL(nummer, toevoeging, volgnummer)
 	return c.makeRequest(ctx, docURL)
+}
+
+// fetch an enclosure file from the given URL
+func (c *Client) FetchEnclosure(ctx context.Context, enclosureURL string) ([]byte, error) {
+	return c.makeRequest(ctx, enclosureURL)
 }
 
 func (c *Client) makeRequest(ctx context.Context, url string) ([]byte, error) {
