@@ -17,16 +17,6 @@ type Feed struct {
 	Entries []Entry   `xml:"entry"`
 }
 
-// extract the next URL from the feed's links
-func (f *Feed) GetNextURL() string {
-	for _, link := range f.Links {
-		if link.Rel == "next" {
-			return link.Href
-		}
-	}
-	return ""
-}
-
 type Author struct {
 	Name  string `xml:"name"`
 	URI   string `xml:"uri"`
@@ -47,16 +37,6 @@ type Entry struct {
 	Content  Content   `xml:"content"`
 }
 
-// extract the next URL from the entry's links
-func (e *Entry) GetNextURL() string {
-	for _, link := range e.Links {
-		if link.Rel == "next" {
-			return link.Href
-		}
-	}
-	return ""
-}
-
 type Category struct {
 	Term string `xml:"term,attr"`
 }
@@ -64,6 +44,8 @@ type Category struct {
 type Content struct {
 	Type             string            `xml:"type,attr"`
 	Kamerstukdossier *Kamerstukdossier `xml:"kamerstukdossier,omitempty"`
+	Besluit          *Besluit          `xml:"besluit,omitempty"`
+	Stemming         *Stemming         `xml:"stemming,omitempty"`
 }
 
 type Kamerstukdossier struct {
@@ -354,42 +336,7 @@ type PaginationInfo struct {
 	HasMore          bool
 }
 
-// Error tracking structures
-type ImportStats struct {
-	TotalProcessed   int            `json:"total_processed"`
-	SuccessfulParsed int            `json:"successful_parsed"`
-	ParseErrors      int            `json:"parse_errors"`
-	StorageErrors    int            `json:"storage_errors"`
-	DocumentTypes    map[string]int `json:"document_types"`
-	ErrorsByCategory map[string]int `json:"errors_by_category"`
-	ErrorDetails     []ErrorDetail  `json:"error_details"`
-}
-
-type ErrorDetail struct {
-	DocumentID   string `json:"document_id"`
-	ErrorType    string `json:"error_type"`
-	ErrorMessage string `json:"error_message"`
-	Timestamp    string `json:"timestamp"`
-}
-
-func NewImportStats() *ImportStats {
-	return &ImportStats{
-		DocumentTypes:    make(map[string]int),
-		ErrorsByCategory: make(map[string]int),
-		ErrorDetails:     make([]ErrorDetail, 0),
-	}
-}
-
-func (s *ImportStats) AddError(docID, errorType, message string) {
-	s.ErrorDetails = append(s.ErrorDetails, ErrorDetail{
-		DocumentID:   docID,
-		ErrorType:    errorType,
-		ErrorMessage: message,
-		Timestamp:    time.Now().Format(time.RFC3339),
-	})
-	s.ErrorsByCategory[errorType]++
-}
-
-func (s *ImportStats) IncrementDocumentType(docType string) {
-	s.DocumentTypes[docType]++
+// used in XML documents
+type Reference struct {
+	Ref string `xml:"ref,attr"`
 }
