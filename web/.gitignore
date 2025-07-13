@@ -1,0 +1,8 @@
+node_modules
+.env
+.env.production
+.idea
+postgres-data
+dist
+build
+types

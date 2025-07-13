@@ -10,20 +10,19 @@ import {FractiesService} from "./fracties.service.js";
 export class FractiesController {
   constructor(private readonly fractiesService: FractiesService ) {}
 
+  // changes
+
   @Public()
   @TsRestHandler(fractieContract.getAll)
   async handler() {
     const fracties = await this.fractiesService.getAll()
-
-    return tsRestHandler(fractieContract, {
-      getAll: async () => {
-        return {
-          status: 200,
-          body: {
-            fracties
-          },
-        };
-      },
-    });
+    return tsRestHandler(fractieContract.getAll, async ()=>{
+      return {
+        body: {
+          fracties
+        },
+        status: 200,
+      }
+    })
   }
 }

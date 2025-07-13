@@ -1,0 +1,216 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id                   Int                    @unique @default(autoincrement())
+  email                String
+  password             String
+  UserSession          UserSession[]
+  PasswordResetRequest PasswordResetRequest[]
+
+  @@map("users")
+}
+
+model UserSession {
+  id           Int      @id @default(autoincrement())
+  userId       Int
+  user         User     @relation(fields: [userId], references: [id])
+  expiresAt    DateTime @db.Timestamptz(3)
+  accessToken  String
+  refreshToken String
+
+  @@unique([userId, accessToken])
+  @@map("user_sessions")
+}
+
+model PasswordResetRequest {
+  id        Int      @id @default(autoincrement())
+  userId    Int
+  user      User     @relation(fields: [userId], references: [id])
+  token     String
+  expiresAt DateTime @db.Timestamptz(3)
+
+  @@unique([userId])
+  @@map("password_reset_requests")
+}
+
+// partijgedrag
+
+model Zaak {
+  id                     String    @id @map("id")
+  nummer                 String    @map("nummer")
+  onderwerp              String    @map("onderwerp")
+  soort                  String    @map("soort")
+  titel                  String    @map("titel")
+  citeertitel            String?   @map("citeertitel")
+  alias                  String?   @map("alias")
+  status                 String    @map("status")
+  datum                  DateTime? @map("datum")
+  gestart_op             DateTime? @map("gestart_op")
+  organisatie            String    @map("organisatie")
+  grondslagvoorhang      String?   @map("grondslagvoorhang")
+  termijn                String?   @map("termijn")
+  vergaderjaar           String    @map("vergaderjaar")
+  volgnummer             Int?      @map("volgnummer")
+  huidige_behandelstatus String?   @map("huidige_behandelstatus")
+  afgedaan               Boolean   @map("afgedaan")
+  groot_project          Boolean   @map("groot_project")
+  gewijzigd_op           DateTime? @map("gewijzigd_op")
+  api_gewijzigd_op       DateTime? @map("api_gewijzigd_op")
+  verwijderd             Boolean   @map("verwijderd")
+  kabinetsappreciatie    String    @map("kabinetsappreciatie")
+  datum_afgedaan         DateTime? @map("datum_afgedaan")
+  kamer                  String    @map("kamer")
+  created_at             DateTime  @default(now()) @map("created_at")
+  updated_at             DateTime  @updatedAt @map("updated_at")
+
+  @@map("zaken")
+}
+
+model Besluit {
+  id                               String    @id @map("id")
+  agendapunt_id                    String?   @map("agendapunt_id")
+  stemmings_soort                  String?   @map("stemmings_soort")
+  besluit_soort                    String?   @map("besluit_soort")
+  besluit_tekst                    String?   @map("besluit_tekst")
+  opmerking                        String?   @map("opmerking")
+  status                           String?   @map("status")
+  agendapunt_zaak_besluit_volgorde Int?      @map("agendapunt_zaak_besluit_volgorde")
+  gewijzigd_op                     DateTime? @map("gewijzigd_op")
+  api_gewijzigd_op                 DateTime? @map("api_gewijzigd_op")
+  verwijderd                       Boolean   @map("verwijderd")
+  created_at                       DateTime  @default(now()) @map("created_at")
+  updated_at                       DateTime  @updatedAt @map("updated_at")
+
+  @@map("besluiten")
+}
+
+model Stemming {
+  id                String    @id @map("id")
+  besluit_id        String?   @map("besluit_id")
+  persoon_id        String?   @map("persoon_id")
+  fractie_id        String?   @map("fractie_id")
+  soort             String?   @map("soort")
+  fractie_grootte   Int?      @map("fractie_grootte")
+  actor_naam        String?   @map("actor_naam")
+  actor_fractie     String?   @map("actor_fractie")
+  vergissing        Boolean   @map("vergissing")
+  sid_actor_lid     String?   @map("sid_actor_lid")
+  sid_actor_fractie String?   @map("sid_actor_fractie")
+  gewijzigd_op      DateTime? @map("gewijzigd_op")
+  api_gewijzigd_op  DateTime? @map("api_gewijzigd_op")
+  verwijderd        Boolean   @map("verwijderd")
+  created_at        DateTime  @default(now()) @map("created_at")
+  updated_at        DateTime  @updatedAt @map("updated_at")
+
+  @@map("stemmingen")
+}
+
+model Persoon {
+  id                String    @id @map("id")
+  titels            String?   @map("titels")
+  initialen         String?   @map("initialen")
+  tussenvoegsel     String?   @map("tussenvoegsel")
+  achternaam        String?   @map("achternaam")
+  voornamen         String?   @map("voornamen")
+  roepnaam          String?   @map("roepnaam")
+  geslacht          String?   @map("geslacht")
+  geboortedatum     DateTime? @map("geboortedatum")
+  geboorteplaats    String?   @map("geboorteplaats")
+  geboorteland      String?   @map("geboorteland")
+  overlijdensdatum  DateTime? @map("overlijdensdatum")
+  overlijdensplaats String?   @map("overlijdensplaats")
+  overlijdensland   String?   @map("overlijdensland")
+  woonplaats        String?   @map("woonplaats")
+  land              String?   @map("land")
+  bijgewerkt        DateTime? @map("bijgewerkt")
+  verwijderd        Boolean   @map("verwijderd")
+  created_at        DateTime  @default(now()) @map("created_at")
+  updated_at        DateTime  @updatedAt @map("updated_at")
+
+  @@map("personen")
+}
+
+model Fractie {
+  id               String    @id @map("id")
+  nummer           Int?      @map("nummer")
+  afkorting        String?   @map("afkorting")
+  naam_nl          String?   @map("naam_nl")
+  naam_en          String?   @map("naam_en")
+  aantal_zetels    Int?      @map("aantal_zetels")
+  aantal_stemmen   Int?      @map("aantal_stemmen")
+  datum_actief     DateTime? @map("datum_actief")
+  datum_inactief   DateTime? @map("datum_inactief")
+  content_type     String?   @map("content_type")
+  content_length   Int?      @map("content_length")
+  gewijzigd_op     DateTime? @map("gewijzigd_op")
+  api_gewijzigd_op DateTime? @map("api_gewijzigd_op")
+  verwijderd       Boolean   @map("verwijderd")
+  created_at       DateTime  @default(now()) @map("created_at")
+  updated_at       DateTime  @updatedAt @map("updated_at")
+
+  @@map("fracties")
+}
+
+model ZaakActor {
+  id            String    @id @map("id")
+  zaak_id       String?   @map("zaak_id")
+  persoon_id    String?   @map("persoon_id")
+  fractie_id    String?   @map("fractie_id")
+  relatie       String?   @map("relatie")
+  actor_naam    String?   @map("actor_naam")
+  actor_fractie String?   @map("actor_fractie")
+  bijgewerkt    DateTime? @map("bijgewerkt")
+  verwijderd    Boolean   @map("verwijderd")
+  created_at    DateTime  @default(now()) @map("created_at")
+  updated_at    DateTime  @updatedAt @map("updated_at")
+
+  @@map("zaak_actors")
+}
+
+model RawOData {
+  id         Int      @id @default(autoincrement()) @map("id")
+  type       String   @map("type")
+  entity_id  String   @map("entity_id")
+  data       Json     @map("data")
+  created_at DateTime @default(now()) @map("created_at")
+
+  @@map("raw_odata")
+}
+
+model voting_result {
+  id            Int       @id @default(autoincrement()) @map("id")
+  document_id   String    @map("document_id")
+  besluit_id    String    @map("besluit_id")
+  besluit_tekst String    @map("besluit_tekst")
+  voting_type   String    @map("voting_type")
+  party_votes   Json      @map("party_votes")
+  date          DateTime? @map("date")
+  status        String    @map("status")
+  created_at    DateTime  @default(now()) @map("created_at")
+  updated_at    DateTime  @updatedAt @map("updated_at")
+
+  @@map("voting_results")
+}
+
+model individuele_stemming {
+  id            Int       @id @default(autoincrement()) @map("id")
+  besluit_id    String    @map("besluit_id")
+  person_id     String    @map("person_id")
+  person_name   String    @map("person_name")
+  fractie_id    String    @map("fractie_id")
+  fractie_name  String    @map("fractie_name")
+  vote_type     String    @map("vote_type")
+  is_correction Boolean   @map("is_correction")
+  date          DateTime? @map("date")
+  created_at    DateTime  @default(now()) @map("created_at")
+  updated_at    DateTime  @updatedAt @map("updated_at")
+
+  @@map("individuele_stemming")
+}

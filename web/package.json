@@ -1,0 +1,34 @@
+{
+  "name": "fullstack-typescript-template",
+  "version": "1.0.0",
+  "keywords": [],
+  "author": "Merlijn Mac Gillavry <merlijnmac@gmail.com>",
+  "scripts": {
+    "dev:frontend": "npm run dev -w apps/frontend",
+    "dev:backend": "npm run start:dev -w apps/backend",
+    "dev:database": "npm run dbQueries:watch -w apps/backend",
+    "dev:ts-contracts": "npm run dev -w packages/ts-rest-contracts",
+    "dev": "concurrently --prefix '[{time}][{name}]' -n 'frontend,backend,database,contracts' -c 'blue,green,yellow,pink' \"npm run dev:frontend\" \"npm run dev:backend\" \"npm run dev:database\" \"npm run dev:ts-contracts\" ",
+    "build-workspaces": "npm run build --workspaces --if-present",
+    "build-packages": "npm run build --workspace=packages",
+    "build-apps": "npm run build --workspace=apps",
+    "build": "npm run build-packages && npm run build-apps",
+    "serve": "concurrently --prefix '[{time}][{name}]' -n 'frontend,backend' -c 'blue,green' \"npm run serve:frontend\" \"npm run serve:backend\"",
+    "serve:frontend": "npm run start -w apps/frontend",
+    "serve:backend": "npm run start:prod -w apps/backend"
+  },
+  "license": "ISC",
+  "description": "",
+  "private": "true",
+  "workspaces": [
+    "packages/*",
+    "apps/*"
+  ],
+  "dependencies": {
+    "@nestjs/jwt": "^11.0.0",
+    "@sendgrid/mail": "^8.1.4",
+    "concurrently": "^9.1.2",
+    "cross-env": "^7.0.3",
+    "dotenv": "^16.4.7"
+  }
+}

@@ -1,0 +1,91 @@
+name: Build and Deploy
+
+on:
+  push:
+    branches:
+      - main
+
+jobs:
+  # ───────────── Build and Push Docker Image ───────────── #
+  build-and-push:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v3
+
+      - name: Install Node.js
+        uses: actions/setup-node@v3
+        with:
+          node-version: "20" # Align with your Dockerfile
+
+      - name: Install Dependencies
+        run: | 
+          cd web
+          npm ci
+
+      - name: Build Applications and Contracts
+        run: |
+          cd web
+          npm run build
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Log in to GitHub Container Registry
+        run: echo "${{ secrets.GHCR_TOKEN }}" | docker login ghcr.io -u ${{ github.actor }} --password-stdin
+
+      - name: Build and Push Multi-Platform Image
+        uses: docker/build-push-action@v5
+        with:
+          context: .
+          push: true
+          platforms: linux/amd64,linux/arm64
+          tags: ghcr.io/merlijnmacgillavry/fullstack-app:latest
+
+  # ───────────── Set Up Cloudflare Tunnel ───────────── #
+
+
+  # ───────────── Deploy to Raspberry Pi ───────────── #
+  deploy:
+    needs: [build-and-push]  # Waits for build and Cloudflare setup to finish
+    runs-on: ubuntu-latest
+    steps:
+      - name: Install Cloudflare Tunnel
+        run: |
+          curl -fsSL https://github.com/cloudflare/cloudflared/releases/latest/download/cloudflared-linux-amd64 -o cloudflared
+          chmod +x cloudflared
+          sudo mv cloudflared /usr/local/bin/
+
+      - name: Add Cloudflare Access Service Token
+        run: |
+          mkdir -p ~/.cloudflared
+          echo -e "[Credentials]\nClientID=${{ secrets.CLOUDFLARE_CLIENT_ID }}\nClientSecret=${{ secrets.CLOUDFLARE_CLIENT_SECRET }}" > ~/.cloudflared/credentials.conf 
+
+      - name: Set up SSH
+        run: |
+          mkdir -p ~/.ssh
+          echo "${{ secrets.SSH_KEY }}" > ~/.ssh/id_rsa
+          chmod 600 ~/.ssh/id_rsa
+
+          # Configure SSH to use Cloudflare Tunnel
+          echo -e "Host pi-alpha\n  HostName pi-alpha.merlijnmac.nl\n  IdentityFile ~/.ssh/id_rsa\n  ProxyCommand cloudflared access ssh --hostname %h\n  StrictHostKeyChecking no" > ~/.ssh/config
+
+      - name: Test SSH Connection
+        run: ssh -vvv lord@pi-alpha "echo 'SSH Connection Successful'"
+
+      - name: Deploy Updates
+        run: |
+          ssh lord@pi-alpha << 'EOF'
+            cd /home/lord/Fullstack-typescript-template
+            git pull
+
+            echo "${{ secrets.GHCR_TOKEN }}" | docker login ghcr.io -u ${{ github.repository_owner }} --password-stdin
+
+            docker pull ghcr.io/merlijnmacgillavry/fullstack-app:latest
+            docker compose down
+            cd apps/backend
+            npx prisma migrate dev generate
+            npm run pgtyped:compile
+            cd ../../
+            docker compose up -d
+          EOF

@@ -1,0 +1,29 @@
+services:
+  postgres:
+    image: postgres:15
+    networks:
+      - main
+    env_file:
+      - .env.production
+    volumes:
+      - ./postgres-data:/var/lib/postgresql/data
+    ports:
+      - 5432:5432
+    healthcheck:
+      test: [ "CMD", "pg_isready", "-U", "postgres" ]
+      interval: 5s
+      retries: 5
+  app:
+    image: ghcr.io/merlijnmacgillavry/fullstack-app:latest
+    env_file:
+      - .env.production
+    networks:
+      - main
+    depends_on:
+      postgres:
+        condition: service_healthy
+    ports:
+      - "80:3000"
+networks:
+  main:
+    driver: bridge
