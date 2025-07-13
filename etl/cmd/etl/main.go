@@ -3,8 +3,13 @@ package main
 import (
 	"context"
 	"encoding/json"
+	"etl/internal/config"
+	"etl/internal/importer"
+	"etl/pkg/odata"
+	"etl/pkg/storage"
 	"flag"
 	"fmt"
+	"gopkg.in/yaml.v3"
 	"log"
 	"net/url"
 	"os"
@@ -13,13 +18,6 @@ import (
 	"strings"
 	"syscall"
 	"time"
-
-	"etl/internal/config"
-	"etl/internal/importer"
-	"etl/pkg/odata"
-	"etl/pkg/storage"
-
-	"gopkg.in/yaml.v3"
 )
 
 func main() {
