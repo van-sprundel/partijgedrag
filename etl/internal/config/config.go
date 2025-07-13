@@ -1,4 +1,3 @@
-// internal/config/config.go
 package config
 
 import (
@@ -6,27 +5,26 @@ import (
 )
 
 type Config struct {
-	API        APIConfig        `yaml:"api"`
-	Documents  DocumentsConfig  `yaml:"documents"`
-	Categories []string         `yaml:"categories"`
-	Pagination PaginationConfig `yaml:"pagination"`
-	Logging    LoggingConfig    `yaml:"logging"`
-	Storage    StorageConfig    `yaml:"storage"`
+	API     APIConfig     `yaml:"api"`
+	Import  ImportConfig  `yaml:"import"`
+	Logging LoggingConfig `yaml:"logging"`
+	Storage StorageConfig `yaml:"storage"`
 }
 
 type APIConfig struct {
-	BaseURL   string        `yaml:"base_url"`
-	Timeout   time.Duration `yaml:"timeout"`
-	UserAgent string        `yaml:"user_agent"`
+	ODataBaseURL    string        `yaml:"odata_base_url"`
+	SyncFeedBaseURL string        `yaml:"syncfeed_base_url"`
+	Timeout         time.Duration `yaml:"timeout"`
+	UserAgent       string        `yaml:"user_agent"`
 }
 
-type DocumentsConfig struct {
-	BaseURL string `yaml:"base_url"`
-}
-
-type PaginationConfig struct {
-	MaxPages  int `yaml:"max_pages"`
-	BatchSize int `yaml:"batch_size"`
+type ImportConfig struct {
+	TestMode       bool `yaml:"test_mode"`
+	ShowStats      bool `yaml:"show_stats"`
+	BatchSize      int  `yaml:"batch_size"`
+	MaxPages       int  `yaml:"max_pages"`
+	Concurrency    int  `yaml:"concurrency"`
+	EnableBatching bool `yaml:"enable_batching"`
 }
 
 type LoggingConfig struct {
@@ -35,8 +33,10 @@ type LoggingConfig struct {
 }
 
 type StorageConfig struct {
-	Type string `yaml:"type"`
-	Path string `yaml:"path"`
+	Type     string `yaml:"type"`
+	Host     string `yaml:"host"`
+	Port     int    `yaml:"port"`
+	Database string `yaml:"database"`
+	Username string `yaml:"username"`
+	Password string `yaml:"password"` // either prompted or set using DATABASE_URL env var
 }
-
-// pkg/importer/importer.go

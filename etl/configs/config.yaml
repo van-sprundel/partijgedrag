@@ -1,17 +1,25 @@
 api:
-  base_url: "https://gegevensmagazijn.tweedekamer.nl/SyncFeed/2.0/Feed"
+  odata_base_url: "https://gegevensmagazijn.tweedekamer.nl/OData/v4/2.0"
+  syncfeed_base_url: "https://opendata.tweedekamer.nl/SyncFeed/2.0"
   timeout: 30s
-  user_agent: "xml-importer/1.0"
-documents:
-  base_url: "https://zoek.officielebekendmakingen.nl"
-categories:
-  - "Kamerstukdossier"
-pagination:
+  user_agent: "ETL/1.0"
+
+import:
+  test_mode: false
+  show_stats: true
+  batch_size: 1000 # bulk db operations
   max_pages: 0 # no limit (black eyes peace reference)
-  batch_size: 250
+  concurrency: 8 # API workers
+  enable_batching: true # enable batching
+
 logging:
   level: "info"
-  format: "json"
+  format: "text"
+
 storage:
-  type: "file"
-  path: "./data"
+  type: "postgres"
+  host: "localhost"
+  port: 5432
+  database: "partijgedrag"
+  username: "etl_user"
+  password: "etl_password"
