@@ -79,7 +79,7 @@ func (c *Client) ExecuteQuery(ctx context.Context, entitySet string, options Que
 func (c *Client) GetMotiesWithVotes(ctx context.Context, skip int, top int) ([]byte, error) {
 	options := QueryOptions{
 		Filter: "verwijderd eq false and Soort eq 'Motie'",
-		Expand: "Besluit($filter=Verwijderd eq false;$expand=Stemming($filter=Verwijderd eq false;$expand=Persoon,Fractie))",
+		Expand: "Besluit($filter=Verwijderd eq false;$expand=Stemming($filter=Verwijderd eq false;$expand=Persoon,Fractie)),ZaakActor",
 		// dont set top to enable proper pagination with nextlink
 		Skip: skip,
 	}
