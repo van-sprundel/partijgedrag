@@ -6,20 +6,20 @@ export type IGetFractiesParams = void;
 
 /** 'GetFracties' return type */
 export interface IGetFractiesResult {
-  aantal_stemmen: number | null;
-  aantal_zetels: number | null;
+  aantal_stemmen: string | null;
+  aantal_zetels: string | null;
   afkorting: string | null;
   api_gewijzigd_op: Date | null;
-  content_length: number | null;
+  content_length: string | null;
   content_type: string | null;
-  created_at: Date;
+  created_at: Date | null;
   datum_actief: Date | null;
   datum_inactief: Date | null;
   gewijzigd_op: Date | null;
   id: string;
   naam_en: string | null;
   naam_nl: string | null;
-  nummer: number | null;
+  nummer: string | null;
   updated_at: Date;
   verwijderd: boolean;
 }

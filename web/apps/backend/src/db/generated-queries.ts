@@ -5,6 +5,7 @@
 
 import { PreparedQuery } from '@pgtyped/runtime';
 import * as fracties from './queries/generated/fracties.sql.js';
+import * as moties from './queries/generated/moties.sql.js';
 import * as passwordResetRequest from './queries/generated/password-reset-request.sql.js';
 import * as session from './queries/generated/session.sql.js';
 import * as userSession from './queries/generated/user-session.sql.js';
@@ -19,6 +20,7 @@ export type WrappedPreparedQueries<T> = {
 
 export type GeneratedQueryTypes = {
   fracties: typeof fracties;
+  moties: typeof moties;
   passwordResetRequest: typeof passwordResetRequest;
   session: typeof session;
   userSession: typeof userSession;
@@ -27,6 +29,7 @@ export type GeneratedQueryTypes = {
 
 export abstract class ServiceWithGeneratedQueries {
   declare fracties: WrappedPreparedQueries<GeneratedQueryTypes['fracties']>;
+  declare moties: WrappedPreparedQueries<GeneratedQueryTypes['moties']>;
   declare passwordResetRequest: WrappedPreparedQueries<GeneratedQueryTypes['passwordResetRequest']>;
   declare session: WrappedPreparedQueries<GeneratedQueryTypes['session']>;
   declare userSession: WrappedPreparedQueries<GeneratedQueryTypes['userSession']>;
@@ -35,6 +38,7 @@ export abstract class ServiceWithGeneratedQueries {
 
 export const generatedQueries: GeneratedQueryTypes = {
   fracties,
+  moties,
   passwordResetRequest,
   session,
   userSession,

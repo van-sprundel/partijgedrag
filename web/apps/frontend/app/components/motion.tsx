@@ -1,30 +1,34 @@
 import { Avatar, Card, Flex, Text } from "@radix-ui/themes"
 import { Box } from "@radix-ui/themes/components/box"
+import type { Motie } from '@fullstack-typescript-template/ts-rest-contracts/dist/schemas/moties.schema';
 
 
 
-export type MotionCardProps = {
 
-}
 
-export default function MotionCard() {
+export default function MotionCard({ motie }: { motie: Motie }) {
     return (<Box maxWidth="240px">
         <Card>
-            <Flex gap="3" align="center">
-                <Avatar
-                    size="3"
-                    src="https://images.unsplash.com/photo-1607346256330-dee7af15f7c5?&w=64&h=64&dpr=2&q=70&crop=focalpoint&fp-x=0.67&fp-y=0.5&fp-z=1.4&fit=crop"
-                    radius="full"
-                    fallback="T"
-                />
-                <Box>
+            <Flex gap="3" align="center" direction='column' width={'100%'}>
+                <Flex align="center" direction="row" justify='between' width="100%">
                     <Text as="div" size="2" weight="bold">
-                        Teodros Girmay
+                        {motie.titel}
                     </Text>
                     <Text as="div" size="2" color="gray">
-                        Engineering
+                        {motie.onderwerp}
                     </Text>
-                </Box>
+                    <Text as="div" size="2" color="gray">
+                        {motie.vergaderjaar}
+                    </Text>
+                </Flex>
+                <Flex align="center" direction="row" justify='between' width="100%">
+                    <Text as="div" size="2" color="gray">
+                        {motie.status}
+                    </Text>
+                    <Text as="div" size="2" color="gray">
+                        {motie.gestartOp?.toString()}
+                    </Text>
+                </Flex>
             </Flex>
         </Card>
     </Box>)
