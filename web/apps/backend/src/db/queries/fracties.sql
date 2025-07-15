@@ -1,2 +1,3 @@
-/* @name getFracties */
-SELECT * FROM fracties;
+/* @name get */
+SELECT * FROM fracties as z
+LIMIT :limit! OFFSET :offset!;

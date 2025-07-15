@@ -6,7 +6,7 @@ import type { Motie } from '@fullstack-typescript-template/ts-rest-contracts/dis
 
 
 
-export default function MotionCard({ motie }: { motie: Motie }) {
+export default function MotieCard({ motie }: { motie: Motie }) {
     return (<Box maxWidth="400px">
         <Card>
             <Flex gap="3" align="center" direction='column' width={'100%'}>

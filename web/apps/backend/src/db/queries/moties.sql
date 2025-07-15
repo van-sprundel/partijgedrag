@@ -1,2 +1,3 @@
 /* @name get */
-SELECT * FROM "zaken" LIMIT :limit! OFFSET :offset!;
+SELECT * FROM "zaken" as z
+LIMIT :limit! OFFSET :offset!;

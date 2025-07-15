@@ -1,12 +1,17 @@
-import { HttpException, HttpStatus, Injectable } from '@nestjs/common';
-import { RegisterBody } from '@fullstack-typescript-template/ts-rest-contracts';
+import { Injectable } from '@nestjs/common';
 import { DbService } from '../db/db.service.js';
 
 @Injectable()
 export class FractiesService {
   constructor(private db: DbService) {}
 
-  async getAll() {
-    return await this.db.fracties.getFracties()
+  async getAll(page?: number, pageSize?: number) {
+    const limit = pageSize ?? 10;
+    const offset = (page ?? 0) * limit;
+
+    return await this.db.fracties.get({
+      limit,
+      offset,
+    });
   }
 }
