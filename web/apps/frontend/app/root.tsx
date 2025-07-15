@@ -4,14 +4,15 @@ import {
   Meta,
   Outlet,
   Scripts,
-  ScrollRestoration, useLoaderData,
+  ScrollRestoration,
 } from 'react-router';
-
+import { ThemePanel,Theme } from "@radix-ui/themes";
 import type { Route } from './+types/root';
-import './app.css';
-import {  authLoader } from '~/loaders/auth-loader';
-import { useEffect } from 'react';
+import "./app.scss";
+
 import { Toaster } from 'sonner';
+import "@radix-ui/themes/styles.css";
+import * as React from "react";
 
 export const links: Route.LinksFunction = () => [
   { rel: 'preconnect', href: 'https://fonts.googleapis.com' },
@@ -27,31 +28,9 @@ export const links: Route.LinksFunction = () => [
 ];
 
 
-export async function loader(loaderData: Route.LoaderArgs) {
-  return await authLoader(loaderData);
-}
-
 export function Layout({ children }: { children: React.ReactNode }) {
-
-  useEffect(() => {
-    const prefersDarkScheme = window.matchMedia('(prefers-color-scheme: dark)');
-
-    if (!prefersDarkScheme.matches) {
-      window.document.documentElement.classList.remove('dark');
-    }
-    prefersDarkScheme.addEventListener('change', (e) => {
-      if (e.matches) {
-        // If user changes to dark mode
-        window.document.documentElement.classList.add('dark');
-      } else {
-        // If user changes to light mode
-        window.document.documentElement.classList.remove('dark');
-      }
-    });
-  }, []);
-
   return (
-    <html lang="en" className={'dark'}>
+    <html lang="en" >
       <head>
         <meta charSet="utf-8" />
         <meta name="viewport" content="width=device-width, initial-scale=1" />
@@ -59,7 +38,8 @@ export function Layout({ children }: { children: React.ReactNode }) {
         <Links />
       </head>
       <body style={{ minHeight: '100vh' }}>
-        {children}
+
+      {children}
         <ScrollRestoration />
         <Toaster />
         <Scripts />
@@ -70,9 +50,13 @@ export function Layout({ children }: { children: React.ReactNode }) {
 
 export default function App() {
 
+    return(
+        <Theme grayColor="gray" radius="small" >
+            <Outlet />
+        </Theme>
 
 
-  return <Outlet />;
+    )
 }
 
 export function ErrorBoundary({ error }: Route.ErrorBoundaryProps) {
