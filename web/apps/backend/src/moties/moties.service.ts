@@ -5,8 +5,16 @@ import { Injectable } from '@nestjs/common';
 export class MotiesService {
   constructor(private db: DbService) {}
 
-  async getAll() {
-    return (await this.db.moties.getAll()).map((m) => ({
+  async getAll(page?: number, pageSize?: number) {
+    const limit = pageSize ?? 10;
+    const offset = (page ?? 0) * limit;
+
+    return (
+      await this.db.moties.get({
+        limit,
+        offset,
+      })
+    ).map((m) => ({
       id: m.id,
       onderwerp: m.onderwerp,
       titel: m.titel,

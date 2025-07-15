@@ -16,8 +16,8 @@ export class MotiesController {
   @Public()
   @TsRestHandler(motieContract.getAll)
   async handler() {
-    return await tsRestHandler(motieContract.getAll, async () => {
-      const moties = await this.motiesService.getAll();
+    return await tsRestHandler(motieContract.getAll, async ({ query }) => {
+      const moties = await this.motiesService.getAll(query.page, query.pageSize);
       return {
         body: {
           moties,

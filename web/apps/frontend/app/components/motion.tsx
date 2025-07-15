@@ -7,7 +7,7 @@ import type { Motie } from '@fullstack-typescript-template/ts-rest-contracts/dis
 
 
 export default function MotionCard({ motie }: { motie: Motie }) {
-    return (<Box maxWidth="240px">
+    return (<Box maxWidth="400px">
         <Card>
             <Flex gap="3" align="center" direction='column' width={'100%'}>
                 <Flex align="center" direction="row" justify='between' width="100%">

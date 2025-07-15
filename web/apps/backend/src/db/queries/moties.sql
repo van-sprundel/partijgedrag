@@ -1,2 +1,2 @@
-/* @name getAll */
-SELECT * FROM "zaken" LIMIT 10;
+/* @name get */
+SELECT * FROM "zaken" LIMIT :limit! OFFSET :offset!;
