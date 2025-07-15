@@ -82,43 +82,103 @@ func (cd CustomDate) ToTimePtr() *time.Time {
 	return &cd.Time
 }
 
+// CustomStringNumber handles fields that can be either string or number in JSON
+type CustomStringNumber struct {
+	Value string
+	Valid bool
+}
+
+// custom JSON unmarshaling for string/number fields
+func (csn *CustomStringNumber) UnmarshalJSON(data []byte) error {
+	// Remove quotes from the JSON string
+	str := strings.Trim(string(data), `"`)
+
+	if str == "null" || str == "" {
+		csn.Valid = false
+		return nil
+	}
+
+	// Try as quoted string first
+	var strValue string
+	if err := json.Unmarshal(data, &strValue); err == nil {
+		csn.Value = strValue
+		csn.Valid = true
+		return nil
+	}
+
+	// Try as number
+	var numValue float64
+	if err := json.Unmarshal(data, &numValue); err == nil {
+		// Convert number to string
+		if numValue == float64(int64(numValue)) {
+			// It's an integer
+			csn.Value = fmt.Sprintf("%.0f", numValue)
+		} else {
+			// It's a float
+			csn.Value = fmt.Sprintf("%g", numValue)
+		}
+		csn.Valid = true
+		return nil
+	}
+
+	return fmt.Errorf("unable to parse string/number: %s", str)
+}
+
+// custom JSON marshaling for string/number fields
+func (csn CustomStringNumber) MarshalJSON() ([]byte, error) {
+	if !csn.Valid {
+		return json.Marshal(nil)
+	}
+	return json.Marshal(csn.Value)
+}
+
+// String returns the string value
+func (csn CustomStringNumber) String() string {
+	if !csn.Valid {
+		return ""
+	}
+	return csn.Value
+}
+
 // a case/motion
 // usually it's one of these three proposals:
 // - Law addition
 // - Law change
 // - Individuele stemming
 type Zaak struct {
-	ID                    string      `json:"Id"`
-	Nummer                string      `json:"Nummer"`
-	Onderwerp             string      `json:"Onderwerp"`
-	Soort                 string      `json:"Soort"`
-	Titel                 string      `json:"Titel"`
-	Citeertitel           *string     `json:"Citeertitel"`
-	Alias                 *string     `json:"Alias"`
-	Status                string      `json:"Status"`
-	Datum                 *CustomDate `json:"Datum"`
-	GestartOp             time.Time   `json:"GestartOp"`
-	Organisatie           string      `json:"Organisatie"`
-	Grondslagvoorhang     *string     `json:"Grondslagvoorhang"`
-	Termijn               *string     `json:"Termijn"`
-	Vergaderjaar          string      `json:"Vergaderjaar"`
-	Volgnummer            int         `json:"Volgnummer"`
-	HuidigeBehandelstatus *string     `json:"HuidigeBehandelstatus"`
-	Afgedaan              bool        `json:"Afgedaan"`
-	GrootProject          bool        `json:"GrootProject"`
-	GewijzigdOp           time.Time   `json:"GewijzigdOp"`
-	ApiGewijzigdOp        time.Time   `json:"ApiGewijzigdOp"`
-	Verwijderd            bool        `json:"Verwijderd"`
-	Kabinetsappreciatie   string      `json:"Kabinetsappreciatie"`
-	DatumAfgedaan         *CustomDate `json:"DatumAfgedaan"`
-	Kamer                 string      `json:"Kamer"`
-	Besluit               []Besluit   `json:"Besluit,omitempty"`
-	ZaakActor             []ZaakActor `json:"ZaakActor,omitempty"`
+	ID                    string             `json:"Id"`
+	Nummer                string             `json:"Nummer"`
+	Onderwerp             string             `json:"Onderwerp"`
+	Soort                 string             `json:"Soort"`
+	Titel                 string             `json:"Titel"`
+	Citeertitel           *string            `json:"Citeertitel"`
+	Alias                 *string            `json:"Alias"`
+	Status                string             `json:"Status"`
+	Datum                 *CustomDate        `json:"Datum"`
+	GestartOp             time.Time          `json:"GestartOp"`
+	Organisatie           string             `json:"Organisatie"`
+	Grondslagvoorhang     *string            `json:"Grondslagvoorhang"`
+	Termijn               *string            `json:"Termijn"`
+	Vergaderjaar          string             `json:"Vergaderjaar"`
+	Volgnummer            int                `json:"Volgnummer"`
+	HuidigeBehandelstatus *string            `json:"HuidigeBehandelstatus"`
+	Afgedaan              bool               `json:"Afgedaan"`
+	GrootProject          bool               `json:"GrootProject"`
+	GewijzigdOp           time.Time          `json:"GewijzigdOp"`
+	ApiGewijzigdOp        time.Time          `json:"ApiGewijzigdOp"`
+	Verwijderd            bool               `json:"Verwijderd"`
+	Kabinetsappreciatie   string             `json:"Kabinetsappreciatie"`
+	DatumAfgedaan         *CustomDate        `json:"DatumAfgedaan"`
+	Kamer                 string             `json:"Kamer"`
+	Besluit               []Besluit          `json:"Besluit,omitempty"`
+	ZaakActor             []ZaakActor        `json:"ZaakActor,omitempty"`
+	Kamerstukdossier      []Kamerstukdossier `json:"Kamerstukdossier,omitempty"`
 }
 
 type Besluit struct {
 	ID                            string     `json:"Id"`
 	AgendapuntId                  string     `json:"Agendapunt_Id"`
+	ZaakID                        string     `json:"zaak_id,omitempty"` // Added for relationship tracking
 	StemmingsSoort                *string    `json:"StemmingsSoort"`
 	BesluitSoort                  string     `json:"BesluitSoort"`
 	BesluitTekst                  string     `json:"BesluitTekst"`
@@ -135,6 +195,7 @@ type Besluit struct {
 type Stemming struct {
 	ID              string    `json:"Id"`
 	BesluitId       string    `json:"Besluit_Id"`
+	BesluitID       string    `json:"besluit_id,omitempty"` // Added for relationship tracking
 	Soort           string    `json:"Soort"`
 	FractieGrootte  int       `json:"FractieGrootte"`
 	ActorNaam       string    `json:"ActorNaam"`
@@ -248,6 +309,36 @@ type IndividueleStemming struct {
 	VoteType     string     `json:"vote_type"` // "voor"/"tegen"/"niet deelgenomen"
 	IsCorrection bool       `json:"is_correction"`
 	Date         *time.Time `json:"date"`
+}
+
+// Kamerstukdossier represents parliamentary document metadata
+type Kamerstukdossier struct {
+	ID                string             `json:"Id"`
+	Nummer            CustomStringNumber `json:"Nummer"`
+	Titel             string             `json:"Titel"`
+	Citeertitel       *string            `json:"Citeertitel"`
+	Alias             *string            `json:"Alias"`
+	Toevoeging        *string            `json:"Toevoeging"`
+	HoogsteVolgnummer int                `json:"HoogsteVolgnummer"`
+	Afgesloten        bool               `json:"Afgesloten"`
+	DatumAangemaakt   *CustomDate        `json:"DatumAangemaakt"`
+	DatumGesloten     *CustomDate        `json:"DatumGesloten"`
+	Kamer             string             `json:"Kamer"`
+	Bijgewerkt        time.Time          `json:"Bijgewerkt"`
+	ApiGewijzigdOp    time.Time          `json:"ApiGewijzigdOp"`
+	Verwijderd        bool               `json:"Verwijderd"`
+}
+
+// DocumentInfo holds information about fetched XML documents
+type DocumentInfo struct {
+	ZaakID        string                 `json:"zaak_id"`
+	DossierNummer string                 `json:"dossier_nummer"`
+	Volgnummer    int                    `json:"volgnummer"`
+	URL           string                 `json:"url"`
+	Content       map[string]interface{} `json:"content"` // Parsed XML as JSON
+	FetchedAt     time.Time              `json:"fetched_at"`
+	Success       bool                   `json:"success"`
+	Error         string                 `json:"error,omitempty"`
 }
 
 type MotionSubmitter struct {
