@@ -39,6 +39,9 @@ func NewGormPostgresStorage(config config.StorageConfig) (*GormPostgresStorage, 
 		&models.Persoon{},
 		&models.Fractie{},
 		&models.ZaakActor{},
+		&models.KamerstukdossierDB{},
+		&models.DocumentInfo{},
+		&models.ZaakDocument{},
 		&models.RawOData{},
 		&models.VotingResult{},
 		&models.IndividueleStemming{},
@@ -68,9 +71,9 @@ func (s *GormPostgresStorage) SaveODataZaakBatch(ctx context.Context, zaken []in
 		}
 
 		// Save raw data
-		if err := s.saveRawOData(ctx, "zaak", odataZaak.ID, zaakData); err != nil {
-			log.Printf("Warning: failed to save raw zaak data for %s: %v", odataZaak.ID, err)
-		}
+		// if err := s.saveRawOData(ctx, "zaak", odataZaak.ID, zaakData); err != nil {
+		// 	log.Printf("Warning: failed to save raw zaak data for %s: %v", odataZaak.ID, err)
+		// }
 
 		dbZaak := s.mapZaakToDB(odataZaak)
 		dbZaken = append(dbZaken, *dbZaak)
@@ -80,6 +83,13 @@ func (s *GormPostgresStorage) SaveODataZaakBatch(ctx context.Context, zaken []in
 		for _, actor := range odataZaak.ZaakActor {
 			if err := s.saveZaakActor(ctx, odataZaak.ID, &actor); err != nil {
 				log.Printf("Warning: failed to save zaak actor for %s: %v", odataZaak.ID, err)
+			}
+		}
+
+		// save related kamerstukdossiers
+		for _, kamerstukdossier := range odataZaak.Kamerstukdossier {
+			if err := s.saveKamerstukdossier(ctx, odataZaak.ID, &kamerstukdossier); err != nil {
+				log.Printf("Warning: failed to save kamerstukdossier for %s: %v", odataZaak.ID, err)
 			}
 		}
 	}
@@ -113,9 +123,9 @@ func (s *GormPostgresStorage) SaveODataBesluitBatch(ctx context.Context, besluit
 		}
 
 		// save raw data
-		if err := s.saveRawOData(ctx, "besluit", odataBesluit.ID, besluitData); err != nil {
-			log.Printf("Warning: failed to save raw besluit data for %s: %v", odataBesluit.ID, err)
-		}
+		// if err := s.saveRawOData(ctx, "besluit", odataBesluit.ID, besluitData); err != nil {
+		// 	log.Printf("Warning: failed to save raw besluit data for %s: %v", odataBesluit.ID, err)
+		// }
 
 		dbBesluit := s.mapBesluitToDB(odataBesluit)
 		dbBesluiten = append(dbBesluiten, *dbBesluit)
@@ -150,9 +160,9 @@ func (s *GormPostgresStorage) SaveODataStemmingBatch(ctx context.Context, stemmi
 			continue
 		}
 
-		if err := s.saveRawOData(ctx, "stemming", odataStemming.ID, stemmingData); err != nil {
-			log.Printf("Warning: failed to save raw stemming data for %s: %v", odataStemming.ID, err)
-		}
+		// if err := s.saveRawOData(ctx, "stemming", odataStemming.ID, stemmingData); err != nil {
+		// 	log.Printf("Warning: failed to save raw stemming data for %s: %v", odataStemming.ID, err)
+		// }
 
 		// save related entities
 		if odataStemming.Persoon != nil {
@@ -244,6 +254,191 @@ func (s *GormPostgresStorage) SaveIndividueleStemingBatch(ctx context.Context, v
 	return nil
 }
 
+func (s *GormPostgresStorage) SaveKamerstukdossierBatch(ctx context.Context, dossiers []interface{}) error {
+	if len(dossiers) == 0 {
+		return nil
+	}
+
+	log.Printf("Starting batch save of %d kamerstukdossiers...", len(dossiers))
+	var dbDossiers []models.KamerstukdossierDB
+
+	for i, dossierData := range dossiers {
+		odataDossier, err := s.convertToODataKamerstukdossier(dossierData)
+		if err != nil {
+			log.Printf("Warning: failed to convert kamerstukdossier %d in batch: %v", i, err)
+			continue
+		}
+
+		dbDossier := s.mapKamerstukdossierToDB(odataDossier)
+		dbDossiers = append(dbDossiers, *dbDossier)
+	}
+
+	if err := s.db.WithContext(ctx).Clauses(clause.OnConflict{
+		UpdateAll: true,
+	}).CreateInBatches(dbDossiers, 1000).Error; err != nil {
+		return fmt.Errorf("batch insert failed for %d kamerstukdossiers: %w", len(dbDossiers), err)
+	}
+
+	log.Printf("Successfully batch saved %d kamerstukdossiers", len(dbDossiers))
+	return nil
+}
+
+func (s *GormPostgresStorage) SaveDocumentInfoBatch(ctx context.Context, docInfos []interface{}) error {
+	if len(docInfos) == 0 {
+		return nil
+	}
+
+	log.Printf("Starting batch save of %d document infos...", len(docInfos))
+
+	var dbDocInfos []models.DocumentInfo
+	var documentKeys []string
+	var zaakDocuments []models.ZaakDocument
+	var odataDocInfos []*odata.DocumentInfo
+
+	for i, docInfoData := range docInfos {
+		odataDocInfo, err := s.convertToODataDocumentInfo(docInfoData)
+		if err != nil {
+			log.Printf("Warning: failed to convert document info %d in batch: %v", i, err)
+			continue
+		}
+
+		dbDocInfo := s.mapDocumentInfoToDB(odataDocInfo)
+		dbDocInfos = append(dbDocInfos, *dbDocInfo)
+		odataDocInfos = append(odataDocInfos, odataDocInfo)
+
+		key := fmt.Sprintf("%s_%d", dbDocInfo.DossierNummer, dbDocInfo.Volgnummer)
+		documentKeys = append(documentKeys, key)
+	}
+
+	if len(dbDocInfos) == 0 {
+		log.Printf("No valid document infos to save")
+		return nil
+	}
+
+	existingKeys, err := s.GetExistingDocumentKeys(ctx, documentKeys)
+	if err != nil {
+		log.Printf("Warning: failed to check existing documents, proceeding with upsert: %v", err)
+		if err := s.db.WithContext(ctx).Clauses(clause.OnConflict{
+			DoNothing: true,
+		}).CreateInBatches(dbDocInfos, 1000).Error; err != nil {
+			return fmt.Errorf("batch insert failed for %d document infos: %w", len(dbDocInfos), err)
+		}
+		log.Printf("Successfully batch saved %d document infos (with upsert)", len(dbDocInfos))
+		return nil
+	}
+
+	var newDocInfos []models.DocumentInfo
+	skippedCount := 0
+
+	for i, dbDocInfo := range dbDocInfos {
+		key := documentKeys[i]
+		zaakID := odataDocInfos[i].ZaakID
+
+		if !existingKeys[key] {
+			newDocInfos = append(newDocInfos, dbDocInfo)
+		} else {
+			skippedCount++
+		}
+
+		if existingKeys[key] {
+			var existingDoc models.DocumentInfo
+			if err := s.db.WithContext(ctx).Where("dossier_nummer = ? AND volgnummer = ?",
+				dbDocInfo.DossierNummer, dbDocInfo.Volgnummer).First(&existingDoc).Error; err == nil {
+				zaakDocuments = append(zaakDocuments, models.ZaakDocument{
+					ZaakID:     zaakID,
+					DocumentID: existingDoc.ID,
+				})
+			}
+		}
+	}
+
+	if len(newDocInfos) > 0 {
+		if err := s.db.WithContext(ctx).CreateInBatches(newDocInfos, 1000).Error; err != nil {
+			return fmt.Errorf("batch insert failed for %d new document infos: %w", len(newDocInfos), err)
+		}
+
+		for _, newDocInfo := range newDocInfos {
+			for j, dbDocInfo := range dbDocInfos {
+				if dbDocInfo.DossierNummer == newDocInfo.DossierNummer &&
+					dbDocInfo.Volgnummer == newDocInfo.Volgnummer {
+					zaakDocuments = append(zaakDocuments, models.ZaakDocument{
+						ZaakID:     odataDocInfos[j].ZaakID,
+						DocumentID: newDocInfo.ID,
+					})
+					break
+				}
+			}
+		}
+	}
+
+	if len(zaakDocuments) > 0 {
+		if err := s.SaveZaakDocumentBatch(ctx, zaakDocuments); err != nil {
+			log.Printf("Warning: failed to save some zaak-document relationships: %v", err)
+		}
+	}
+
+	log.Printf("Successfully batch saved %d new document infos (skipped %d existing), created %d zaak-document relationships",
+		len(newDocInfos), skippedCount, len(zaakDocuments))
+	return nil
+}
+
+// check if a document with the given dossier number and volgnummer already exists
+func (s *GormPostgresStorage) DocumentExists(ctx context.Context, dossierNummer string, volgnummer int) (bool, error) {
+	var count int64
+	err := s.db.WithContext(ctx).Model(&models.DocumentInfo{}).
+		Where("dossier_nummer = ? AND volgnummer = ?", dossierNummer, volgnummer).
+		Count(&count).Error
+
+	if err != nil {
+		return false, fmt.Errorf("checking document existence: %w", err)
+	}
+
+	return count > 0, nil
+}
+
+// GetExistingDocumentNumbers returns all existing volgnummers for a given dossier number
+func (s *GormPostgresStorage) GetExistingDocumentNumbers(ctx context.Context, dossierNummer string) ([]int, error) {
+	var volgnummers []int
+	err := s.db.WithContext(ctx).Model(&models.DocumentInfo{}).
+		Where("dossier_nummer = ?", dossierNummer).
+		Pluck("volgnummer", &volgnummers).Error
+
+	if err != nil {
+		return nil, fmt.Errorf("getting existing document numbers: %w", err)
+	}
+
+	return volgnummers, nil
+}
+
+// returns a map of existing document keys (dossier_nummer + volgnummer)
+func (s *GormPostgresStorage) GetExistingDocumentKeys(ctx context.Context, documentKeys []string) (map[string]bool, error) {
+	if len(documentKeys) == 0 {
+		return make(map[string]bool), nil
+	}
+
+	var results []struct {
+		DossierNummer string
+		Volgnummer    int
+	}
+
+	err := s.db.WithContext(ctx).Model(&models.DocumentInfo{}).
+		Select("dossier_nummer, volgnummer").
+		Where("CONCAT(dossier_nummer, '_', volgnummer) IN ?", documentKeys).
+		Find(&results).Error
+
+	if err != nil {
+		return nil, fmt.Errorf("checking existing document keys: %w", err)
+	}
+
+	existingKeys := make(map[string]bool)
+	for _, result := range results {
+		key := fmt.Sprintf("%s_%d", result.DossierNummer, result.Volgnummer)
+		existingKeys[key] = true
+	}
+
+	return existingKeys, nil
+}
+
 func (s *GormPostgresStorage) Close() error {
 	sqlDB, err := s.db.DB()
 	if err != nil {
@@ -258,9 +453,9 @@ func (s *GormPostgresStorage) SaveODataZaak(ctx context.Context, zaakData interf
 		return fmt.Errorf("failed to convert zaak data: %w", err)
 	}
 
-	if err := s.saveRawOData(ctx, "zaak", odataZaak.ID, zaakData); err != nil {
-		log.Printf("Warning: failed to save raw zaak data: %v", err)
-	}
+	// if err := s.saveRawOData(ctx, "zaak", odataZaak.ID, zaakData); err != nil {
+	// 	log.Printf("Warning: failed to save raw zaak data: %v", err)
+	// }
 
 	dbZaak := s.mapZaakToDB(odataZaak)
 
@@ -285,9 +480,9 @@ func (s *GormPostgresStorage) SaveODataBesluit(ctx context.Context, besluitData 
 		return fmt.Errorf("failed to convert besluit data: %w", err)
 	}
 
-	if err := s.saveRawOData(ctx, "besluit", odataBesluit.ID, besluitData); err != nil {
-		log.Printf("Warning: failed to save raw besluit data: %v", err)
-	}
+	// if err := s.saveRawOData(ctx, "besluit", odataBesluit.ID, besluitData); err != nil {
+	// 	log.Printf("Warning: failed to save raw besluit data: %v", err)
+	// }
 
 	dbBesluit := s.mapBesluitToDB(odataBesluit)
 	return s.db.WithContext(ctx).Save(dbBesluit).Error
@@ -299,9 +494,9 @@ func (s *GormPostgresStorage) SaveODataStemming(ctx context.Context, stemmingDat
 		return fmt.Errorf("failed to convert stemming data: %w", err)
 	}
 
-	if err := s.saveRawOData(ctx, "stemming", odataStemming.ID, stemmingData); err != nil {
-		log.Printf("Warning: failed to save raw stemming data: %v", err)
-	}
+	// if err := s.saveRawOData(ctx, "stemming", odataStemming.ID, stemmingData); err != nil {
+	// 	log.Printf("Warning: failed to save raw stemming data: %v", err)
+	// }
 
 	if odataStemming.Persoon != nil {
 		if err := s.savePersoon(ctx, odataStemming.Persoon); err != nil {
@@ -337,6 +532,95 @@ func (s *GormPostgresStorage) SaveIndividueleStemming(ctx context.Context, vote 
 
 	dbVote := s.mapIndividueleStemmingToDB(odataVote)
 	return s.db.WithContext(ctx).Save(dbVote).Error
+}
+
+func (s *GormPostgresStorage) SaveKamerstukdossier(ctx context.Context, dossier interface{}) error {
+	odataDossier, err := s.convertToODataKamerstukdossier(dossier)
+	if err != nil {
+		return fmt.Errorf("failed to convert kamerstukdossier: %w", err)
+	}
+
+	dbDossier := s.mapKamerstukdossierToDB(odataDossier)
+	return s.db.WithContext(ctx).Save(dbDossier).Error
+}
+
+func (s *GormPostgresStorage) SaveDocumentInfo(ctx context.Context, docInfo interface{}) error {
+	odataDocInfo, err := s.convertToODataDocumentInfo(docInfo)
+	if err != nil {
+		return fmt.Errorf("failed to convert document info: %w", err)
+	}
+
+	dbDocInfo := s.mapDocumentInfoToDB(odataDocInfo)
+	return s.db.WithContext(ctx).Clauses(clause.OnConflict{
+		DoNothing: true,
+	}).Create(dbDocInfo).Error
+}
+
+func (s *GormPostgresStorage) SaveZaakDocument(ctx context.Context, zaakID string, documentID uint) error {
+	zaakDoc := &models.ZaakDocument{
+		ZaakID:     zaakID,
+		DocumentID: documentID,
+	}
+
+	return s.db.WithContext(ctx).Clauses(clause.OnConflict{
+		DoNothing: true,
+	}).Create(zaakDoc).Error
+}
+
+func (s *GormPostgresStorage) SaveZaakDocumentBatch(ctx context.Context, zaakDocuments []models.ZaakDocument) error {
+	if len(zaakDocuments) == 0 {
+		return nil
+	}
+
+	return s.db.WithContext(ctx).Clauses(clause.OnConflict{
+		DoNothing: true,
+	}).CreateInBatches(zaakDocuments, 1000).Error
+}
+
+func (s *GormPostgresStorage) SaveDocumentWithZaakRelation(ctx context.Context, docInfo interface{}, zaakID string) error {
+	odataDocInfo, err := s.convertToODataDocumentInfo(docInfo)
+	if err != nil {
+		return fmt.Errorf("failed to convert document info: %w", err)
+	}
+
+	dbDocInfo := s.mapDocumentInfoToDB(odataDocInfo)
+
+	if err := s.db.WithContext(ctx).Clauses(clause.OnConflict{
+		DoNothing: true,
+	}).Create(dbDocInfo).Error; err != nil {
+		return fmt.Errorf("failed to save document: %w", err)
+	}
+
+	return s.SaveZaakDocument(ctx, zaakID, dbDocInfo.ID)
+}
+
+func (s *GormPostgresStorage) GetDocumentsByZaak(ctx context.Context, zaakID string) ([]models.DocumentInfo, error) {
+	var documents []models.DocumentInfo
+
+	err := s.db.WithContext(ctx).
+		Joins("JOIN zaak_documents ON document_info.id = zaak_documents.document_id").
+		Where("zaak_documents.zaak_id = ?", zaakID).
+		Find(&documents).Error
+
+	if err != nil {
+		return nil, fmt.Errorf("failed to get documents for zaak %s: %w", zaakID, err)
+	}
+
+	return documents, nil
+}
+
+func (s *GormPostgresStorage) GetZakenByDocument(ctx context.Context, documentID uint) ([]string, error) {
+	var zaakIDs []string
+
+	err := s.db.WithContext(ctx).Model(&models.ZaakDocument{}).
+		Where("document_id = ?", documentID).
+		Pluck("zaak_id", &zaakIDs).Error
+
+	if err != nil {
+		return nil, fmt.Errorf("failed to get zaken for document %d: %w", documentID, err)
+	}
+
+	return zaakIDs, nil
 }
 
 func (s *GormPostgresStorage) Ping(ctx context.Context) error {
@@ -426,6 +710,16 @@ func (s *GormPostgresStorage) saveZaakActor(ctx context.Context, zaakID string, 
 	return s.db.WithContext(ctx).Save(dbZaakActor).Error
 }
 
+func (s *GormPostgresStorage) saveKamerstukdossier(ctx context.Context, zaakID string, kamerstukdossier *odata.Kamerstukdossier) error {
+	if kamerstukdossier == nil {
+		return nil
+	}
+
+	dbKamerstukdossier := s.mapKamerstukdossierToDB(kamerstukdossier)
+	dbKamerstukdossier.ZaakID = &zaakID
+	return s.db.WithContext(ctx).Save(dbKamerstukdossier).Error
+}
+
 func (s *GormPostgresStorage) convertToODataZaak(data interface{}) (*odata.Zaak, error) {
 	jsonData, err := json.Marshal(data)
 	if err != nil {
@@ -502,30 +796,24 @@ func (s *GormPostgresStorage) mapZaakToDB(odata *odata.Zaak) *models.Zaak {
 	}
 
 	return &models.Zaak{
-		ID:                    odata.ID,
-		Nummer:                odata.Nummer,
-		Onderwerp:             odata.Onderwerp,
-		Soort:                 odata.Soort,
-		Titel:                 odata.Titel,
-		Citeertitel:           odata.Citeertitel,
-		Alias:                 odata.Alias,
-		Status:                odata.Status,
-		Datum:                 s.mapCustomDate(odata.Datum),
-		GestartOp:             &odata.GestartOp,
-		Organisatie:           odata.Organisatie,
-		Grondslagvoorhang:     odata.Grondslagvoorhang,
-		Termijn:               odata.Termijn,
-		Vergaderjaar:          odata.Vergaderjaar,
-		Volgnummer:            &odata.Volgnummer,
-		HuidigeBehandelstatus: odata.HuidigeBehandelstatus,
-		Afgedaan:              odata.Afgedaan,
-		GrootProject:          odata.GrootProject,
-		GewijzigdOp:           &odata.GewijzigdOp,
-		ApiGewijzigdOp:        &odata.ApiGewijzigdOp,
-		Verwijderd:            odata.Verwijderd,
-		Kabinetsappreciatie:   odata.Kabinetsappreciatie,
-		DatumAfgedaan:         s.mapCustomDate(odata.DatumAfgedaan),
-		Kamer:                 odata.Kamer,
+		ID:                  odata.ID,
+		Nummer:              odata.Nummer,
+		Onderwerp:           odata.Onderwerp,
+		Soort:               odata.Soort,
+		Titel:               odata.Titel,
+		Citeertitel:         odata.Citeertitel,
+		Alias:               odata.Alias,
+		Status:              odata.Status,
+		GestartOp:           &odata.GestartOp,
+		Organisatie:         odata.Organisatie,
+		Vergaderjaar:        odata.Vergaderjaar,
+		Volgnummer:          &odata.Volgnummer,
+		Afgedaan:            odata.Afgedaan,
+		GrootProject:        odata.GrootProject,
+		GewijzigdOp:         &odata.GewijzigdOp,
+		ApiGewijzigdOp:      &odata.ApiGewijzigdOp,
+		Verwijderd:          odata.Verwijderd,
+		Kabinetsappreciatie: odata.Kabinetsappreciatie,
 	}
 }
 
@@ -534,9 +822,14 @@ func (s *GormPostgresStorage) mapBesluitToDB(odata *odata.Besluit) *models.Beslu
 		return nil
 	}
 
+	var zaakID *string
+	if odata.ZaakID != "" {
+		zaakID = &odata.ZaakID
+	}
+
 	return &models.Besluit{
 		ID:                            odata.ID,
-		AgendapuntID:                  &odata.AgendapuntId,
+		ZaakID:                        zaakID,
 		StemmingsSoort:                odata.StemmingsSoort,
 		BesluitSoort:                  &odata.BesluitSoort,
 		BesluitTekst:                  &odata.BesluitTekst,
@@ -561,9 +854,14 @@ func (s *GormPostgresStorage) mapStemmingToDB(odata *odata.Stemming) *models.Ste
 	}
 	fractieID = &odata.FractieId
 
+	var besluitID *string
+	if odata.BesluitID != "" {
+		besluitID = &odata.BesluitID
+	}
+
 	return &models.Stemming{
 		ID:              odata.ID,
-		BesluitID:       &odata.BesluitId,
+		BesluitID:       besluitID,
 		PersoonID:       persoonID,
 		FractieID:       fractieID,
 		Soort:           &odata.Soort,
@@ -680,11 +978,22 @@ func (s *GormPostgresStorage) mapIndividueleStemmingToDB(odata *odata.Individuel
 		return nil
 	}
 
+	var personID, fractieID, besluitID *string
+	if odata.PersonID != "" {
+		personID = &odata.PersonID
+	}
+	if odata.FractieID != "" {
+		fractieID = &odata.FractieID
+	}
+	if odata.BesluitID != "" {
+		besluitID = &odata.BesluitID
+	}
+
 	return &models.IndividueleStemming{
-		BesluitID:    odata.BesluitID,
-		PersonID:     odata.PersonID,
+		BesluitID:    besluitID,
+		PersonID:     personID,
 		PersonName:   odata.PersonName,
-		FractieID:    odata.FractieID,
+		FractieID:    fractieID,
 		FractieName:  odata.FractieName,
 		VoteType:     odata.VoteType,
 		IsCorrection: odata.IsCorrection,
@@ -697,4 +1006,73 @@ func (s *GormPostgresStorage) mapCustomDate(customDate *odata.CustomDate) *time.
 		return nil
 	}
 	return &customDate.Time
+}
+
+func (s *GormPostgresStorage) convertToODataKamerstukdossier(data interface{}) (*odata.Kamerstukdossier, error) {
+	jsonData, err := json.Marshal(data)
+	if err != nil {
+		return nil, err
+	}
+
+	var dossier odata.Kamerstukdossier
+	if err := json.Unmarshal(jsonData, &dossier); err != nil {
+		return nil, err
+	}
+
+	return &dossier, nil
+}
+
+func (s *GormPostgresStorage) convertToODataDocumentInfo(data interface{}) (*odata.DocumentInfo, error) {
+	jsonData, err := json.Marshal(data)
+	if err != nil {
+		return nil, err
+	}
+
+	var docInfo odata.DocumentInfo
+	if err := json.Unmarshal(jsonData, &docInfo); err != nil {
+		return nil, err
+	}
+
+	return &docInfo, nil
+}
+
+func (s *GormPostgresStorage) mapKamerstukdossierToDB(odata *odata.Kamerstukdossier) *models.KamerstukdossierDB {
+	if odata == nil {
+		return nil
+	}
+
+	return &models.KamerstukdossierDB{
+		ID:                odata.ID,
+		Nummer:            odata.Nummer.String(),
+		Titel:             odata.Titel,
+		Citeertitel:       odata.Citeertitel,
+		Alias:             odata.Alias,
+		Toevoeging:        odata.Toevoeging,
+		HoogsteVolgnummer: odata.HoogsteVolgnummer,
+		Afgesloten:        odata.Afgesloten,
+		DatumAangemaakt:   s.mapCustomDate(odata.DatumAangemaakt),
+		DatumGesloten:     s.mapCustomDate(odata.DatumGesloten),
+		Kamer:             odata.Kamer,
+		Bijgewerkt:        &odata.Bijgewerkt,
+		ApiGewijzigdOp:    &odata.ApiGewijzigdOp,
+		Verwijderd:        odata.Verwijderd,
+	}
+}
+
+func (s *GormPostgresStorage) mapDocumentInfoToDB(odata *odata.DocumentInfo) *models.DocumentInfo {
+	if odata == nil {
+		return nil
+	}
+
+	contentJSON, _ := json.Marshal(odata.Content)
+
+	return &models.DocumentInfo{
+		DossierNummer: odata.DossierNummer,
+		Volgnummer:    odata.Volgnummer,
+		URL:           odata.URL,
+		Content:       string(contentJSON),
+		FetchedAt:     odata.FetchedAt,
+		Success:       odata.Success,
+		Error:         odata.Error,
+	}
 }

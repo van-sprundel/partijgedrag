@@ -79,12 +79,23 @@ func (c *Client) ExecuteQuery(ctx context.Context, entitySet string, options Que
 func (c *Client) GetMotiesWithVotes(ctx context.Context, skip int, top int) ([]byte, error) {
 	options := QueryOptions{
 		Filter: "verwijderd eq false and Soort eq 'Motie'",
-		Expand: "Besluit($filter=Verwijderd eq false;$expand=Stemming($filter=Verwijderd eq false;$expand=Persoon,Fractie))",
+		Expand: "Besluit($filter=Verwijderd eq false;$expand=Stemming($filter=Verwijderd eq false;$expand=Persoon,Fractie)),ZaakActor($filter=relatie eq 'Indiener'),Kamerstukdossier($filter=HoogsteVolgnummer gt 0;$select=Id,Nummer,HoogsteVolgnummer)",
 		// dont set top to enable proper pagination with nextlink
 		Skip: skip,
 	}
 
 	return c.ExecuteQuery(ctx, "Zaak", options)
+}
+
+// BuildDocumentURL constructs the URL for fetching XML documents from officielebekendmakingen.nl
+func (c *Client) BuildDocumentURL(nummer string, volgnummer int) string {
+	return fmt.Sprintf("https://zoek.officielebekendmakingen.nl/kst-%s-%d.xml", nummer, volgnummer)
+}
+
+// FetchDocument fetches an XML document from officielebekendmakingen.nl
+func (c *Client) FetchDocument(ctx context.Context, nummer string, volgnummer int) ([]byte, error) {
+	url := c.BuildDocumentURL(nummer, volgnummer)
+	return c.MakeRequest(ctx, url)
 }
 
 func (c *Client) MakeRequest(ctx context.Context, requestURL string) ([]byte, error) {
@@ -103,8 +114,7 @@ func (c *Client) MakeRequest(ctx context.Context, requestURL string) ([]byte, er
 	defer resp.Body.Close()
 
 	if resp.StatusCode != http.StatusOK {
-		body, _ := io.ReadAll(resp.Body)
-		return nil, fmt.Errorf("unexpected status code: %d, body: %s", resp.StatusCode, string(body))
+		return nil, fmt.Errorf("unexpected status code: %d", resp.StatusCode)
 	}
 
 	body, err := io.ReadAll(resp.Body)

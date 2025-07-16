@@ -56,13 +56,8 @@ func main() {
 	}
 
 	var imp *importer.Importer
-	if cfg.Import.EnableBatching {
-		log.Printf("Using high-performance mode: %d workers, batch size %d", concurrency, batchSize)
-		imp = importer.NewImporterWithConfig(client, store, concurrency, batchSize)
-	} else {
-		log.Println("Using standard mode")
-		imp = importer.NewImporter(client, store)
-	}
+	log.Printf("Using high-performance mode: %d workers, batch size %d", concurrency, batchSize)
+	imp = importer.NewImporterWithConfig(client, store, concurrency, batchSize)
 
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()

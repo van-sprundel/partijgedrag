@@ -3,6 +3,8 @@ package importer
 import (
 	"context"
 	"encoding/json"
+	"encoding/xml"
+	"etl/internal/models"
 	"etl/pkg/odata"
 	"etl/pkg/storage"
 	"fmt"
@@ -30,7 +32,7 @@ func NewImporter(client *odata.Client, storage storage.Storage) *Importer {
 	}
 }
 
-func NewImporterWithConfig(client *odata.Client, storage storage.Storage, concurrency, batchSize int) *Importer {
+func NewImporterWithConfig(client *odata.Client, storage storage.Storage, concurrency int, batchSize int) *Importer {
 	return &Importer{
 		client:      client,
 		storage:     storage,
@@ -45,34 +47,17 @@ func (imp *Importer) GetStats() *odata.ImportStats {
 }
 
 func (imp *Importer) ImportMotiesWithVotes(ctx context.Context) error {
-	log.Println("Starting high-performance import of motions with votes...")
+	log.Println("Starting streaming import of motions with votes...")
 	startTime := time.Now()
 
-	// concurrent fetching of all data
-	log.Printf("Phase 1: Concurrent fetching with %d workers...", imp.concurrency)
-	allZaken, err := imp.fetchAllMotionsConcurrent(ctx)
+	log.Printf("Starting streaming fetch and process with %d workers...", imp.concurrency)
+	err := imp.fetchAndProcessMotionsStreaming(ctx)
 	if err != nil {
-		return fmt.Errorf("concurrent fetching failed: %w", err)
+		return fmt.Errorf("streaming import failed: %w", err)
 	}
 
-	fetchDuration := time.Since(startTime)
-	log.Printf("Phase 1 complete: Fetched %d motions in %v (%.2f motions/sec)",
-		len(allZaken), fetchDuration, float64(len(allZaken))/fetchDuration.Seconds())
-
-	// batch processing and storage
-	log.Printf("Phase 2: Batch processing with batch size %d...", imp.batchSize)
-	processStart := time.Now()
-	err = imp.processAllMotionsBatch(ctx, allZaken)
-	if err != nil {
-		return fmt.Errorf("batch processing failed: %w", err)
-	}
-
-	processDuration := time.Since(processStart)
 	totalDuration := time.Since(startTime)
-	log.Printf("Phase 2 complete: Processed %d motions in %v (%.2f motions/sec)",
-		len(allZaken), processDuration, float64(len(allZaken))/processDuration.Seconds())
-	log.Printf("Total import time: %v (%.2f motions/sec overall)",
-		totalDuration, float64(len(allZaken))/totalDuration.Seconds())
+	log.Printf("Streaming import complete in %v", totalDuration)
 
 	imp.stats.Finalize()
 	return nil
@@ -225,7 +210,43 @@ func (imp *Importer) fetchAllMotionsConcurrent(ctx context.Context) ([]odata.Zaa
 	}
 
 	log.Printf("Concurrent fetch complete: %d motions total", len(allZaken))
-	return allZaken, nil
+	return allZaken, err
+}
+
+// fetch and processes motions page by page to avoid memory issues
+func (imp *Importer) fetchAndProcessMotionsStreaming(ctx context.Context) error {
+	skip := 0
+	pageNum := 1
+	totalProcessed := 0
+
+	for {
+		log.Printf("Fetching and processing page %d (skip=%d)...", pageNum, skip)
+
+		pageZaken, err := imp.fetchPage(ctx, skip, "")
+		if err != nil {
+			return fmt.Errorf("fetching page %d: %w", pageNum, err)
+		}
+
+		if len(pageZaken) == 0 {
+			log.Printf("No more data found, streaming complete")
+			break
+		}
+
+		if err := imp.processMotionsBatch(ctx, pageZaken); err != nil {
+			return fmt.Errorf("processing page %d: %w", pageNum, err)
+		}
+
+		totalProcessed += len(pageZaken)
+		log.Printf("Page %d complete: processed %d motions (total: %d)", pageNum, len(pageZaken), totalProcessed)
+
+		skip += len(pageZaken)
+		pageNum++
+
+		// time.Sleep(100 * time.Millisecond)
+	}
+
+	log.Printf("Streaming import complete: processed %d total motions across %d pages", totalProcessed, pageNum-1)
+	return nil
 }
 
 func (imp *Importer) fetchPage(ctx context.Context, skip int, nextLink string) ([]odata.Zaak, error) {
@@ -260,16 +281,34 @@ func (imp *Importer) fetchPage(ctx context.Context, skip int, nextLink string) (
 	return zaken, nil
 }
 
-func (imp *Importer) processAllMotionsBatch(ctx context.Context, allZaken []odata.Zaak) error {
+func (imp *Importer) processMotionsBatch(ctx context.Context, zaken []odata.Zaak) error {
+	if len(zaken) == 0 {
+		return nil
+	}
+
+	log.Printf("Processing batch of %d motions...", len(zaken))
+
 	var allBesluiten []odata.Besluit
 	var allStemmingen []odata.Stemming
 	var allVotingResults []odata.VotingResult
 	var allIndividueleStemmingen []odata.IndividueleStemming
+	kamerstukdossierMap := make(map[string]odata.Kamerstukdossier) // deduplicate by ID
+	var allDocumentInfos []odata.DocumentInfo
 
-	for _, zaak := range allZaken {
+	for _, zaak := range zaken {
 		imp.stats.IncrementZaakType(zaak.Soort)
 
+		if len(zaak.Kamerstukdossier) > 0 {
+			for _, dossier := range zaak.Kamerstukdossier {
+				kamerstukdossierMap[dossier.ID] = dossier
+
+				docInfos := imp.fetchDocumentsForDossier(ctx, zaak.ID, dossier)
+				allDocumentInfos = append(allDocumentInfos, docInfos...)
+			}
+		}
+
 		for _, besluit := range zaak.Besluit {
+			besluit.ZaakID = zaak.ID
 			allBesluiten = append(allBesluiten, besluit)
 			imp.stats.TotalBesluiten++
 
@@ -277,20 +316,27 @@ func (imp *Importer) processAllMotionsBatch(ctx context.Context, allZaken []odat
 			allVotingResults = append(allVotingResults, votingResult)
 
 			for _, stemming := range besluit.Stemming {
+				stemming.BesluitID = besluit.ID
 				allStemmingen = append(allStemmingen, stemming)
 				imp.stats.TotalStemmingen++
 
-				// Create individual vote
 				individueleStemming := imp.createIndividueleStemming(stemming)
 				allIndividueleStemmingen = append(allIndividueleStemmingen, individueleStemming)
 			}
 		}
 	}
 
-	log.Printf("Extracted entities: %d zaken, %d besluiten, %d stemmingen, %d voting results, %d individual votes",
-		len(allZaken), len(allBesluiten), len(allStemmingen), len(allVotingResults), len(allIndividueleStemmingen))
+	allKamerstukdossiers := make([]odata.Kamerstukdossier, 0, len(kamerstukdossierMap))
+	for _, dossier := range kamerstukdossierMap {
+		allKamerstukdossiers = append(allKamerstukdossiers, dossier)
+	}
 
-	if err := imp.batchSaveZaken(ctx, allZaken); err != nil {
+	log.Printf("Extracted from batch: %d zaken, %d besluiten, %d stemmingen, %d voting results, %d individual votes, %d kamerstukdossiers (deduplicated), %d documents",
+		len(zaken), len(allBesluiten), len(allStemmingen), len(allVotingResults), len(allIndividueleStemmingen), len(allKamerstukdossiers), len(allDocumentInfos))
+
+	log.Printf("Saving batch to database...")
+
+	if err := imp.batchSaveZaken(ctx, zaken); err != nil {
 		return fmt.Errorf("batch saving zaken: %w", err)
 	}
 
@@ -307,9 +353,18 @@ func (imp *Importer) processAllMotionsBatch(ctx context.Context, allZaken []odat
 	}
 
 	if err := imp.batchSaveIndividueleStemmingen(ctx, allIndividueleStemmingen); err != nil {
-		return fmt.Errorf("batch saving individual votes: %w", err)
+		return fmt.Errorf("batch saving individual stemmingen: %w", err)
 	}
 
+	if err := imp.batchSaveKamerstukdossiers(ctx, allKamerstukdossiers); err != nil {
+		return fmt.Errorf("batch saving kamerstukdossiers: %w", err)
+	}
+
+	if err := imp.batchSaveDocumentInfos(ctx, allDocumentInfos); err != nil {
+		return fmt.Errorf("batch saving document infos: %w", err)
+	}
+
+	log.Printf("Batch processing completed successfully")
 	return nil
 }
 
@@ -450,14 +505,7 @@ func (imp *Importer) createVotingResult(besluit odata.Besluit) odata.VotingResul
 		PartyVotes:   partyVotes,
 		Date:         besluit.GewijzigdOp,
 		Status:       besluit.Status,
-	}
-
-	if len(besluit.Zaak) > 0 {
-		firstZaak := besluit.Zaak[0]
-		result.ZaakID = firstZaak.ID
-		result.ZaakNummer = firstZaak.Nummer
-		result.ZaakTitel = firstZaak.Titel
-		result.ZaakSoort = firstZaak.Soort
+		ZaakID:       besluit.ZaakID,
 	}
 
 	return result
@@ -465,38 +513,166 @@ func (imp *Importer) createVotingResult(besluit odata.Besluit) odata.VotingResul
 
 func (imp *Importer) createIndividueleStemming(stemming odata.Stemming) odata.IndividueleStemming {
 	vote := odata.IndividueleStemming{
-		PersonID:     getStringValue(stemming.SidActorLid),
 		PersonName:   stemming.ActorNaam,
-		FractieID:    stemming.SidActorFractie,
 		FractieName:  stemming.ActorFractie,
 		VoteType:     stemming.Soort,
 		IsCorrection: stemming.Vergissing,
 		Date:         &stemming.GewijzigdOp,
-	}
-
-	if stemming.Persoon != nil {
-		vote.PersonID = stemming.Persoon.ID
-		vote.PersonName = fmt.Sprintf("%s %s", stemming.Persoon.Voornamen, stemming.Persoon.Achternaam)
-	}
-
-	if stemming.Fractie != nil {
-		vote.FractieID = stemming.Fractie.ID
-		vote.FractieName = stemming.Fractie.NaamNL
-	}
-
-	if stemming.Besluit != nil {
-		vote.BesluitID = stemming.Besluit.ID
-		vote.BesluitTekst = stemming.Besluit.BesluitTekst
-
-		if len(stemming.Besluit.Zaak) > 0 {
-			zaak := stemming.Besluit.Zaak[0]
-			vote.ZaakID = zaak.ID
-			vote.ZaakNummer = zaak.Nummer
-			vote.ZaakTitel = zaak.Titel
-		}
+		BesluitID:    stemming.BesluitID,
 	}
 
 	return vote
+}
+
+func (imp *Importer) fetchDocumentsForDossier(ctx context.Context, zaakID string, dossier odata.Kamerstukdossier) []odata.DocumentInfo {
+	var documentInfos []odata.DocumentInfo
+
+	if dossier.HoogsteVolgnummer <= 0 {
+		return []odata.DocumentInfo{}
+	}
+
+	skippedCount := 0
+	fetchedCount := 0
+
+	volgnummer := dossier.HoogsteVolgnummer
+
+	exists, err := imp.storage.DocumentExists(ctx, dossier.Nummer.String(), volgnummer)
+	if err != nil {
+		log.Printf("Warning: failed to check existing document for dossier %s-%d: %v", dossier.Nummer.String(), volgnummer, err)
+	}
+
+	if exists {
+		skippedCount++
+		log.Printf("Skipping document %s-%d (already cached)", dossier.Nummer.String(), volgnummer)
+	} else {
+		docInfo := odata.DocumentInfo{
+			ZaakID:        zaakID,
+			DossierNummer: dossier.Nummer.String(),
+			Volgnummer:    volgnummer,
+			URL:           imp.client.BuildDocumentURL(dossier.Nummer.String(), volgnummer),
+			FetchedAt:     time.Now(),
+			Success:       false,
+		}
+
+		xmlData, err := imp.client.FetchDocument(ctx, dossier.Nummer.String(), volgnummer)
+		if err != nil {
+			log.Printf("Warning: failed to fetch document %s-%d: %v", dossier.Nummer.String(), volgnummer, err)
+			docInfo.Error = err.Error()
+			documentInfos = append(documentInfos, docInfo)
+		} else {
+			// parse XML to JSON
+			parsedContent, err := imp.parseXMLToJSON(xmlData)
+			if err != nil {
+				log.Printf("Warning: failed to parse XML for document %s-%d: %v", dossier.Nummer.String(), volgnummer, err)
+				docInfo.Error = err.Error()
+				documentInfos = append(documentInfos, docInfo)
+			} else {
+				docInfo.Content = parsedContent
+				docInfo.Success = true
+				documentInfos = append(documentInfos, docInfo)
+				fetchedCount++
+			}
+		}
+	}
+
+	log.Printf("Processed dossier %s: fetched %d document, skipped %d cached document",
+		dossier.Nummer.String(), fetchedCount, skippedCount)
+	return documentInfos
+}
+
+func (imp *Importer) parseXMLToJSON(xmlData []byte) (map[string]interface{}, error) {
+	var officielePublicatie models.OfficielePublicatie
+	if err := xml.Unmarshal(xmlData, &officielePublicatie); err == nil {
+		jsonData, err := json.Marshal(officielePublicatie)
+		if err != nil {
+			return nil, err
+		}
+
+		var result map[string]interface{}
+		if err := json.Unmarshal(jsonData, &result); err != nil {
+			return nil, err
+		}
+
+		result["document_type"] = "officiele_publicatie"
+		return result, nil
+	}
+
+	var kamerDocument models.KamerDocument
+	if err := xml.Unmarshal(xmlData, &kamerDocument); err == nil {
+		jsonData, err := json.Marshal(kamerDocument)
+		if err != nil {
+			return nil, err
+		}
+
+		var result map[string]interface{}
+		if err := json.Unmarshal(jsonData, &result); err != nil {
+			return nil, err
+		}
+
+		result["document_type"] = "kamer_document"
+		return result, nil
+	}
+
+	return map[string]interface{}{
+		"document_type": "raw_xml",
+		"raw_content":   string(xmlData),
+	}, nil
+}
+
+func (imp *Importer) batchSaveKamerstukdossiers(ctx context.Context, dossiers []odata.Kamerstukdossier) error {
+	if len(dossiers) == 0 {
+		return nil
+	}
+
+	log.Printf("Batch saving %d kamerstukdossiers...", len(dossiers))
+
+	for i := 0; i < len(dossiers); i += imp.batchSize {
+		end := i + imp.batchSize
+		if end > len(dossiers) {
+			end = len(dossiers)
+		}
+
+		batch := make([]interface{}, end-i)
+		for j, dossier := range dossiers[i:end] {
+			batch[j] = dossier
+		}
+
+		if err := imp.storage.SaveKamerstukdossierBatch(ctx, batch); err != nil {
+			return fmt.Errorf("saving kamerstukdossiers batch %d-%d: %w", i, end-1, err)
+		}
+
+		log.Printf("Saved kamerstukdossiers batch %d-%d", i, end-1)
+	}
+
+	return nil
+}
+
+func (imp *Importer) batchSaveDocumentInfos(ctx context.Context, docInfos []odata.DocumentInfo) error {
+	if len(docInfos) == 0 {
+		return nil
+	}
+
+	log.Printf("Batch saving %d document infos...", len(docInfos))
+
+	for i := 0; i < len(docInfos); i += imp.batchSize {
+		end := i + imp.batchSize
+		if end > len(docInfos) {
+			end = len(docInfos)
+		}
+
+		batch := make([]interface{}, end-i)
+		for j, docInfo := range docInfos[i:end] {
+			batch[j] = docInfo
+		}
+
+		if err := imp.storage.SaveDocumentInfoBatch(ctx, batch); err != nil {
+			return fmt.Errorf("saving document infos batch %d-%d: %w", i, end-1, err)
+		}
+
+		log.Printf("Saved document infos batch %d-%d", i, end-1)
+	}
+
+	return nil
 }
 
 func getStringValue(s *string) string {
