@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"log"
+	"strings"
 	"time"
 
 	"etl/internal/config"
@@ -291,7 +292,6 @@ func (s *GormPostgresStorage) SaveDocumentInfoBatch(ctx context.Context, docInfo
 	log.Printf("Starting batch save of %d document infos...", len(docInfos))
 
 	var dbDocInfos []models.DocumentInfo
-	var documentKeys []string
 	var zaakDocuments []models.ZaakDocument
 	var odataDocInfos []*odata.DocumentInfo
 
@@ -305,9 +305,6 @@ func (s *GormPostgresStorage) SaveDocumentInfoBatch(ctx context.Context, docInfo
 		dbDocInfo := s.mapDocumentInfoToDB(odataDocInfo)
 		dbDocInfos = append(dbDocInfos, *dbDocInfo)
 		odataDocInfos = append(odataDocInfos, odataDocInfo)
-
-		key := fmt.Sprintf("%s_%d", dbDocInfo.DossierNummer, dbDocInfo.Volgnummer)
-		documentKeys = append(documentKeys, key)
 	}
 
 	if len(dbDocInfos) == 0 {
@@ -315,57 +312,40 @@ func (s *GormPostgresStorage) SaveDocumentInfoBatch(ctx context.Context, docInfo
 		return nil
 	}
 
-	existingKeys, err := s.GetExistingDocumentKeys(ctx, documentKeys)
-	if err != nil {
-		log.Printf("Warning: failed to check existing documents, proceeding with upsert: %v", err)
-		if err := s.db.WithContext(ctx).Clauses(clause.OnConflict{
-			DoNothing: true,
-		}).CreateInBatches(dbDocInfos, 1000).Error; err != nil {
-			return fmt.Errorf("batch insert failed for %d document infos: %w", len(dbDocInfos), err)
-		}
-		log.Printf("Successfully batch saved %d document infos (with upsert)", len(dbDocInfos))
-		return nil
+	if err := s.db.WithContext(ctx).Clauses(clause.OnConflict{
+		Columns:   []clause.Column{{Name: "dossier_nummer"}, {Name: "volgnummer"}},
+		DoNothing: true,
+	}).CreateInBatches(dbDocInfos, 1000).Error; err != nil {
+		return fmt.Errorf("batch insert failed for %d document infos: %w", len(dbDocInfos), err)
 	}
 
-	var newDocInfos []models.DocumentInfo
-	skippedCount := 0
+	var existingDocs []models.DocumentInfo
+	var conditions []string
+	var args []interface{}
 
-	for i, dbDocInfo := range dbDocInfos {
-		key := documentKeys[i]
-		zaakID := odataDocInfos[i].ZaakID
+	for _, dbDocInfo := range dbDocInfos {
+		conditions = append(conditions, "(dossier_nummer = ? AND volgnummer = ?)")
+		args = append(args, dbDocInfo.DossierNummer, dbDocInfo.Volgnummer)
+	}
 
-		if !existingKeys[key] {
-			newDocInfos = append(newDocInfos, dbDocInfo)
+	if len(conditions) > 0 {
+		whereClause := strings.Join(conditions, " OR ")
+		if err := s.db.WithContext(ctx).Where(whereClause, args...).Find(&existingDocs).Error; err != nil {
+			log.Printf("Warning: failed to fetch document IDs for zaak-document relationships: %v", err)
 		} else {
-			skippedCount++
-		}
-
-		if existingKeys[key] {
-			var existingDoc models.DocumentInfo
-			if err := s.db.WithContext(ctx).Where("dossier_nummer = ? AND volgnummer = ?",
-				dbDocInfo.DossierNummer, dbDocInfo.Volgnummer).First(&existingDoc).Error; err == nil {
-				zaakDocuments = append(zaakDocuments, models.ZaakDocument{
-					ZaakID:     zaakID,
-					DocumentID: existingDoc.ID,
-				})
+			docMap := make(map[string]uint)
+			for _, doc := range existingDocs {
+				key := fmt.Sprintf("%s_%d", doc.DossierNummer, doc.Volgnummer)
+				docMap[key] = doc.ID
 			}
-		}
-	}
 
-	if len(newDocInfos) > 0 {
-		if err := s.db.WithContext(ctx).CreateInBatches(newDocInfos, 1000).Error; err != nil {
-			return fmt.Errorf("batch insert failed for %d new document infos: %w", len(newDocInfos), err)
-		}
-
-		for _, newDocInfo := range newDocInfos {
-			for j, dbDocInfo := range dbDocInfos {
-				if dbDocInfo.DossierNummer == newDocInfo.DossierNummer &&
-					dbDocInfo.Volgnummer == newDocInfo.Volgnummer {
+			for i, dbDocInfo := range dbDocInfos {
+				key := fmt.Sprintf("%s_%d", dbDocInfo.DossierNummer, dbDocInfo.Volgnummer)
+				if docID, exists := docMap[key]; exists {
 					zaakDocuments = append(zaakDocuments, models.ZaakDocument{
-						ZaakID:     odataDocInfos[j].ZaakID,
-						DocumentID: newDocInfo.ID,
+						ZaakID:     odataDocInfos[i].ZaakID,
+						DocumentID: docID,
 					})
-					break
 				}
 			}
 		}
@@ -377,8 +357,9 @@ func (s *GormPostgresStorage) SaveDocumentInfoBatch(ctx context.Context, docInfo
 		}
 	}
 
-	log.Printf("Successfully batch saved %d new document infos (skipped %d existing), created %d zaak-document relationships",
-		len(newDocInfos), skippedCount, len(zaakDocuments))
+	log.Printf("Successfully processed %d document infos, created %d zaak-document relationships",
+		len(dbDocInfos), len(zaakDocuments))
+
 	return nil
 }
 
