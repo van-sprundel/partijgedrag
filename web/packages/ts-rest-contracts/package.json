@@ -1,0 +1,21 @@
+{
+  "name": "@fullstack-typescript-template/ts-rest-contracts",
+  "version": "1.0.0",
+  "main": "dist/index.js",
+  "type": "module",
+  "scripts": {
+    "build": "tsc",
+    "dev": "tsc --watch"
+  },
+  "author": "Merlijn Mac Gillavry <merlijnmac@gmail.com>",
+  "license": "ISC",
+  "description": "",
+  "devDependencies": {
+    "@ts-rest/core": "^3.52.0",
+    "@ts-rest/open-api": "^3.52.0",
+    "typescript": "^5.7.3"
+  },
+  "dependencies": {
+    "zod": "^3.24.2"
+  }
+}

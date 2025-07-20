@@ -80,6 +80,10 @@ func (s *GormPostgresStorage) SaveODataZaakBatch(ctx context.Context, zaken []in
 		dbZaken = append(dbZaken, *dbZaak)
 		successCount++
 
+		if err := s.SaveODataZaak(ctx, odataZaak); err != nil {
+			log.Printf("Warning: failed to save zaken %d: %v", i, err)
+		}
+
 		// save related actors
 		for _, actor := range odataZaak.ZaakActor {
 			if err := s.saveZaakActor(ctx, odataZaak.ID, &actor); err != nil {
@@ -675,18 +679,6 @@ func (s *GormPostgresStorage) saveZaakActor(ctx context.Context, zaakID string, 
 		return nil
 	}
 
-	if zaakActor.Persoon != nil {
-		if err := s.savePersoon(ctx, zaakActor.Persoon); err != nil {
-			log.Printf("Warning: failed to save persoon for zaak actor: %v", err)
-		}
-	}
-
-	if zaakActor.Fractie != nil {
-		if err := s.saveFractie(ctx, zaakActor.Fractie); err != nil {
-			log.Printf("Warning: failed to save fractie for zaak actor: %v", err)
-		}
-	}
-
 	dbZaakActor := s.mapZaakActorToDB(zaakActor, zaakID)
 	return s.db.WithContext(ctx).Save(dbZaakActor).Error
 }
@@ -913,21 +905,11 @@ func (s *GormPostgresStorage) mapZaakActorToDB(odata *odata.ZaakActor, zaakID st
 		return nil
 	}
 
-	var persoonID, fractieID *string
-
-	if odata.Persoon != nil {
-		persoonID = &odata.Persoon.ID
-	}
-
-	if odata.Fractie != nil {
-		fractieID = &odata.Fractie.ID
-	}
-
 	return &models.ZaakActor{
 		ID:           odata.ID,
 		ZaakID:       &zaakID,
-		PersoonID:    persoonID,
-		FractieID:    fractieID,
+		PersoonID:    &odata.PersoonId,
+		FractieID:    &odata.FractieId,
 		Relatie:      &odata.Relatie,
 		ActorNaam:    &odata.ActorNaam,
 		ActorFractie: &odata.ActorFractie,

@@ -1,0 +1,243 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id                   Int                    @unique @default(autoincrement())
+  email                String
+  password             String
+  UserSession          UserSession[]
+  PasswordResetRequest PasswordResetRequest[]
+
+  @@map("users")
+}
+
+model UserSession {
+  id           Int      @id @default(autoincrement())
+  userId       Int
+  user         User     @relation(fields: [userId], references: [id])
+  expiresAt    DateTime @db.Timestamptz(3)
+  accessToken  String
+  refreshToken String
+
+  @@unique([userId, accessToken])
+  @@map("user_sessions")
+}
+
+model PasswordResetRequest {
+  id        Int      @id @default(autoincrement())
+  userId    Int
+  user      User     @relation(fields: [userId], references: [id])
+  token     String
+  expiresAt DateTime @db.Timestamptz(3)
+
+  @@unique([userId])
+  @@map("password_reset_requests")
+}
+
+// partijgedrag
+
+// Converted Prisma schema with relations and cleaned column mappings:
+
+model Zaak {
+  id                  String    @id
+  nummer              String
+  onderwerp           String
+  soort               String
+  titel               String
+  citeertitel         String?
+  alias               String?
+  status              String
+  gestart_op          DateTime?
+  organisatie         String
+  vergaderjaar        String
+  volgnummer          Int?
+  afgedaan            Boolean
+  groot_project       Boolean
+  gewijzigd_op        DateTime?
+  api_gewijzigd_op    DateTime?
+  verwijderd          Boolean
+  kabinetsappreciatie String?
+  created_at          DateTime  @default(now())
+  updated_at          DateTime  @default(now()) @updatedAt
+
+  besluiten  Besluit[]
+  zaakActors ZaakActor[]
+
+  @@map("zaken")
+}
+
+// klopt
+model Besluit {
+  id                               String    @id
+  zaak_id                          String?
+  stemmings_soort                  String?
+  besluit_soort                    String?
+  besluit_tekst                    String?
+  opmerking                        String?
+  status                           String?
+  agendapunt_zaak_besluit_volgorde Int?
+  gewijzigd_op                     DateTime?
+  api_gewijzigd_op                 DateTime?
+  verwijderd                       Boolean
+  created_at                       DateTime  @default(now())
+  updated_at                       DateTime  @default(now()) @updatedAt
+
+  zaak                  Zaak?                  @relation(fields: [zaak_id], references: [id])
+  stemmingen            Stemming[]
+  votingResults         voting_result[]
+  individueleStemmingen individuele_stemming[]
+
+  @@map("besluiten")
+}
+
+model Stemming {
+  id                String    @id
+  besluit_id        String?
+  persoon_id        String?
+  fractie_id        String
+  soort             String?
+  fractie_grootte   Int?
+  actor_naam        String?
+  actor_fractie     String?
+  vergissing        Boolean
+  sid_actor_lid     String?
+  sid_actor_fractie String?
+  gewijzigd_op      DateTime?
+  api_gewijzigd_op  DateTime?
+  verwijderd        Boolean
+  created_at        DateTime  @default(now())
+  updated_at        DateTime  @default(now()) @updatedAt
+
+  besluit Besluit? @relation(fields: [besluit_id], references: [id])
+  persoon Persoon? @relation(fields: [persoon_id], references: [id])
+  fractie Fractie? @relation(fields: [fractie_id], references: [id])
+
+  @@map("stemmingen")
+}
+
+model Persoon {
+  id                String    @id
+  titels            String?
+  initialen         String?
+  tussenvoegsel     String?
+  achternaam        String?
+  voornamen         String?
+  roepnaam          String?
+  geslacht          String?
+  geboortedatum     DateTime?
+  geboorteplaats    String?
+  geboorteland      String?
+  overlijdensdatum  DateTime?
+  overlijdensplaats String?
+  overlijdensland   String?
+  woonplaats        String?
+  land              String?
+  bijgewerkt        DateTime?
+  verwijderd        Boolean
+  created_at        DateTime  @default(now())
+  updated_at        DateTime  @default(now()) @updatedAt
+
+  stemmingen            Stemming[]
+  zaakActors            ZaakActor[]
+  individueleStemmingen individuele_stemming[]
+
+  @@map("personen")
+}
+
+model Fractie {
+  id               String    @id
+  nummer           Int?
+  afkorting        String?
+  naam_nl          String?
+  naam_en          String?
+  aantal_zetels    Int?
+  aantal_stemmen   Int?
+  datum_actief     DateTime?
+  datum_inactief   DateTime?
+  content_type     String?
+  content_length   Int?
+  gewijzigd_op     DateTime?
+  api_gewijzigd_op DateTime?
+  verwijderd       Boolean
+  created_at       DateTime  @default(now())
+  updated_at       DateTime  @default(now()) @updatedAt
+
+  stemmingen            Stemming[]
+  zaakActors            ZaakActor[]
+  individueleStemmingen individuele_stemming[]
+
+  @@map("fracties")
+}
+
+model ZaakActor {
+  id            String    @id
+  zaak_id       String
+  persoon_id    String
+  fractie_id    String
+  relatie       String?
+  actor_naam    String?
+  actor_fractie String?
+  bijgewerkt    DateTime?
+  verwijderd    Boolean
+  created_at    DateTime  @default(now())
+  updated_at    DateTime? @default(now()) @updatedAt
+
+  zaak    Zaak    @relation(fields: [zaak_id], references: [id])
+  persoon Persoon @relation(fields: [persoon_id], references: [id])
+  fractie Fractie @relation(fields: [fractie_id], references: [id])
+
+  @@map("zaak_actors")
+}
+
+model RawOData {
+  id         Int      @id @default(autoincrement())
+  type       String
+  entity_id  String
+  data       Json
+  created_at DateTime @default(now())
+
+  @@map("raw_odata")
+}
+
+model voting_result {
+  id            Int       @id @default(autoincrement())
+  document_id   String
+  besluit_id    String
+  besluit_tekst String
+  voting_type   String
+  party_votes   Json
+  date          DateTime?
+  status        String
+  created_at    DateTime  @default(now())
+  updated_at    DateTime  @default(now()) @updatedAt
+
+  besluit Besluit @relation(fields: [besluit_id], references: [id])
+
+  @@map("voting_results")
+}
+
+model individuele_stemming {
+  id            Int       @id @default(autoincrement())
+  besluit_id    String
+  person_id     String?
+  person_name   String
+  fractie_id    String?
+  fractie_name  String
+  vote_type     String
+  is_correction Boolean
+  date          DateTime?
+  created_at    DateTime  @default(now())
+  updated_at    DateTime  @default(now()) @updatedAt
+
+  besluit Besluit  @relation(fields: [besluit_id], references: [id])
+  persoon Persoon? @relation(fields: [person_id], references: [id])
+  fractie Fractie? @relation(fields: [fractie_id], references: [id])
+
+  @@map("individuele_stemming")
+}

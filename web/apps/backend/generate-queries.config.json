@@ -1,0 +1,6 @@
+{
+  "queriesDir": "./src/db/queries/generated",
+  "outputFile": "./src/db/generated-queries.ts",
+  "exclude": ["example.sql.ts", "legacy/"],
+  "camelCaseKeys": true
+}
