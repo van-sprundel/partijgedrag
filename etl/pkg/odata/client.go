@@ -68,6 +68,7 @@ func (c *Client) BuildQuery(entitySet string, options QueryOptions) string {
 	if len(params) > 0 {
 		return baseURL + "?" + params.Encode()
 	}
+
 	return baseURL
 }
 
@@ -79,7 +80,7 @@ func (c *Client) ExecuteQuery(ctx context.Context, entitySet string, options Que
 func (c *Client) GetMotiesWithVotes(ctx context.Context, skip int, top int) ([]byte, error) {
 	options := QueryOptions{
 		Filter: "verwijderd eq false and Soort eq 'Motie'",
-		Expand: "Besluit($filter=Verwijderd eq false;$expand=Stemming($filter=Verwijderd eq false;$expand=Persoon,Fractie)),ZaakActor($filter=relatie eq 'Indiener'),Kamerstukdossier($filter=HoogsteVolgnummer gt 0;$select=Id,Nummer,HoogsteVolgnummer)",
+		Expand: "Besluit($filter=Verwijderd eq false;$expand=Stemming($filter=Verwijderd eq false;$expand=Persoon,Fractie)),ZaakActor($filter=relatie eq 'Indiener'),Kamerstukdossier($filter=HoogsteVolgnummer gt 0;$select=Id,Nummer,HoogsteVolgnummer,Titel,CiteerTitel,Alias,Kamer)",
 		// dont set top to enable proper pagination with nextlink
 		Skip: skip,
 	}

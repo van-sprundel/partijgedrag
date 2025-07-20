@@ -72,6 +72,7 @@ model Zaak {
   @@map("zaken")
 }
 
+// klopt
 model Besluit {
   id                               String    @id
   zaak_id                          String?
@@ -99,7 +100,7 @@ model Stemming {
   id                String    @id
   besluit_id        String?
   persoon_id        String?
-  fractie_id        String?
+  fractie_id        String
   soort             String?
   fractie_grootte   Int?
   actor_naam        String?
@@ -176,9 +177,9 @@ model Fractie {
 
 model ZaakActor {
   id            String    @id
-  zaak_id       String?
-  persoon_id    String?
-  fractie_id    String?
+  zaak_id       String
+  persoon_id    String
+  fractie_id    String
   relatie       String?
   actor_naam    String?
   actor_fractie String?
@@ -187,9 +188,9 @@ model ZaakActor {
   created_at    DateTime  @default(now())
   updated_at    DateTime? @default(now()) @updatedAt
 
-  zaak    Zaak?    @relation(fields: [zaak_id], references: [id])
-  persoon Persoon? @relation(fields: [persoon_id], references: [id])
-  fractie Fractie? @relation(fields: [fractie_id], references: [id])
+  zaak    Zaak    @relation(fields: [zaak_id], references: [id])
+  persoon Persoon @relation(fields: [persoon_id], references: [id])
+  fractie Fractie @relation(fields: [fractie_id], references: [id])
 
   @@map("zaak_actors")
 }

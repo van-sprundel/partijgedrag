@@ -257,10 +257,11 @@ type ZaakActor struct {
 	ID           string    `json:"Id"`
 	Relatie      string    `json:"Relatie"`
 	ActorNaam    string    `json:"ActorNaam"`
+	PersoonId    string    `json:"Persoon_Id"`
+	FractieId    string    `json:"Fractie_Id"`
 	ActorFractie string    `json:"ActorFractie"`
 	Bijgewerkt   time.Time `json:"Bijgewerkt"`
 	Verwijderd   bool      `json:"Verwijderd"`
-	Persoon      *Persoon  `json:"Persoon,omitempty"`
 	Fractie      *Fractie  `json:"Fractie,omitempty"`
 	Zaak         *Zaak     `json:"Zaak,omitempty"`
 }
