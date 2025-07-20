@@ -8,6 +8,10 @@ export const zMotieschema = z.object({
   status: z.string(),
   gestartOp: z.coerce.date().nullable(),
   vergaderjaar: z.string(),
+  naamActor: z.string(),
+  fractieActor: z.string(),
+  besluitTekst: z.string(),
+  partyVotes: z.array(z.string()),
   createdAt: z.coerce.date().nullable(),
   updatedAt: z.coerce.date(),
 });

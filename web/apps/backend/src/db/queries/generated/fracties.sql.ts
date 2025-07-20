@@ -11,20 +11,20 @@ export interface IGetParams {
 
 /** 'Get' return type */
 export interface IGetResult {
-  aantal_stemmen: string | null;
-  aantal_zetels: string | null;
+  aantal_stemmen: number | null;
+  aantal_zetels: number | null;
   afkorting: string | null;
   api_gewijzigd_op: Date | null;
-  content_length: string | null;
+  content_length: number | null;
   content_type: string | null;
-  created_at: Date | null;
+  created_at: Date;
   datum_actief: Date | null;
   datum_inactief: Date | null;
   gewijzigd_op: Date | null;
   id: string;
   naam_en: string | null;
   naam_nl: string | null;
-  nummer: string | null;
+  nummer: number | null;
   updated_at: Date;
   verwijderd: boolean;
 }
