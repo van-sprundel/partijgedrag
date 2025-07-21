@@ -3,31 +3,30 @@ package storage
 import (
 	"context"
 	"etl/internal/config"
+	"etl/internal/models"
 )
 
 type Storage interface {
-	SaveODataZaak(ctx context.Context, zaak interface{}) error
-	SaveODataBesluit(ctx context.Context, besluit interface{}) error
-	SaveODataStemming(ctx context.Context, stemming interface{}) error
-	SaveVotingResult(ctx context.Context, result interface{}) error
-	SaveIndividueleStemming(ctx context.Context, vote interface{}) error
-	SaveKamerstukdossier(ctx context.Context, dossier interface{}) error
-	SaveDocumentInfo(ctx context.Context, docInfo interface{}) error
+	// Core entity operations
+	SaveZaken(ctx context.Context, zaken []models.Zaak) error
+	SaveBesluiten(ctx context.Context, besluiten []models.Besluit) error
+	SaveStemmingen(ctx context.Context, stemmingen []models.Stemming) error
+	SavePersonen(ctx context.Context, personen []models.Persoon) error
+	SaveFracties(ctx context.Context, fracties []models.Fractie) error
+	SaveZaakActors(ctx context.Context, zaakActors []models.ZaakActor) error
+	SaveKamerstukdossiers(ctx context.Context, dossiers []models.Kamerstukdossier) error
 
-	SaveODataZaakBatch(ctx context.Context, zaken []interface{}) error
-	SaveODataBesluitBatch(ctx context.Context, besluiten []interface{}) error
-	SaveODataStemmingBatch(ctx context.Context, stemmingen []interface{}) error
-	SaveVotingResultBatch(ctx context.Context, results []interface{}) error
-	SaveIndividueleStemingBatch(ctx context.Context, votes []interface{}) error
-	SaveKamerstukdossierBatch(ctx context.Context, dossiers []interface{}) error
-	SaveDocumentInfoBatch(ctx context.Context, docInfos []interface{}) error
-
+	// Document operations
+	SaveDocumentInfo(ctx context.Context, docInfo models.DocumentInfo) error
 	DocumentExists(ctx context.Context, dossierNummer string, volgnummer int) (bool, error)
-	GetExistingDocumentNumbers(ctx context.Context, dossierNummer string) ([]int, error)
+	LinkZaakToDocument(ctx context.Context, zaakID string, documentID uint) error
 
+	// Utility operations
 	Close() error
+	Ping(ctx context.Context) error
+	GetStats(ctx context.Context) (map[string]interface{}, error)
 }
 
 func NewStorage(config config.StorageConfig) (Storage, error) {
-	return NewGormPostgresStorage(config)
+	return NewPostgresStorage(config)
 }

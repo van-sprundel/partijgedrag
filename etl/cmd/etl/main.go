@@ -16,6 +16,7 @@ import (
 
 	"etl/internal/config"
 	"etl/internal/importer"
+	"etl/internal/models"
 	"etl/pkg/odata"
 	"etl/pkg/storage"
 
@@ -57,9 +58,7 @@ func main() {
 		batchSize = 1000
 	}
 
-	var imp *importer.Importer
-	log.Printf("Using high-performance mode: %d workers, batch size %d", concurrency, batchSize)
-	imp = importer.NewImporterWithConfig(client, store, concurrency, batchSize)
+	imp := importer.NewImporter(client, store)
 
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
@@ -169,13 +168,14 @@ func testMotionsQuery(ctx context.Context, client *odata.Client) error {
 	return nil
 }
 
-func printStats(stats *odata.ImportStats) {
+func printStats(stats *models.ImportStats) {
 	fmt.Println("\n=== Import Statistics ===")
 	fmt.Printf("Total Zaken: %d\n", stats.TotalZaken)
 	fmt.Printf("Total Besluiten: %d\n", stats.TotalBesluiten)
 	fmt.Printf("Total Stemmingen: %d\n", stats.TotalStemmingen)
 	fmt.Printf("Total Personen: %d\n", stats.TotalPersonen)
 	fmt.Printf("Total Fracties: %d\n", stats.TotalFracties)
+	fmt.Printf("Total Kamerstukdossiers: %d\n", stats.TotalKamerstukdossiers)
 	fmt.Printf("Processing Errors: %d\n", stats.ProcessingErrors)
 	fmt.Printf("Processing Duration: %v\n", stats.ProcessingDuration)
 	fmt.Printf("Start Time: %s\n", stats.ProcessingStartTime.Format(time.RFC3339))
@@ -185,20 +185,6 @@ func printStats(stats *odata.ImportStats) {
 		fmt.Println("\nZaken by Type:")
 		for zaakType, count := range stats.ZakenByType {
 			fmt.Printf("  %s: %d\n", zaakType, count)
-		}
-	}
-
-	if len(stats.BesluitenByType) > 0 {
-		fmt.Println("\nBesluiten by Type:")
-		for besluitType, count := range stats.BesluitenByType {
-			fmt.Printf("  %s: %d\n", besluitType, count)
-		}
-	}
-
-	if len(stats.StemmingByType) > 0 {
-		fmt.Println("\nStemming by Type:")
-		for stemmingType, count := range stats.StemmingByType {
-			fmt.Printf("  %s: %d\n", stemmingType, count)
 		}
 	}
 
