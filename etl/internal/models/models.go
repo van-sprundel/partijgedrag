@@ -1,13 +1,13 @@
 package models
 
 import (
+	"database/sql/driver"
 	"encoding/json"
 	"fmt"
 	"strings"
 	"time"
 )
 
-// CustomDate handles various date formats from the API
 type CustomDate struct {
 	time.Time
 	Valid bool
@@ -56,10 +56,40 @@ func (cd CustomDate) ToTimePtr() *time.Time {
 	return &cd.Time
 }
 
-// CustomStringNumber handles fields that can be either string or number
+func (cd CustomDate) Value() (driver.Value, error) {
+	if !cd.Valid {
+		return nil, nil
+	}
+	return cd.Time, nil
+}
+
+func (cd *CustomDate) Scan(value interface{}) error {
+	if value == nil {
+		cd.Valid = false
+		return nil
+	}
+
+	switch v := value.(type) {
+	case time.Time:
+		cd.Time = v
+		cd.Valid = true
+		return nil
+	case *time.Time:
+		if v == nil {
+			cd.Valid = false
+			return nil
+		}
+		cd.Time = *v
+		cd.Valid = true
+		return nil
+	default:
+		return fmt.Errorf("cannot scan %T into CustomDate", value)
+	}
+}
+
 type CustomStringNumber struct {
-	Value string
-	Valid bool
+	StringValue string
+	Valid       bool
 }
 
 func (csn *CustomStringNumber) UnmarshalJSON(data []byte) error {
@@ -72,7 +102,7 @@ func (csn *CustomStringNumber) UnmarshalJSON(data []byte) error {
 
 	var strValue string
 	if err := json.Unmarshal(data, &strValue); err == nil {
-		csn.Value = strValue
+		csn.StringValue = strValue
 		csn.Valid = true
 		return nil
 	}
@@ -80,9 +110,9 @@ func (csn *CustomStringNumber) UnmarshalJSON(data []byte) error {
 	var numValue float64
 	if err := json.Unmarshal(data, &numValue); err == nil {
 		if numValue == float64(int64(numValue)) {
-			csn.Value = fmt.Sprintf("%.0f", numValue)
+			csn.StringValue = fmt.Sprintf("%.0f", numValue)
 		} else {
-			csn.Value = fmt.Sprintf("%g", numValue)
+			csn.StringValue = fmt.Sprintf("%g", numValue)
 		}
 		csn.Valid = true
 		return nil
@@ -95,17 +125,42 @@ func (csn CustomStringNumber) MarshalJSON() ([]byte, error) {
 	if !csn.Valid {
 		return json.Marshal(nil)
 	}
-	return json.Marshal(csn.Value)
+	return json.Marshal(csn.StringValue)
 }
 
 func (csn CustomStringNumber) String() string {
 	if !csn.Valid {
 		return ""
 	}
-	return csn.Value
+	return csn.StringValue
 }
 
-// Unified models that work for both OData JSON and database storage
+func (csn CustomStringNumber) Value() (driver.Value, error) {
+	if !csn.Valid {
+		return nil, nil
+	}
+	return csn.StringValue, nil
+}
+
+func (csn *CustomStringNumber) Scan(value interface{}) error {
+	if value == nil {
+		csn.Valid = false
+		return nil
+	}
+
+	switch v := value.(type) {
+	case string:
+		csn.StringValue = v
+		csn.Valid = true
+		return nil
+	case []byte:
+		csn.StringValue = string(v)
+		csn.Valid = true
+		return nil
+	default:
+		return fmt.Errorf("cannot scan %T into CustomStringNumber", value)
+	}
+}
 
 type Zaak struct {
 	ID                    string      `json:"Id" gorm:"primaryKey;column:id"`
@@ -133,7 +188,6 @@ type Zaak struct {
 	DatumAfgedaan         *CustomDate `json:"DatumAfgedaan" gorm:"column:datum_afgedaan"`
 	Kamer                 string      `json:"Kamer" gorm:"column:kamer"`
 
-	// Relations - only populated from API, not stored directly
 	Besluit          []Besluit          `json:"Besluit,omitempty" gorm:"-"`
 	ZaakActor        []ZaakActor        `json:"ZaakActor,omitempty" gorm:"-"`
 	Kamerstukdossier []Kamerstukdossier `json:"Kamerstukdossier,omitempty" gorm:"-"`
@@ -155,9 +209,7 @@ type Besluit struct {
 	AgendapuntZaakBesluitVolgorde int       `json:"AgendapuntZaakBesluitVolgorde" gorm:"column:agendapunt_zaak_besluit_volgorde"`
 	GewijzigdOp                   time.Time `json:"GewijzigdOp" gorm:"column:gewijzigd_op"`
 	ApiGewijzigdOp                time.Time `json:"ApiGewijzigdOp" gorm:"column:api_gewijzigd_op"`
-	Verwijderd                    bool      `json:"Verwijderd" gorm:"column:verwijderd"`
 
-	// Relations
 	Stemming []Stemming `json:"Stemming,omitempty" gorm:"-"`
 	Zaak     []Zaak     `json:"Zaak,omitempty" gorm:"-"`
 }
@@ -183,9 +235,7 @@ type Stemming struct {
 	FractieID       *string   `json:"fractie_id,omitempty" gorm:"column:fractie_id;index"`
 	GewijzigdOp     time.Time `json:"GewijzigdOp" gorm:"column:gewijzigd_op"`
 	ApiGewijzigdOp  time.Time `json:"ApiGewijzigdOp" gorm:"column:api_gewijzigd_op"`
-	Verwijderd      bool      `json:"Verwijderd" gorm:"column:verwijderd"`
 
-	// Relations
 	Persoon *Persoon `json:"Persoon,omitempty" gorm:"-"`
 	Fractie *Fractie `json:"Fractie,omitempty" gorm:"-"`
 	Besluit *Besluit `json:"Besluit,omitempty" gorm:"-"`
@@ -213,7 +263,6 @@ type Persoon struct {
 	Woonplaats        string      `json:"Woonplaats" gorm:"column:woonplaats"`
 	Land              string      `json:"Land" gorm:"column:land"`
 	Bijgewerkt        time.Time   `json:"Bijgewerkt" gorm:"column:bijgewerkt"`
-	Verwijderd        bool        `json:"Verwijderd" gorm:"column:verwijderd"`
 }
 
 func (Persoon) TableName() string {
@@ -234,7 +283,6 @@ type Fractie struct {
 	ContentLength  int         `json:"ContentLength" gorm:"column:content_length"`
 	GewijzigdOp    time.Time   `json:"GewijzigdOp" gorm:"column:gewijzigd_op"`
 	ApiGewijzigdOp time.Time   `json:"ApiGewijzigdOp" gorm:"column:api_gewijzigd_op"`
-	Verwijderd     bool        `json:"Verwijderd" gorm:"column:verwijderd"`
 }
 
 func (Fractie) TableName() string {
@@ -250,9 +298,7 @@ type ZaakActor struct {
 	ActorNaam    string    `json:"ActorNaam" gorm:"column:actor_naam"`
 	ActorFractie string    `json:"ActorFractie" gorm:"column:actor_fractie"`
 	Bijgewerkt   time.Time `json:"Bijgewerkt" gorm:"column:bijgewerkt"`
-	Verwijderd   bool      `json:"Verwijderd" gorm:"column:verwijderd"`
 
-	// Relations
 	Persoon *Persoon `json:"Persoon,omitempty" gorm:"-"`
 	Fractie *Fractie `json:"Fractie,omitempty" gorm:"-"`
 	Zaak    *Zaak    `json:"Zaak,omitempty" gorm:"-"`
@@ -277,14 +323,21 @@ type Kamerstukdossier struct {
 	Kamer             string             `json:"Kamer" gorm:"column:kamer"`
 	Bijgewerkt        time.Time          `json:"Bijgewerkt" gorm:"column:bijgewerkt"`
 	ApiGewijzigdOp    time.Time          `json:"ApiGewijzigdOp" gorm:"column:api_gewijzigd_op"`
-	Verwijderd        bool               `json:"Verwijderd" gorm:"column:verwijderd"`
+	BulletPoints      []string           `json:"BulletPoints" gorm:"type:jsonb;column:bullet_points"`
+
+	Document []Document `json:"Document,omitempty" gorm:"-"`
 }
 
 func (Kamerstukdossier) TableName() string {
 	return "kamerstukdossiers"
 }
 
-// Support types
+type Document struct {
+	ID         string `json:"Id"`
+	Onderwerp  string `json:"Onderwerp"`
+	Volgnummer int    `json:"Volgnummer"`
+}
+
 type DocumentInfo struct {
 	ID            uint                   `gorm:"primaryKey;autoIncrement"`
 	DossierNummer string                 `gorm:"index;uniqueIndex:idx_document_unique" json:"dossier_nummer"`
@@ -311,7 +364,6 @@ func (ZaakDocument) TableName() string {
 	return "zaak_documents"
 }
 
-// ImportStats tracks import progress
 type ImportStats struct {
 	TotalZaken             int            `json:"total_zaken"`
 	TotalBesluiten         int            `json:"total_besluiten"`

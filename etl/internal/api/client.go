@@ -3,6 +3,7 @@ package api
 import (
 	"context"
 	"etl/internal/config"
+	"etl/internal/models"
 	"fmt"
 	"io"
 	"net/http"
@@ -36,13 +37,13 @@ func (c *Client) FetchFeed(ctx context.Context, category string, skiptoken strin
 	return c.makeRequest(ctx, feedURL)
 }
 
-// fetch a specific document by identifier (kst-[nummer][-volgnummer])
-func (c *Client) FetchDocument(ctx context.Context, nummer string, toevoeging string, volgnummer int) ([]byte, error) {
+// fetch a specific document by identifier
+func (c *Client) FetchDocument(ctx context.Context, kamerstukdossier models.Kamerstukdossier, volgnummer int) ([]byte, error) {
 	if volgnummer == 0 {
 		volgnummer = 1
 	}
 
-	docURL := c.buildDocumentURL(nummer, toevoeging, volgnummer)
+	docURL := c.buildDocumentURL(kamerstukdossier, volgnummer)
 	return c.makeRequest(ctx, docURL)
 }
 
@@ -77,11 +78,13 @@ func (c *Client) makeRequest(ctx context.Context, url string) ([]byte, error) {
 	return body, nil
 }
 
-func (c *Client) buildDocumentURL(nummer string, toevoeging string, volgnummer int) string {
-	if toevoeging != "" {
+// https://zoek.officielebekendmakingen.nl/kst-21501-02-3196.xml
+// Getal: {nummer}-{toevoeging}-{motie.volgnummer}
+func (c *Client) buildDocumentURL(kamerstukdossier models.Kamerstukdossier, volgnummer int) string {
+	if kamerstukdossier.Toevoeging != nil && *kamerstukdossier.Toevoeging != "" {
 		return fmt.Sprintf("https://zoek.officielebekendmakingen.nl/kst-%s-%s-%d.xml",
-			nummer, toevoeging, volgnummer)
+			kamerstukdossier.Nummer, *kamerstukdossier.Toevoeging, volgnummer)
 	}
 	return fmt.Sprintf("https://zoek.officielebekendmakingen.nl/kst-%s-%d.xml",
-		nummer, volgnummer)
+		kamerstukdossier.Nummer, volgnummer)
 }

@@ -173,6 +173,13 @@ func (s *PostgresStorage) Ping(ctx context.Context) error {
 	return sqlDB.PingContext(ctx)
 }
 
+func (s *PostgresStorage) UpdateKamerstukdossierBulletPoints(ctx context.Context, id string, bulletPointsJSON string) error {
+	return s.db.WithContext(ctx).
+		Model(&models.Kamerstukdossier{}).
+		Where("id = ?", id).
+		Update("bullet_points", bulletPointsJSON).Error
+}
+
 func (s *PostgresStorage) GetStats(ctx context.Context) (map[string]interface{}, error) {
 	stats := make(map[string]interface{})
 

@@ -21,6 +21,9 @@ type Storage interface {
 	DocumentExists(ctx context.Context, dossierNummer string, volgnummer int) (bool, error)
 	LinkZaakToDocument(ctx context.Context, zaakID string, documentID uint) error
 
+	// Kamerstukdossier operations
+	UpdateKamerstukdossierBulletPoints(ctx context.Context, id string, bulletPointsJSON string) error
+
 	// Utility operations
 	Close() error
 	Ping(ctx context.Context) error

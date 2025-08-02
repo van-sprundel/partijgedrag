@@ -14,6 +14,7 @@ import (
 	"syscall"
 	"time"
 
+	"etl/internal/api"
 	"etl/internal/config"
 	"etl/internal/importer"
 	"etl/internal/models"
@@ -47,6 +48,7 @@ func main() {
 	defer store.Close()
 
 	client := odata.NewClient(cfg.API)
+	apiClient := api.NewClient(cfg.API)
 
 	concurrency := cfg.Import.Concurrency
 	if concurrency <= 0 {
@@ -58,7 +60,7 @@ func main() {
 		batchSize = 1000
 	}
 
-	imp := importer.NewImporter(client, store)
+	imp := importer.NewImporter(client, store, apiClient)
 
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()

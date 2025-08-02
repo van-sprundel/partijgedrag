@@ -5,24 +5,31 @@ import (
 	"encoding/json"
 	"fmt"
 	"log"
+	"strings"
 	"time"
 
+	"etl/internal/api"
 	"etl/internal/models"
+	"etl/internal/parser"
 	"etl/pkg/odata"
 	"etl/pkg/storage"
 )
 
 type SimpleImporter struct {
-	client  *odata.Client
-	storage storage.Storage
-	stats   *models.ImportStats
+	client    *odata.Client
+	apiClient *api.Client
+	storage   storage.Storage
+	stats     *models.ImportStats
+	parser    *parser.DocumentParser
 }
 
-func NewImporter(client *odata.Client, storage storage.Storage) *SimpleImporter {
+func NewImporter(client *odata.Client, storage storage.Storage, apiClient *api.Client) *SimpleImporter {
 	return &SimpleImporter{
-		client:  client,
-		storage: storage,
-		stats:   models.NewImportStats(),
+		client:    client,
+		apiClient: apiClient,
+		storage:   storage,
+		stats:     models.NewImportStats(),
+		parser:    parser.NewDocumentParser(),
 	}
 }
 
@@ -218,6 +225,11 @@ func (imp *SimpleImporter) saveEntities(ctx context.Context, entities ExtractedE
 		return fmt.Errorf("saving kamerstukdossiers: %w", err)
 	}
 
+	// Process documents for kamerstukdossiers
+	if err := imp.processDocumentsForDossiers(ctx, entities.Kamerstukdossiers); err != nil {
+		log.Printf("Warning: failed to process documents for some kamerstukdossiers: %v", err)
+	}
+
 	if err := imp.storage.SaveBesluiten(ctx, entities.Besluiten); err != nil {
 		return fmt.Errorf("saving besluiten: %w", err)
 	}
@@ -242,4 +254,105 @@ func (imp *SimpleImporter) updateStats(entities ExtractedEntities) {
 	for _, zaak := range entities.Zaken {
 		imp.stats.ZakenByType[zaak.Soort]++
 	}
+}
+
+func (imp *SimpleImporter) processDocumentsForDossiers(ctx context.Context, dossiers []models.Kamerstukdossier) error {
+	if len(dossiers) == 0 {
+		return nil
+	}
+
+	log.Printf("Processing documents for %d kamerstukdossiers...", len(dossiers))
+
+	processed := 0
+	errors := 0
+
+	for _, dossier := range dossiers {
+		if err := imp.processDossierDocument(ctx, dossier); err != nil {
+			log.Printf("Error processing document for dossier %s: %v", dossier.ID, err)
+			errors++
+		} else {
+			processed++
+		}
+	}
+
+	log.Printf("Document processing complete for batch: %d processed, %d errors", processed, errors)
+	return nil
+}
+
+func (imp *SimpleImporter) processDossierDocument(ctx context.Context, dossier models.Kamerstukdossier) error {
+	// Get all potential volgnummers from the Document data we already have
+	volgnummers := imp.getMotieVolgnummers(dossier)
+	if len(volgnummers) == 0 {
+		log.Printf("No suitable documents found for dossier %s", imp.formatDossierNumber(dossier))
+		return nil
+	}
+
+	// Try each volgnummer in descending order until one works
+	var xmlData []byte
+	var successVolgnummer int
+	var lastErr error
+
+	for _, volgnummer := range volgnummers {
+		var err error
+		xmlData, err = imp.apiClient.FetchDocument(ctx, dossier, volgnummer)
+		if err == nil {
+			successVolgnummer = volgnummer
+			break
+		}
+		lastErr = err
+	}
+
+	if xmlData == nil {
+		return fmt.Errorf("all volgnummers failed for dossier %s, last error: %w", imp.formatDossierNumber(dossier), lastErr)
+	}
+
+	bulletPoints, err := imp.parser.ExtractBulletPoints(xmlData)
+	if err != nil {
+		return fmt.Errorf("parsing document: %w", err)
+	}
+
+	if len(bulletPoints) == 0 {
+		return nil
+	}
+
+	// Convert to JSON bytes for proper JSONB storage
+	bulletPointsJSON, err := json.Marshal(bulletPoints)
+	if err != nil {
+		return fmt.Errorf("marshaling bullet points: %w", err)
+	}
+
+	if err := imp.storage.UpdateKamerstukdossierBulletPoints(ctx, dossier.ID, string(bulletPointsJSON)); err != nil {
+		return fmt.Errorf("updating bullet points: %w", err)
+	}
+
+	return nil
+}
+
+func (imp *SimpleImporter) getMotieVolgnummers(dossier models.Kamerstukdossier) []int {
+	// Get all volgnummers for documents that have Onderwerp starting with 'Motie'
+	var volgnummers []int
+	for _, doc := range dossier.Document {
+		if strings.HasPrefix(doc.Onderwerp, "Motie") {
+			volgnummers = append(volgnummers, doc.Volgnummer)
+		}
+	}
+
+	// Sort in descending order so we try highest volgnummer first
+	for i := 0; i < len(volgnummers)-1; i++ {
+		for j := i + 1; j < len(volgnummers); j++ {
+			if volgnummers[i] < volgnummers[j] {
+				volgnummers[i], volgnummers[j] = volgnummers[j], volgnummers[i]
+			}
+		}
+	}
+
+	return volgnummers
+}
+
+func (imp *SimpleImporter) formatDossierNumber(dossier models.Kamerstukdossier) string {
+	nummer := dossier.Nummer.String()
+	if dossier.Toevoeging != nil && *dossier.Toevoeging != "" {
+		return fmt.Sprintf("%s-%s", nummer, *dossier.Toevoeging)
+	}
+	return nummer
 }
