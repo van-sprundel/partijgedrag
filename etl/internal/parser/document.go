@@ -1,9 +1,14 @@
 package parser
 
 import (
+	"bytes"
 	"encoding/xml"
 	"fmt"
+	"io"
 	"strings"
+
+	"golang.org/x/text/encoding/charmap"
+	"golang.org/x/text/transform"
 )
 
 type DocumentParser struct{}
@@ -43,7 +48,21 @@ type OfficielePublicatie struct {
 func (p *DocumentParser) ExtractBulletPoints(xmlData []byte) ([]string, error) {
 	var doc OfficielePublicatie
 
-	if err := xml.Unmarshal(xmlData, &doc); err != nil {
+	decoder := xml.NewDecoder(bytes.NewReader(xmlData))
+	decoder.CharsetReader = func(charset string, input io.Reader) (io.Reader, error) {
+		switch strings.ToLower(charset) {
+		case "us-ascii":
+			return input, nil
+		case "iso-8859-1", "latin1":
+			return transform.NewReader(input, charmap.ISO8859_1.NewDecoder()), nil
+		case "windows-1252":
+			return transform.NewReader(input, charmap.Windows1252.NewDecoder()), nil
+		default:
+			return nil, fmt.Errorf("unsupported charset: %s", charset)
+		}
+	}
+
+	if err := decoder.Decode(&doc); err != nil {
 		return nil, fmt.Errorf("parsing XML: %w", err)
 	}
 
