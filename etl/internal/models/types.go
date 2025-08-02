@@ -42,13 +42,13 @@ type Category struct {
 }
 
 type Content struct {
-	Type             string            `xml:"type,attr"`
-	Kamerstukdossier *Kamerstukdossier `xml:"kamerstukdossier,omitempty"`
-	Besluit          *Besluit          `xml:"besluit,omitempty"`
-	Stemming         *Stemming         `xml:"stemming,omitempty"`
+	Type             string               `xml:"type,attr"`
+	Kamerstukdossier *XMLKamerstukdossier `xml:"kamerstukdossier,omitempty"`
+	Besluit          *XMLBesluit          `xml:"besluit,omitempty"`
+	Stemming         *XMLStemming         `xml:"stemming,omitempty"`
 }
 
-type Kamerstukdossier struct {
+type XMLKamerstukdossier struct {
 	XMLName           xml.Name `xml:"http://www.tweedekamer.nl/xsd/tkData/v1-0 kamerstukdossier"`
 	ID                string   `xml:"id,attr"`
 	Bijgewerkt        string   `xml:"bijgewerkt,attr"`
@@ -61,6 +61,16 @@ type Kamerstukdossier struct {
 	HoogsteVolgnummer int      `xml:"hoogsteVolgnummer"`
 	Afgesloten        bool     `xml:"afgesloten"`
 	Kamer             string   `xml:"kamer"`
+}
+
+type XMLBesluit struct {
+	XMLName xml.Name `xml:"besluit"`
+	// Add XML fields as needed
+}
+
+type XMLStemming struct {
+	XMLName xml.Name `xml:"stemming"`
+	// Add XML fields as needed
 }
 
 type OfficielePublicatie struct {
