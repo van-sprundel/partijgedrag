@@ -289,14 +289,12 @@ func (imp *SimpleImporter) processDossierDocument(ctx context.Context, dossier m
 
 	// Try each volgnummer in descending order until one works
 	var xmlData []byte
-	var successVolgnummer int
 	var lastErr error
 
 	for _, volgnummer := range volgnummers {
 		var err error
 		xmlData, err = imp.apiClient.FetchDocument(ctx, dossier, volgnummer)
 		if err == nil {
-			successVolgnummer = volgnummer
 			break
 		}
 		lastErr = err

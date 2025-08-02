@@ -7,7 +7,6 @@ import (
 	"fmt"
 	"io"
 	"net/http"
-	"net/url"
 	"time"
 )
 
@@ -25,18 +24,6 @@ func NewClient(config config.APIConfig) *Client {
 	}
 }
 
-func (c *Client) FetchFeed(ctx context.Context, category string, skiptoken string) ([]byte, error) {
-	params := url.Values{}
-	params.Add("category", category)
-
-	if skiptoken != "" {
-		params.Add("skiptoken", skiptoken)
-	}
-
-	feedURL := c.baseURL + "?" + params.Encode()
-	return c.makeRequest(ctx, feedURL)
-}
-
 // fetch a specific document by identifier
 func (c *Client) FetchDocument(ctx context.Context, kamerstukdossier models.Kamerstukdossier, volgnummer int) ([]byte, error) {
 	if volgnummer == 0 {
@@ -45,11 +32,6 @@ func (c *Client) FetchDocument(ctx context.Context, kamerstukdossier models.Kame
 
 	docURL := c.buildDocumentURL(kamerstukdossier, volgnummer)
 	return c.makeRequest(ctx, docURL)
-}
-
-// fetch an enclosure file from the given URL
-func (c *Client) FetchEnclosure(ctx context.Context, enclosureURL string) ([]byte, error) {
-	return c.makeRequest(ctx, enclosureURL)
 }
 
 func (c *Client) makeRequest(ctx context.Context, url string) ([]byte, error) {

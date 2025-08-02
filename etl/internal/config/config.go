@@ -12,19 +12,14 @@ type Config struct {
 }
 
 type APIConfig struct {
-	ODataBaseURL    string        `yaml:"odata_base_url"`
-	SyncFeedBaseURL string        `yaml:"syncfeed_base_url"`
-	Timeout         time.Duration `yaml:"timeout"`
-	UserAgent       string        `yaml:"user_agent"`
+	ODataBaseURL string        `yaml:"odata_base_url"`
+	Timeout      time.Duration `yaml:"timeout"`
+	UserAgent    string        `yaml:"user_agent"`
 }
 
 type ImportConfig struct {
-	TestMode       bool `yaml:"test_mode"`
-	ShowStats      bool `yaml:"show_stats"`
-	BatchSize      int  `yaml:"batch_size"`
-	MaxPages       int  `yaml:"max_pages"`
-	Concurrency    int  `yaml:"concurrency"`
-	EnableBatching bool `yaml:"enable_batching"`
+	TestMode  bool `yaml:"test_mode"`
+	ShowStats bool `yaml:"show_stats"`
 }
 
 type LoggingConfig struct {

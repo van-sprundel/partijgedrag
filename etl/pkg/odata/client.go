@@ -87,17 +87,6 @@ func (c *Client) GetMotiesWithVotes(ctx context.Context, skip int, top int) ([]b
 	return c.ExecuteQuery(ctx, "Zaak", options)
 }
 
-// BuildDocumentURL constructs the URL for fetching XML documents from officielebekendmakingen.nl
-func (c *Client) BuildDocumentURL(nummer string, volgnummer int) string {
-	return fmt.Sprintf("https://zoek.officielebekendmakingen.nl/kst-%s-%d.xml", nummer, volgnummer)
-}
-
-// FetchDocument fetches an XML document from officielebekendmakingen.nl
-func (c *Client) FetchDocument(ctx context.Context, nummer string, volgnummer int) ([]byte, error) {
-	url := c.BuildDocumentURL(nummer, volgnummer)
-	return c.MakeRequest(ctx, url)
-}
-
 func (c *Client) MakeRequest(ctx context.Context, requestURL string) ([]byte, error) {
 	req, err := http.NewRequestWithContext(ctx, "GET", requestURL, nil)
 	if err != nil {

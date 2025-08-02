@@ -338,32 +338,6 @@ type Document struct {
 	Volgnummer int    `json:"Volgnummer"`
 }
 
-type DocumentInfo struct {
-	ID            uint                   `gorm:"primaryKey;autoIncrement"`
-	DossierNummer string                 `gorm:"index;uniqueIndex:idx_document_unique" json:"dossier_nummer"`
-	Volgnummer    int                    `gorm:"uniqueIndex:idx_document_unique" json:"volgnummer"`
-	URL           string                 `json:"url"`
-	Content       map[string]interface{} `gorm:"type:jsonb" json:"content"`
-	FetchedAt     time.Time              `json:"fetched_at"`
-	Success       bool                   `json:"success"`
-	Error         string                 `json:"error"`
-}
-
-func (DocumentInfo) TableName() string {
-	return "document_info"
-}
-
-type ZaakDocument struct {
-	ID         uint      `gorm:"primaryKey;autoIncrement"`
-	ZaakID     string    `gorm:"index;uniqueIndex:idx_zaak_document" json:"zaak_id"`
-	DocumentID uint      `gorm:"index;uniqueIndex:idx_zaak_document" json:"document_id"`
-	CreatedAt  time.Time `gorm:"autoCreateTime"`
-}
-
-func (ZaakDocument) TableName() string {
-	return "zaak_documents"
-}
-
 type ImportStats struct {
 	TotalZaken             int            `json:"total_zaken"`
 	TotalBesluiten         int            `json:"total_besluiten"`

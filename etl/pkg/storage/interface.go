@@ -16,18 +16,12 @@ type Storage interface {
 	SaveZaakActors(ctx context.Context, zaakActors []models.ZaakActor) error
 	SaveKamerstukdossiers(ctx context.Context, dossiers []models.Kamerstukdossier) error
 
-	// Document operations
-	SaveDocumentInfo(ctx context.Context, docInfo models.DocumentInfo) error
-	DocumentExists(ctx context.Context, dossierNummer string, volgnummer int) (bool, error)
-	LinkZaakToDocument(ctx context.Context, zaakID string, documentID uint) error
-
 	// Kamerstukdossier operations
 	UpdateKamerstukdossierBulletPoints(ctx context.Context, id string, bulletPointsJSON string) error
 
 	// Utility operations
 	Close() error
 	Ping(ctx context.Context) error
-	GetStats(ctx context.Context) (map[string]interface{}, error)
 }
 
 func NewStorage(config config.StorageConfig) (Storage, error) {

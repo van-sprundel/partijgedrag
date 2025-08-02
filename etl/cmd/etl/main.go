@@ -50,16 +50,6 @@ func main() {
 	client := odata.NewClient(cfg.API)
 	apiClient := api.NewClient(cfg.API)
 
-	concurrency := cfg.Import.Concurrency
-	if concurrency <= 0 {
-		concurrency = 8
-	}
-
-	batchSize := cfg.Import.BatchSize
-	if batchSize <= 0 {
-		batchSize = 1000
-	}
-
 	imp := importer.NewImporter(client, store, apiClient)
 
 	ctx, cancel := context.WithCancel(context.Background())

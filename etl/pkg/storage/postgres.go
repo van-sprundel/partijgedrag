@@ -38,8 +38,6 @@ func NewPostgresStorage(config config.StorageConfig) (*PostgresStorage, error) {
 		&models.Fractie{},
 		&models.ZaakActor{},
 		&models.Kamerstukdossier{},
-		&models.DocumentInfo{},
-		&models.ZaakDocument{},
 	); err != nil {
 		return nil, fmt.Errorf("failed to migrate schema: %w", err)
 	}
@@ -131,32 +129,6 @@ func (s *PostgresStorage) SaveKamerstukdossiers(ctx context.Context, dossiers []
 	}).CreateInBatches(dossiers, 1000).Error
 }
 
-func (s *PostgresStorage) SaveDocumentInfo(ctx context.Context, docInfo models.DocumentInfo) error {
-	return s.db.WithContext(ctx).Clauses(clause.OnConflict{
-		DoNothing: true, // Don't overwrite existing documents
-	}).Create(&docInfo).Error
-}
-
-func (s *PostgresStorage) DocumentExists(ctx context.Context, dossierNummer string, volgnummer int) (bool, error) {
-	var count int64
-	err := s.db.WithContext(ctx).Model(&models.DocumentInfo{}).
-		Where("dossier_nummer = ? AND volgnummer = ?", dossierNummer, volgnummer).
-		Count(&count).Error
-
-	return count > 0, err
-}
-
-func (s *PostgresStorage) LinkZaakToDocument(ctx context.Context, zaakID string, documentID uint) error {
-	zaakDoc := models.ZaakDocument{
-		ZaakID:     zaakID,
-		DocumentID: documentID,
-	}
-
-	return s.db.WithContext(ctx).Clauses(clause.OnConflict{
-		DoNothing: true,
-	}).Create(&zaakDoc).Error
-}
-
 func (s *PostgresStorage) Close() error {
 	sqlDB, err := s.db.DB()
 	if err != nil {
@@ -178,30 +150,4 @@ func (s *PostgresStorage) UpdateKamerstukdossierBulletPoints(ctx context.Context
 		Model(&models.Kamerstukdossier{}).
 		Where("id = ?", id).
 		Update("bullet_points", bulletPointsJSON).Error
-}
-
-func (s *PostgresStorage) GetStats(ctx context.Context) (map[string]interface{}, error) {
-	stats := make(map[string]interface{})
-
-	tables := map[string]interface{}{
-		"zaken":             &models.Zaak{},
-		"besluiten":         &models.Besluit{},
-		"stemmingen":        &models.Stemming{},
-		"personen":          &models.Persoon{},
-		"fracties":          &models.Fractie{},
-		"zaak_actors":       &models.ZaakActor{},
-		"kamerstukdossiers": &models.Kamerstukdossier{},
-		"document_info":     &models.DocumentInfo{},
-		"zaak_documents":    &models.ZaakDocument{},
-	}
-
-	for tableName, model := range tables {
-		var count int64
-		if err := s.db.WithContext(ctx).Model(model).Count(&count).Error; err != nil {
-			return nil, fmt.Errorf("failed to count %s: %w", tableName, err)
-		}
-		stats[tableName] = count
-	}
-
-	return stats, nil
 }
