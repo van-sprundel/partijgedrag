@@ -27,9 +27,9 @@ export const router = os.router({
 
 const handler = new RPCHandler(router);
 
-app.use("/rpc*", async (req, res, next) => {
+app.use("/api*", async (req, res, next) => {
 	const { matched } = await handler.handle(req, res, {
-		prefix: "/rpc",
+		prefix: "/api",
 		context: {},
 	});
 
