@@ -1,8 +1,8 @@
+import type { router as BackendRouter } from "@backend/src/index.js";
 import { createORPCClient } from "@orpc/client";
 import { RPCLink } from "@orpc/client/fetch";
 import type { RouterClient } from "@orpc/server";
 import { createTanstackQueryUtils } from "@orpc/tanstack-query";
-import type { router as BackendRouter } from "../../../backend/src/index.js";
 
 const BASE_URL = import.meta.env.VITE_API_URL ?? "http://localhost:3001";
 

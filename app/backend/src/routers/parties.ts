@@ -1,4 +1,4 @@
-import { implement } from "@orpc/server";
+import { implement, ORPCError } from "@orpc/server";
 import type { VoteType } from "../contracts/index.js";
 import { apiContract } from "../contracts/index.js";
 import { db } from "../lib/db.js";
@@ -100,7 +100,7 @@ export const partyRouter = {
 		});
 
 		if (!party) {
-			throw new Error("Party not found");
+			throw new ORPCError("NOT_FOUND", { message: "Party not found" });
 		}
 
 		const where: any = {
@@ -153,10 +153,9 @@ export const partyRouter = {
 							id: vote.persoon.id,
 							firstName: vote.persoon.voornamen || "",
 							lastName: vote.persoon.achternaam || "",
-							fullName:
-								`${vote.persoon.voornamen || ""} ${
-									vote.persoon.tussenvoegsel || ""
-								} ${vote.persoon.achternaam || ""}`.trim(),
+							fullName: `${vote.persoon.voornamen || ""} ${
+								vote.persoon.tussenvoegsel || ""
+							} ${vote.persoon.achternaam || ""}`.trim(),
 						}
 					: undefined,
 			};

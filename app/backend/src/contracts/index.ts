@@ -69,7 +69,7 @@ const PartyResultSchema = z.object({
 	matchingVotes: z.number(),
 });
 
-const CompassResultSchema = z.object({
+export const CompassResultSchema = z.object({
 	id: z.string(),
 	totalAnswers: z.number(),
 	partyResults: z.array(PartyResultSchema),
