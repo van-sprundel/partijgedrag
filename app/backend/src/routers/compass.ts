@@ -1,7 +1,7 @@
-import { implement } from "@orpc/server";
+import { implement, ORPCError } from "@orpc/server";
 import type { fracties, stemmingen } from "@prisma/client";
 import type { Party, UserAnswer, Vote, VoteType } from "../contracts/index.js";
-import { apiContract } from "../contracts/index.js";
+import { apiContract, CompassResultSchema } from "../contracts/index.js";
 import { db } from "../lib/db.js";
 
 const os = implement(apiContract);
@@ -42,7 +42,7 @@ export const compassRouter = {
 			return null;
 		}
 
-		const results = session.results as any;
+		const results = CompassResultSchema.parse(session.results);
 		return {
 			id: session.id,
 			totalAnswers: results.totalAnswers,
@@ -63,7 +63,7 @@ export const compassRouter = {
 		});
 
 		if (!zaak) {
-			throw new Error("Motion not found");
+			throw new ORPCError("NOT_FOUND", { message: "Motion not found" });
 		}
 
 		// Get the related kamerstukdossier for additional info
@@ -83,7 +83,9 @@ export const compassRouter = {
 				dossier &&
 				dossier.bullet_points != null &&
 				Array.isArray(dossier.bullet_points)
-					? dossier.bullet_points.filter((bp): bp is string => typeof bp === "string")
+					? dossier.bullet_points.filter(
+							(bp): bp is string => typeof bp === "string",
+						)
 					: [],
 			originalId: zaak.id,
 			createdAt: zaak.gestart_op || new Date(),
@@ -312,9 +314,12 @@ async function calculatePartyAlignment(answers: UserAnswer[]) {
 				{} as Record<string, number>,
 			);
 
-			const majorityVote = Object.entries(voteCounts).reduce((a, b) =>
-				a[1] > b[1] ? a : b,
-			)[0];
+			const majorityVote =
+				voteCounts.length > 0
+					? Object.entries(voteCounts).reduce((a, b) =>
+							a[1] > b[1] ? a : b,
+						)[0]
+					: null;
 
 			// Convert to comparable format
 			const userSupports = answer.answer === "agree";

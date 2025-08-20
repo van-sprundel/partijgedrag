@@ -58,7 +58,6 @@ model fracties {
   verwijderd       Boolean?
 
   stemmingen stemmingen[]
-  // zaak_actors zaak_actors[]
 }
 
 model kamerstukdossiers {
@@ -105,7 +104,6 @@ model personen {
   verwijderd        Boolean?
 
   stemmingen stemmingen[]
-  // zaak_actors zaak_actors[]
 }
 
 model stemmingen {
@@ -146,10 +144,6 @@ model zaak_actors {
   actor_fractie String?
   bijgewerkt    DateTime? @db.Timestamptz(6)
   verwijderd    Boolean?
-
-  // zaak    zaken?    @relation("ZaakActors", fields: [zaak_id], references: [id])
-  // persoon personen? @relation(fields: [persoon_id], references: [id])
-  // fractie fracties? @relation(fields: [fractie_id], references: [id])
 
   @@index([fractie_id], map: "idx_zaak_actors_fractie_id")
   @@index([persoon_id], map: "idx_zaak_actors_persoon_id")
@@ -195,7 +189,6 @@ model zaken {
 
   besluiten         besluiten[]         @relation("ZaakBesluiten")
   kamerstukdossiers kamerstukdossiers[] @relation("ZaakKamerstukdossiers")
-  // zaak_actors       zaak_actors[]       @relation("ZaakActors")
 }
 
 model user_sessions {

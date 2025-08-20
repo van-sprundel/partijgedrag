@@ -5,47 +5,6 @@ import { db } from "../lib/db.js";
 
 const os = implement(apiContract);
 
-// Helper function to map database vote types to your VoteType enum
-function mapVoteTypeFromDB(dbVoteType: string | null): VoteType {
-	if (!dbVoteType) return "ABSTAIN" as VoteType;
-
-	// Map Dutch vote types to your enum
-	switch (dbVoteType.toLowerCase()) {
-		case "voor":
-		case "for":
-			return "FOR" as VoteType;
-		case "tegen":
-		case "against":
-			return "AGAINST" as VoteType;
-		case "onthouding":
-		case "abstain":
-			return "ABSTAIN" as VoteType;
-		default:
-			return "ABSTAIN" as VoteType;
-	}
-}
-
-function mapZaakToMotion(zaak: any, dossier?: any) {
-	return {
-		id: zaak.id,
-		title: zaak.titel || zaak.onderwerp || "Untitled Motion",
-		description: zaak.onderwerp,
-		shortTitle: zaak.citeertitel,
-		motionNumber: zaak.nummer,
-		date: zaak.datum,
-		status: zaak.status || "unknown",
-		category: zaak.soort,
-		bulletPoints: dossier?.bullet_points
-			? Array.isArray(dossier.bullet_points)
-				? dossier.bullet_points
-				: []
-			: [],
-		originalId: zaak.id,
-		createdAt: zaak.gestart_op || new Date(),
-		updatedAt: zaak.gewijzigd_op || new Date(),
-	};
-}
-
 export const motionRouter = {
 	getAll: os.motions.getAll.handler(async ({ input }) => {
 		const { limit, offset, category, status } = input;
@@ -170,10 +129,9 @@ export const motionRouter = {
 						id: vote.persoon.id,
 						firstName: vote.persoon.voornamen || "",
 						lastName: vote.persoon.achternaam || "",
-						fullName:
-							`${vote.persoon.voornamen || ""} ${
-								vote.persoon.tussenvoegsel || ""
-							} ${vote.persoon.achternaam || ""}`.trim(),
+						fullName: `${vote.persoon.voornamen || ""} ${
+							vote.persoon.tussenvoegsel || ""
+						} ${vote.persoon.achternaam || ""}`.trim(),
 					}
 				: undefined,
 		}));
