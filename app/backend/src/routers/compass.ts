@@ -79,11 +79,12 @@ export const compassRouter = {
 			date: zaak.datum,
 			status: zaak.status || "unknown",
 			category: zaak.soort,
-			bulletPoints: [],
-			// dossier?.bullet_points
-			// ? Array.isArray(dossier.bullet_points!)
-			// ? dossier.bullet_points! : []
-			// : [],
+			bulletPoints:
+				dossier &&
+				dossier.bullet_points != null &&
+				Array.isArray(dossier.bullet_points)
+					? dossier.bullet_points.filter((bp): bp is string => typeof bp === "string")
+					: [],
 			originalId: zaak.id,
 			createdAt: zaak.gestart_op || new Date(),
 			updatedAt: zaak.gewijzigd_op || new Date(),
