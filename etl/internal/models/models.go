@@ -164,29 +164,29 @@ func (csn *CustomStringNumber) Scan(value interface{}) error {
 
 type Zaak struct {
 	ID                    string      `json:"Id" gorm:"primaryKey;column:id"`
-	Nummer                string      `json:"Nummer" gorm:"column:nummer"`
-	Onderwerp             string      `json:"Onderwerp" gorm:"column:onderwerp"`
-	Soort                 string      `json:"Soort" gorm:"column:soort"`
-	Titel                 string      `json:"Titel" gorm:"column:titel"`
+	Nummer                *string     `json:"Nummer" gorm:"column:nummer"`
+	Onderwerp             *string     `json:"Onderwerp" gorm:"column:onderwerp"`
+	Soort                 *string     `json:"Soort" gorm:"column:soort"`
+	Titel                 *string     `json:"Titel" gorm:"column:titel"`
 	Citeertitel           *string     `json:"Citeertitel" gorm:"column:citeertitel"`
 	Alias                 *string     `json:"Alias" gorm:"column:alias"`
-	Status                string      `json:"Status" gorm:"column:status"`
+	Status                *string     `json:"Status" gorm:"column:status"`
 	Datum                 *CustomDate `json:"Datum" gorm:"column:datum"`
-	GestartOp             time.Time   `json:"GestartOp" gorm:"column:gestart_op"`
-	Organisatie           string      `json:"Organisatie" gorm:"column:organisatie"`
+	GestartOp             *time.Time  `json:"GestartOp" gorm:"column:gestart_op"`
+	Organisatie           *string     `json:"Organisatie" gorm:"column:organisatie"`
 	Grondslagvoorhang     *string     `json:"Grondslagvoorhang" gorm:"column:grondslagvoorhang"`
 	Termijn               *string     `json:"Termijn" gorm:"column:termijn"`
-	Vergaderjaar          string      `json:"Vergaderjaar" gorm:"column:vergaderjaar"`
-	Volgnummer            int         `json:"Volgnummer" gorm:"column:volgnummer"`
+	Vergaderjaar          *string     `json:"Vergaderjaar" gorm:"column:vergaderjaar"`
+	Volgnummer            *int64      `json:"Volgnummer" gorm:"column:volgnummer"`
 	HuidigeBehandelstatus *string     `json:"HuidigeBehandelstatus" gorm:"column:huidige_behandelstatus"`
-	Afgedaan              bool        `json:"Afgedaan" gorm:"column:afgedaan"`
-	GrootProject          bool        `json:"GrootProject" gorm:"column:groot_project"`
-	GewijzigdOp           time.Time   `json:"GewijzigdOp" gorm:"column:gewijzigd_op"`
-	ApiGewijzigdOp        time.Time   `json:"ApiGewijzigdOp" gorm:"column:api_gewijzigd_op"`
-	Verwijderd            bool        `json:"Verwijderd" gorm:"column:verwijderd"`
-	Kabinetsappreciatie   string      `json:"Kabinetsappreciatie" gorm:"column:kabinetsappreciatie"`
+	Afgedaan              *bool       `json:"Afgedaan" gorm:"column:afgedaan"`
+	GrootProject          *bool       `json:"GrootProject" gorm:"column:groot_project"`
+	GewijzigdOp           *time.Time  `json:"GewijzigdOp" gorm:"column:gewijzigd_op"`
+	ApiGewijzigdOp        *time.Time  `json:"ApiGewijzigdOp" gorm:"column:api_gewijzigd_op"`
+	Verwijderd            *bool       `json:"Verwijderd" gorm:"column:verwijderd"`
+	Kabinetsappreciatie   *string     `json:"Kabinetsappreciatie" gorm:"column:kabinetsappreciatie"`
 	DatumAfgedaan         *CustomDate `json:"DatumAfgedaan" gorm:"column:datum_afgedaan"`
-	Kamer                 string      `json:"Kamer" gorm:"column:kamer"`
+	Kamer                 *string     `json:"Kamer" gorm:"column:kamer"`
 
 	Besluit          []Besluit          `json:"Besluit,omitempty" gorm:"-"`
 	ZaakActor        []ZaakActor        `json:"ZaakActor,omitempty" gorm:"-"`
@@ -198,20 +198,20 @@ func (Zaak) TableName() string {
 }
 
 type Besluit struct {
-	ID                            string    `json:"Id" gorm:"primaryKey;column:id"`
-	AgendapuntId                  string    `json:"Agendapunt_Id" gorm:"column:agendapunt_id"`
-	ZaakID                        *string   `json:"zaak_id,omitempty" gorm:"column:zaak_id;index"`
-	StemmingsSoort                *string   `json:"StemmingsSoort" gorm:"column:stemmings_soort"`
-	BesluitSoort                  string    `json:"BesluitSoort" gorm:"column:besluit_soort"`
-	BesluitTekst                  string    `json:"BesluitTekst" gorm:"column:besluit_tekst"`
-	Opmerking                     *string   `json:"Opmerking" gorm:"column:opmerking"`
-	Status                        string    `json:"Status" gorm:"column:status"`
-	AgendapuntZaakBesluitVolgorde int       `json:"AgendapuntZaakBesluitVolgorde" gorm:"column:agendapunt_zaak_besluit_volgorde"`
-	GewijzigdOp                   time.Time `json:"GewijzigdOp" gorm:"column:gewijzigd_op"`
-	ApiGewijzigdOp                time.Time `json:"ApiGewijzigdOp" gorm:"column:api_gewijzigd_op"`
+	ID                            string     `json:"Id" gorm:"primaryKey;column:id"`
+	AgendapuntId                  *string    `json:"Agendapunt_Id" gorm:"column:agendapunt_id"`
+	ZaakID                        *string    `json:"zaak_id,omitempty" gorm:"column:zaak_id;index"`
+	StemmingsSoort                *string    `json:"StemmingsSoort" gorm:"column:stemmings_soort"`
+	BesluitSoort                  *string    `json:"BesluitSoort" gorm:"column:besluit_soort"`
+	BesluitTekst                  *string    `json:"BesluitTekst" gorm:"column:besluit_tekst"`
+	Opmerking                     *string    `json:"Opmerking" gorm:"column:opmerking"`
+	Status                        *string    `json:"Status" gorm:"column:status"`
+	AgendapuntZaakBesluitVolgorde *int64     `json:"AgendapuntZaakBesluitVolgorde" gorm:"column:agendapunt_zaak_besluit_volgorde"`
+	GewijzigdOp                   *time.Time `json:"GewijzigdOp" gorm:"column:gewijzigd_op"`
+	ApiGewijzigdOp                *time.Time `json:"ApiGewijzigdOp" gorm:"column:api_gewijzigd_op"`
 
 	Stemming []Stemming `json:"Stemming,omitempty" gorm:"-"`
-	Zaak     []Zaak     `json:"Zaak,omitempty" gorm:"-"`
+	Zaak     *Zaak      `json:"Zaak,omitempty" gorm:"-"`
 }
 
 func (Besluit) TableName() string {
@@ -219,22 +219,22 @@ func (Besluit) TableName() string {
 }
 
 type Stemming struct {
-	ID              string    `json:"Id" gorm:"primaryKey;column:id"`
-	BesluitId       string    `json:"Besluit_Id" gorm:"column:besluit_id_raw"`
-	BesluitID       *string   `json:"besluit_id,omitempty" gorm:"column:besluit_id;index"`
-	Soort           string    `json:"Soort" gorm:"column:soort"`
-	FractieGrootte  int       `json:"FractieGrootte" gorm:"column:fractie_grootte"`
-	ActorNaam       string    `json:"ActorNaam" gorm:"column:actor_naam"`
-	ActorFractie    string    `json:"ActorFractie" gorm:"column:actor_fractie"`
-	Vergissing      bool      `json:"Vergissing" gorm:"column:vergissing"`
-	SidActorLid     *string   `json:"SidActorLid" gorm:"column:sid_actor_lid"`
-	SidActorFractie string    `json:"SidActorFractie" gorm:"column:sid_actor_fractie"`
-	PersoonId       *string   `json:"Persoon_Id" gorm:"column:persoon_id_raw"`
-	PersoonID       *string   `json:"persoon_id,omitempty" gorm:"column:persoon_id;index"`
-	FractieId       string    `json:"Fractie_Id" gorm:"column:fractie_id_raw"`
-	FractieID       *string   `json:"fractie_id,omitempty" gorm:"column:fractie_id;index"`
-	GewijzigdOp     time.Time `json:"GewijzigdOp" gorm:"column:gewijzigd_op"`
-	ApiGewijzigdOp  time.Time `json:"ApiGewijzigdOp" gorm:"column:api_gewijzigd_op"`
+	ID              string     `json:"Id" gorm:"primaryKey;column:id"`
+	BesluitId       *string    `json:"Besluit_Id" gorm:"column:besluit_id_raw"`
+	BesluitID       *string    `json:"besluit_id,omitempty" gorm:"column:besluit_id;index"`
+	Soort           *string    `json:"Soort" gorm:"column:soort"`
+	FractieGrootte  *int64     `json:"FractieGrootte" gorm:"column:fractie_grootte"`
+	ActorNaam       *string    `json:"ActorNaam" gorm:"column:actor_naam"`
+	ActorFractie    *string    `json:"ActorFractie" gorm:"column:actor_fractie"`
+	Vergissing      *bool      `json:"Vergissing" gorm:"column:vergissing"`
+	SidActorLid     *string    `json:"SidActorLid" gorm:"column:sid_actor_lid"`
+	SidActorFractie *string    `json:"SidActorFractie" gorm:"column:sid_actor_fractie"`
+	PersoonId       *string    `json:"Persoon_Id" gorm:"column:persoon_id_raw"`
+	PersoonID       *string    `json:"persoon_id,omitempty" gorm:"column:persoon_id;index"`
+	FractieId       *string    `json:"Fractie_Id" gorm:"column:fractie_id_raw"`
+	FractieID       *string    `json:"fractie_id,omitempty" gorm:"column:fractie_id;index"`
+	GewijzigdOp     *time.Time `json:"GewijzigdOp" gorm:"column:gewijzigd_op"`
+	ApiGewijzigdOp  *time.Time `json:"ApiGewijzigdOp" gorm:"column:api_gewijzigd_op"`
 
 	Persoon *Persoon `json:"Persoon,omitempty" gorm:"-"`
 	Fractie *Fractie `json:"Fractie,omitempty" gorm:"-"`
@@ -247,22 +247,22 @@ func (Stemming) TableName() string {
 
 type Persoon struct {
 	ID                string      `json:"Id" gorm:"primaryKey;column:id"`
-	Titels            string      `json:"Titels" gorm:"column:titels"`
-	Initialen         string      `json:"Initialen" gorm:"column:initialen"`
-	Tussenvoegsel     string      `json:"Tussenvoegsel" gorm:"column:tussenvoegsel"`
-	Achternaam        string      `json:"Achternaam" gorm:"column:achternaam"`
-	Voornamen         string      `json:"Voornamen" gorm:"column:voornamen"`
-	Roepnaam          string      `json:"Roepnaam" gorm:"column:roepnaam"`
-	Geslacht          string      `json:"Geslacht" gorm:"column:geslacht"`
+	Titels            *string     `json:"Titels" gorm:"column:titels"`
+	Initialen         *string     `json:"Initialen" gorm:"column:initialen"`
+	Tussenvoegsel     *string     `json:"Tussenvoegsel" gorm:"column:tussenvoegsel"`
+	Achternaam        *string     `json:"Achternaam" gorm:"column:achternaam"`
+	Voornamen         *string     `json:"Voornamen" gorm:"column:voornamen"`
+	Roepnaam          *string     `json:"Roepnaam" gorm:"column:roepnaam"`
+	Geslacht          *string     `json:"Geslacht" gorm:"column:geslacht"`
 	Geboortedatum     *CustomDate `json:"Geboortedatum" gorm:"column:geboortedatum"`
-	Geboorteplaats    string      `json:"Geboorteplaats" gorm:"column:geboorteplaats"`
-	Geboorteland      string      `json:"Geboorteland" gorm:"column:geboorteland"`
+	Geboorteplaats    *string     `json:"Geboorteplaats" gorm:"column:geboorteplaats"`
+	Geboorteland      *string     `json:"Geboorteland" gorm:"column:geboorteland"`
 	Overlijdensdatum  *CustomDate `json:"Overlijdensdatum" gorm:"column:overlijdensdatum"`
-	Overlijdensplaats string      `json:"Overlijdensplaats" gorm:"column:overlijdensplaats"`
-	Overlijdensland   string      `json:"Overlijdensland" gorm:"column:overlijdensland"`
-	Woonplaats        string      `json:"Woonplaats" gorm:"column:woonplaats"`
-	Land              string      `json:"Land" gorm:"column:land"`
-	Bijgewerkt        time.Time   `json:"Bijgewerkt" gorm:"column:bijgewerkt"`
+	Overlijdensplaats *string     `json:"Overlijdensplaats" gorm:"column:overlijdensplaats"`
+	Overlijdensland   *string     `json:"Overlijdensland" gorm:"column:overlijdensland"`
+	Woonplaats        *string     `json:"Woonplaats" gorm:"column:woonplaats"`
+	Land              *string     `json:"Land" gorm:"column:land"`
+	Bijgewerkt        *time.Time  `json:"Bijgewerkt" gorm:"column:bijgewerkt"`
 }
 
 func (Persoon) TableName() string {
@@ -271,18 +271,18 @@ func (Persoon) TableName() string {
 
 type Fractie struct {
 	ID             string      `json:"Id" gorm:"primaryKey;column:id"`
-	Nummer         int         `json:"Nummer" gorm:"column:nummer"`
-	Afkorting      string      `json:"Afkorting" gorm:"column:afkorting"`
-	NaamNL         string      `json:"NaamNL" gorm:"column:naam_nl"`
-	NaamEN         string      `json:"NaamEN" gorm:"column:naam_en"`
-	AantalZetels   int         `json:"AantalZetels" gorm:"column:aantal_zetels"`
-	AantalStemmen  int         `json:"AantalStemmen" gorm:"column:aantal_stemmen"`
+	Nummer         *int64      `json:"Nummer" gorm:"column:nummer"`
+	Afkorting      *string     `json:"Afkorting" gorm:"column:afkorting"`
+	NaamNL         *string     `json:"NaamNL" gorm:"column:naam_nl"`
+	NaamEN         *string     `json:"NaamEN" gorm:"column:naam_en"`
+	AantalZetels   *int64      `json:"AantalZetels" gorm:"column:aantal_zetels"`
+	AantalStemmen  *int64      `json:"AantalStemmen" gorm:"column:aantal_stemmen"`
 	DatumActief    *CustomDate `json:"DatumActief" gorm:"column:datum_actief"`
 	DatumInactief  *CustomDate `json:"DatumInactief" gorm:"column:datum_inactief"`
-	ContentType    string      `json:"ContentType" gorm:"column:content_type"`
-	ContentLength  int         `json:"ContentLength" gorm:"column:content_length"`
-	GewijzigdOp    time.Time   `json:"GewijzigdOp" gorm:"column:gewijzigd_op"`
-	ApiGewijzigdOp time.Time   `json:"ApiGewijzigdOp" gorm:"column:api_gewijzigd_op"`
+	ContentType    *string     `json:"ContentType" gorm:"column:content_type"`
+	ContentLength  *int64      `json:"ContentLength" gorm:"column:content_length"`
+	GewijzigdOp    *time.Time  `json:"GewijzigdOp" gorm:"column:gewijzigd_op"`
+	ApiGewijzigdOp *time.Time  `json:"ApiGewijzigdOp" gorm:"column:api_gewijzigd_op"`
 }
 
 func (Fractie) TableName() string {
@@ -290,14 +290,14 @@ func (Fractie) TableName() string {
 }
 
 type ZaakActor struct {
-	ID           string    `json:"Id" gorm:"primaryKey;column:id"`
-	ZaakID       *string   `json:"zaak_id,omitempty" gorm:"column:zaak_id;index"`
-	PersoonID    *string   `json:"persoon_id,omitempty" gorm:"column:persoon_id;index"`
-	FractieID    *string   `json:"fractie_id,omitempty" gorm:"column:fractie_id;index"`
-	Relatie      string    `json:"Relatie" gorm:"column:relatie"`
-	ActorNaam    string    `json:"ActorNaam" gorm:"column:actor_naam"`
-	ActorFractie string    `json:"ActorFractie" gorm:"column:actor_fractie"`
-	Bijgewerkt   time.Time `json:"Bijgewerkt" gorm:"column:bijgewerkt"`
+	ID           string     `json:"Id" gorm:"primaryKey;column:id"`
+	ZaakID       *string    `json:"zaak_id,omitempty" gorm:"column:zaak_id;index"`
+	PersoonID    *string    `json:"persoon_id,omitempty" gorm:"column:persoon_id;index"`
+	FractieID    *string    `json:"fractie_id,omitempty" gorm:"column:fractie_id;index"`
+	Relatie      *string    `json:"Relatie" gorm:"column:relatie"`
+	ActorNaam    *string    `json:"ActorNaam" gorm:"column:actor_naam"`
+	ActorFractie *string    `json:"ActorFractie" gorm:"column:actor_fractie"`
+	Bijgewerkt   *time.Time `json:"Bijgewerkt" gorm:"column:bijgewerkt"`
 
 	Persoon *Persoon `json:"Persoon,omitempty" gorm:"-"`
 	Fractie *Fractie `json:"Fractie,omitempty" gorm:"-"`
@@ -309,21 +309,21 @@ func (ZaakActor) TableName() string {
 }
 
 type Kamerstukdossier struct {
-	ID                string             `json:"Id" gorm:"primaryKey;column:id"`
-	ZaakID            *string            `json:"zaak_id,omitempty" gorm:"column:zaak_id;index"`
-	Nummer            CustomStringNumber `json:"Nummer" gorm:"column:nummer"`
-	Titel             string             `json:"Titel" gorm:"column:titel"`
-	Citeertitel       *string            `json:"Citeertitel" gorm:"column:citeertitel"`
-	Alias             *string            `json:"Alias" gorm:"column:alias"`
-	Toevoeging        *string            `json:"Toevoeging" gorm:"column:toevoeging"`
-	HoogsteVolgnummer int                `json:"HoogsteVolgnummer" gorm:"column:hoogste_volgnummer"`
-	Afgesloten        bool               `json:"Afgesloten" gorm:"column:afgesloten"`
-	DatumAangemaakt   *CustomDate        `json:"DatumAangemaakt" gorm:"column:datum_aangemaakt"`
-	DatumGesloten     *CustomDate        `json:"DatumGesloten" gorm:"column:datum_gesloten"`
-	Kamer             string             `json:"Kamer" gorm:"column:kamer"`
-	Bijgewerkt        time.Time          `json:"Bijgewerkt" gorm:"column:bijgewerkt"`
-	ApiGewijzigdOp    time.Time          `json:"ApiGewijzigdOp" gorm:"column:api_gewijzigd_op"`
-	BulletPoints      []string           `json:"BulletPoints" gorm:"type:jsonb;column:bullet_points"`
+	ID                string              `json:"Id" gorm:"primaryKey;column:id"`
+	ZaakID            *string             `json:"zaak_id,omitempty" gorm:"column:zaak_id;index"`
+	Nummer            *CustomStringNumber `json:"Nummer" gorm:"column:nummer"`
+	Titel             *string             `json:"Titel" gorm:"column:titel"`
+	Citeertitel       *string             `json:"Citeertitel" gorm:"column:citeertitel"`
+	Alias             *string             `json:"Alias" gorm:"column:alias"`
+	Toevoeging        *string             `json:"Toevoeging" gorm:"column:toevoeging"`
+	HoogsteVolgnummer *int64              `json:"HoogsteVolgnummer" gorm:"column:hoogste_volgnummer"`
+	Afgesloten        *bool               `json:"Afgesloten" gorm:"column:afgesloten"`
+	DatumAangemaakt   *CustomDate         `json:"DatumAangemaakt" gorm:"column:datum_aangemaakt"`
+	DatumGesloten     *CustomDate         `json:"DatumGesloten" gorm:"column:datum_gesloten"`
+	Kamer             *string             `json:"Kamer" gorm:"column:kamer"`
+	Bijgewerkt        *time.Time          `json:"Bijgewerkt" gorm:"column:bijgewerkt"`
+	ApiGewijzigdOp    *time.Time          `json:"ApiGewijzigdOp" gorm:"column:api_gewijzigd_op"`
+	BulletPoints      []string            `json:"BulletPoints" gorm:"type:jsonb;column:bullet_points"` // This should match Json in Prisma
 
 	Document []Document `json:"Document,omitempty" gorm:"-"`
 }

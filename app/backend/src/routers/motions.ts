@@ -2,6 +2,8 @@ import { implement } from "@orpc/server";
 import type { VoteType } from "../contracts/index.js";
 import { apiContract } from "../contracts/index.js";
 import { db } from "../lib/db.js";
+import { mapZaakToMotion } from "../utils/motion.js";
+import { mapVoteTypeFromDB } from "../utils/vote.js";
 
 const os = implement(apiContract);
 
