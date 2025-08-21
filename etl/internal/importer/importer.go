@@ -184,21 +184,16 @@ func (imp *SimpleImporter) extractEntities(zaken []models.Zaak) ExtractedEntitie
 		Zaken: zaken,
 	}
 
-	// Use maps to deduplicate by ID
 	persoonMap := make(map[string]models.Persoon)
 	fractieMap := make(map[string]models.Fractie)
 	kamerstukdossierMap := make(map[string]models.Kamerstukdossier)
 
 	for _, zaak := range zaken {
-		// Extract besluiten
 		for _, besluit := range zaak.Besluit {
-			// Set FK relationship
 			besluit.ZaakID = &zaak.ID
 			entities.Besluiten = append(entities.Besluiten, besluit)
 
-			// Extract stemmingen from each besluit
 			for _, stemming := range besluit.Stemming {
-				// Set FK relationships
 				stemming.BesluitID = &besluit.ID
 
 				if stemming.Persoon != nil {
@@ -221,25 +216,26 @@ func (imp *SimpleImporter) extractEntities(zaken []models.Zaak) ExtractedEntitie
 			if zaakActor.Persoon != nil {
 				zaakActor.PersoonID = &zaakActor.Persoon.ID
 				persoonMap[zaakActor.Persoon.ID] = *zaakActor.Persoon
+			} else {
+				zaakActor.PersoonID = nil
 			}
 
 			if zaakActor.Fractie != nil {
 				zaakActor.FractieID = &zaakActor.Fractie.ID
 				fractieMap[zaakActor.Fractie.ID] = *zaakActor.Fractie
+			} else {
+				zaakActor.FractieID = nil
 			}
 
 			entities.ZaakActors = append(entities.ZaakActors, zaakActor)
 		}
 
-		// Extract kamerstukdossiers
 		for _, dossier := range zaak.Kamerstukdossier {
-			// Set FK relationship
 			dossier.ZaakID = &zaak.ID
 			kamerstukdossierMap[dossier.ID] = dossier
 		}
 	}
 
-	// Convert maps to slices
 	for _, persoon := range persoonMap {
 		entities.Personen = append(entities.Personen, persoon)
 	}
@@ -308,7 +304,7 @@ func (imp *SimpleImporter) updateStats(entities ExtractedEntities) {
 
 	// Track zaak types
 	for _, zaak := range entities.Zaken {
-		imp.stats.ZakenByType[zaak.Soort]++
+		imp.stats.ZakenByType[*zaak.Soort]++
 	}
 }
 

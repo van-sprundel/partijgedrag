@@ -19,26 +19,11 @@ model besluiten {
   agendapunt_zaak_besluit_volgorde BigInt?
   gewijzigd_op                     DateTime? @db.Timestamptz(6)
   api_gewijzigd_op                 DateTime? @db.Timestamptz(6)
-  verwijderd                       Boolean?
 
   zaak       zaken?       @relation("ZaakBesluiten", fields: [zaak_id], references: [id])
   stemmingen stemmingen[]
 
   @@index([zaak_id], map: "idx_besluiten_zaak_id")
-}
-
-model document_info {
-  id             BigInt    @id @default(autoincrement())
-  dossier_nummer String?
-  volgnummer     BigInt?
-  url            String?
-  content        Json?
-  fetched_at     DateTime? @db.Timestamptz(6)
-  success        Boolean?
-  error          String?
-
-  @@unique([dossier_nummer, volgnummer], map: "idx_document_unique")
-  @@index([dossier_nummer], map: "idx_document_info_dossier_nummer")
 }
 
 model fracties {
@@ -55,9 +40,9 @@ model fracties {
   content_length   BigInt?
   gewijzigd_op     DateTime? @db.Timestamptz(6)
   api_gewijzigd_op DateTime? @db.Timestamptz(6)
-  verwijderd       Boolean?
 
-  stemmingen stemmingen[]
+  stemmingen  stemmingen[]
+  zaak_actors zaak_actors[]
 }
 
 model kamerstukdossiers {
@@ -75,7 +60,6 @@ model kamerstukdossiers {
   kamer              String?
   bijgewerkt         DateTime? @db.Timestamptz(6)
   api_gewijzigd_op   DateTime? @db.Timestamptz(6)
-  verwijderd         Boolean?
   bullet_points      Json?
 
   zaak zaken? @relation("ZaakKamerstukdossiers", fields: [zaak_id], references: [id])
@@ -101,9 +85,9 @@ model personen {
   woonplaats        String?
   land              String?
   bijgewerkt        DateTime? @db.Timestamptz(6)
-  verwijderd        Boolean?
 
-  stemmingen stemmingen[]
+  stemmingen  stemmingen[]
+  zaak_actors zaak_actors[]
 }
 
 model stemmingen {
@@ -123,7 +107,6 @@ model stemmingen {
   fractie_id        String?
   gewijzigd_op      DateTime? @db.Timestamptz(6)
   api_gewijzigd_op  DateTime? @db.Timestamptz(6)
-  verwijderd        Boolean?
 
   besluit besluiten? @relation(fields: [besluit_id], references: [id])
   persoon personen?  @relation(fields: [persoon_id], references: [id])
@@ -143,22 +126,14 @@ model zaak_actors {
   actor_naam    String?
   actor_fractie String?
   bijgewerkt    DateTime? @db.Timestamptz(6)
-  verwijderd    Boolean?
+
+  zaak    zaken?    @relation(fields: [zaak_id], references: [id])
+  persoon personen? @relation(fields: [persoon_id], references: [id])
+  fractie fracties? @relation(fields: [fractie_id], references: [id])
 
   @@index([fractie_id], map: "idx_zaak_actors_fractie_id")
   @@index([persoon_id], map: "idx_zaak_actors_persoon_id")
   @@index([zaak_id], map: "idx_zaak_actors_zaak_id")
-}
-
-model zaak_documents {
-  id          BigInt    @id @default(autoincrement())
-  zaak_id     String?
-  document_id BigInt?
-  created_at  DateTime? @db.Timestamptz(6)
-
-  @@unique([zaak_id, document_id], map: "idx_zaak_document")
-  @@index([document_id], map: "idx_zaak_documents_document_id")
-  @@index([zaak_id], map: "idx_zaak_documents_zaak_id")
 }
 
 model zaken {
@@ -189,6 +164,7 @@ model zaken {
 
   besluiten         besluiten[]         @relation("ZaakBesluiten")
   kamerstukdossiers kamerstukdossiers[] @relation("ZaakKamerstukdossiers")
+  zaak_actors       zaak_actors[]
 }
 
 model user_sessions {
