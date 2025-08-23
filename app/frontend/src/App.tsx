@@ -27,9 +27,7 @@ function App() {
 					</Routes>
 				</div>
 			</BrowserRouter>
-			{import.meta.env.DEV === "development" && (
-				<ReactQueryDevtools initialIsOpen={false} />
-			)}
+			{import.meta.env.DEV && <ReactQueryDevtools initialIsOpen={false} />}
 		</QueryClientProvider>
 	);
 }
