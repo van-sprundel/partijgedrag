@@ -17,36 +17,25 @@ export function formatPercentage(value: number): string {
 	return `${Math.round(value)}%`;
 }
 
+export const partyInfo: Record<string, { color: string; className: string }> = {
+	VVD: { color: "#0066CC", className: "bg-blue-600" },
+	D66: { color: "#00AA55", className: "bg-green-600" },
+	PvdA: { color: "#DC143C", className: "bg-red-600" },
+	SP: { color: "#FF0000", className: "bg-red-700" },
+	PVV: { color: "#FFD700", className: "bg-yellow-500" },
+	GL: { color: "#7CB518", className: "bg-green-500" },
+	FVD: { color: "#8B0000", className: "bg-red-900" },
+	CDA: { color: "#008B8B", className: "bg-teal-600" },
+	CU: { color: "#0066FF", className: "bg-blue-500" },
+	SGP: { color: "#FFA500", className: "bg-orange-500" },
+};
+
 export function getPartyColor(shortName: string): string {
-	const colors: Record<string, string> = {
-		VVD: "#0066CC",
-		D66: "#00AA55",
-		PvdA: "#DC143C",
-		SP: "#FF0000",
-		PVV: "#FFD700",
-		GL: "#7CB518",
-		FVD: "#8B0000",
-		CDA: "#008B8B",
-		CU: "#0066FF",
-		SGP: "#FFA500",
-	};
-	return colors[shortName] || "#6B7280";
+	return partyInfo[shortName]?.color || "#6B7280";
 }
 
 export function getPartyColorClass(shortName: string): string {
-	const classes: Record<string, string> = {
-		VVD: "bg-blue-600",
-		D66: "bg-green-600",
-		PvdA: "bg-red-600",
-		SP: "bg-red-700",
-		PVV: "bg-yellow-500",
-		GL: "bg-green-500",
-		FVD: "bg-red-900",
-		CDA: "bg-teal-600",
-		CU: "bg-blue-500",
-		SGP: "bg-orange-500",
-	};
-	return classes[shortName] || "bg-gray-500";
+	return partyInfo[shortName]?.className || "bg-gray-500";
 }
 
 export function shuffleArray<T>(array: T[]): T[] {

@@ -1,9 +1,13 @@
 import { implement, ORPCError } from "@orpc/server";
+import type { Party as PartyModel, Vote as VoteModel } from "@prisma/client";
 import type { Party, UserAnswer, Vote, VoteType } from "../contracts/index.js";
 import { apiContract, CompassResultSchema } from "../contracts/index.js";
 import { db } from "../lib/db.js";
-import { mapCaseToMotion, mapPartyToContract, mapVoteToContract } from "../utils/mappers.js";
-import type { Party as PartyModel, Vote as VoteModel } from '@prisma/client';
+import {
+	mapCaseToMotion,
+	mapPartyToContract,
+	mapVoteToContract,
+} from "../utils/mappers.js";
 
 const os = implement(apiContract);
 
@@ -99,7 +103,7 @@ export const compassRouter = {
 				},
 			});
 
-			votes = votesWithRelations.map(v => mapVoteToContract(v));
+			votes = votesWithRelations.map((v) => mapVoteToContract(v));
 
 			const partyVoteMap = new Map<
 				string,
@@ -134,7 +138,7 @@ export const compassRouter = {
 						Object.keys(voteCounts).length > 0
 							? Object.entries(voteCounts).reduce((a, b) =>
 									a[1] > b[1] ? a : b,
-							)
+								)
 							: [];
 
 					const majorityVote =
@@ -261,14 +265,6 @@ async function calculatePartyAlignment(answers: UserAnswer[]) {
 		votes.map((v) => v.decision?.caseId).filter(Boolean),
 	);
 
-	partyScores.forEach((score, partyId) => {
-		if (score.totalVotes > 0) {
-			console.log(
-				`${score.party.shortName}: ${score.matchingVotes}/${score.totalVotes} matches (${Math.round(score.agreement)}% agreement) - Score: ${score.score}`,
-			);
-		}
-	});
-
 	const minVotesThreshold = Math.max(1, Math.floor(answers.length * 0.25));
 
 	const results = Array.from(partyScores.values())
@@ -282,12 +278,6 @@ async function calculatePartyAlignment(answers: UserAnswer[]) {
 			}
 			return b.score - a.score;
 		});
-
-	results.slice(0, 5).forEach((result, index) => {
-		console.log(
-			`${index + 1}. ${result.party.shortName}: ${result.matchingVotes}/${result.totalVotes} (${Math.round(result.agreement)}%) - Score: ${result.score}`,
-		);
-	});
 
 	return results.map((result) => ({
 		party: result.party,
@@ -382,9 +372,7 @@ async function getMotionVoteDetails(answers: UserAnswer[]) {
 		return {
 			motionId: answer.motionId,
 			userAnswer: answer.answer,
-			motion: motion
-				? mapCaseToMotion(motion, dossier)
-				: null,
+			motion: motion ? mapCaseToMotion(motion, dossier) : null,
 			partyPositions,
 		};
 	});
