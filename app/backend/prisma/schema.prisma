@@ -7,176 +7,180 @@ datasource db {
   url      = env("DATABASE_URL")
 }
 
-model besluiten {
-  id                               String    @id
-  agendapunt_id                    String?
-  zaak_id                          String?
-  stemmings_soort                  String?
-  besluit_soort                    String?
-  besluit_tekst                    String?
-  opmerking                        String?
-  status                           String?
-  agendapunt_zaak_besluit_volgorde BigInt?
-  gewijzigd_op                     DateTime? @db.Timestamptz(6)
-  api_gewijzigd_op                 DateTime? @db.Timestamptz(6)
+model Decision {
+  id                           String  @id @map("id")
+  agendaPointId                String? @map("agendapunt_id")
+  caseId                       String? @map("zaak_id")
+  votingType                   String? @map("stemmings_soort")
+  decisionType                 String? @map("besluit_soort")
+  decisionText                 String? @map("besluit_tekst")
+  comment                      String? @map("opmerking")
+  status                       String? @map("status")
+  agendaPointCaseDecisionOrder BigInt? @map("agendapunt_zaak_besluit_volgorde")
+  updatedAt                    DateTime? @map("gewijzigd_op") @db.Timestamptz(6)
+  apiUpdatedAt                 DateTime? @map("api_gewijzigd_op") @db.Timestamptz(6)
 
-  zaak       zaken?       @relation("ZaakBesluiten", fields: [zaak_id], references: [id])
-  stemmingen stemmingen[]
+  case  Case?  @relation("CaseDecisions", fields: [caseId], references: [id])
+  votes Vote[]
 
-  @@index([zaak_id], map: "idx_besluiten_zaak_id")
+  @@map("besluiten")
 }
 
-model fracties {
-  id               String    @id
-  nummer           BigInt?
-  afkorting        String?
-  naam_nl          String?
-  naam_en          String?
-  aantal_zetels    BigInt?
-  aantal_stemmen   BigInt?
-  datum_actief     DateTime? @db.Timestamptz(6)
-  datum_inactief   DateTime? @db.Timestamptz(6)
-  content_type     String?
-  content_length   BigInt?
-  gewijzigd_op     DateTime? @db.Timestamptz(6)
-  api_gewijzigd_op DateTime? @db.Timestamptz(6)
+model Party {
+  id            String    @id @map("id")
+  number        BigInt?   @map("nummer")
+  shortName     String?   @map("afkorting")
+  nameNl        String?   @map("naam_nl")
+  nameEn        String?   @map("naam_en")
+  seats         BigInt?   @map("aantal_zetels")
+  votesCount    BigInt?   @map("aantal_stemmen")
+  activeFrom    DateTime? @map("datum_actief") @db.Timestamptz(6)
+  activeTo      DateTime? @map("datum_inactief") @db.Timestamptz(6)
+  contentType   String?   @map("content_type")
+  contentLength BigInt?   @map("content_length")
+  updatedAt     DateTime? @map("gewijzigd_op") @db.Timestamptz(6)
+  apiUpdatedAt  DateTime? @map("api_gewijzigd_op") @db.Timestamptz(6)
 
-  stemmingen  stemmingen[]
-  zaak_actors zaak_actors[]
+  votes      Vote[]
+  caseActors CaseActor[]
+
+  @@map("fracties")
 }
 
-model kamerstukdossiers {
-  id                 String    @id
-  zaak_id            String?
-  nummer             String?
-  titel              String?
-  citeertitel        String?
-  alias              String?
-  toevoeging         String?
-  hoogste_volgnummer BigInt?
-  afgesloten         Boolean?
-  datum_aangemaakt   DateTime? @db.Timestamptz(6)
-  datum_gesloten     DateTime? @db.Timestamptz(6)
-  kamer              String?
-  bijgewerkt         DateTime? @db.Timestamptz(6)
-  api_gewijzigd_op   DateTime? @db.Timestamptz(6)
-  bullet_points      Json?
+model ParliamentaryDocument {
+  id                    String    @id @map("id")
+  caseId                String?   @map("zaak_id")
+  number                String?   @map("nummer")
+  title                 String?   @map("titel")
+  citationTitle         String?   @map("citeertitel")
+  alias                 String?   @map("alias")
+  addition              String?   @map("toevoeging")
+  highestSequenceNumber BigInt?   @map("hoogste_volgnummer")
+  closed                Boolean?  @map("afgesloten")
+  createdAt             DateTime? @map("datum_aangemaakt") @db.Timestamptz(6)
+  closedAt              DateTime? @map("datum_gesloten") @db.Timestamptz(6)
+  chamber               String?   @map("kamer")
+  updatedAt             DateTime? @map("bijgewerkt") @db.Timestamptz(6)
+  apiUpdatedAt          DateTime? @map("api_gewijzigd_op") @db.Timestamptz(6)
+  bulletPoints          Json?     @map("bullet_points")
 
-  zaak zaken? @relation("ZaakKamerstukdossiers", fields: [zaak_id], references: [id])
+  case Case? @relation("CaseParliamentaryDocuments", fields: [caseId], references: [id])
 
-  @@index([zaak_id], map: "idx_kamerstukdossiers_zaak_id")
+  @@map("kamerstukdossiers")
 }
 
-model personen {
-  id                String    @id
-  titels            String?
-  initialen         String?
-  tussenvoegsel     String?
-  achternaam        String?
-  voornamen         String?
-  roepnaam          String?
-  geslacht          String?
-  geboortedatum     DateTime? @db.Timestamptz(6)
-  geboorteplaats    String?
-  geboorteland      String?
-  overlijdensdatum  DateTime? @db.Timestamptz(6)
-  overlijdensplaats String?
-  overlijdensland   String?
-  woonplaats        String?
-  land              String?
-  bijgewerkt        DateTime? @db.Timestamptz(6)
+model Politician {
+  id           String    @id @map("id")
+  titles       String?   @map("titels")
+  initials     String?   @map("initialen")
+  prefix       String?   @map("tussenvoegsel")
+  lastName     String?   @map("achternaam")
+  firstNames   String?   @map("voornamen")
+  nickname     String?   @map("roepnaam")
+  gender       String?   @map("geslacht")
+  birthDate    DateTime? @map("geboortedatum") @db.Timestamptz(6)
+  birthPlace   String?   @map("geboorteplaats")
+  birthCountry String?   @map("geboorteland")
+  deathDate    DateTime? @map("overlijdensdatum") @db.Timestamptz(6)
+  deathPlace   String?   @map("overlijdensplaats")
+  deathCountry String?   @map("overlijdensland")
+  residence    String?   @map("woonplaats")
+  country      String?   @map("land")
+  updatedAt    DateTime? @map("bijgewerkt") @db.Timestamptz(6)
 
-  stemmingen  stemmingen[]
-  zaak_actors zaak_actors[]
+  votes      Vote[]
+  caseActors CaseActor[]
+
+  @@map("personen")
 }
 
 enum VoteType {
-  Voor
-  Tegen
-  NietDeelgenomen @map("Niet deelgenomen")
+  FOR     @map("Voor")
+  AGAINST @map("Tegen")
+  NEUTRAL @map("Niet deelgenomen")
 }
 
-model stemmingen {
-  id                String    @id
-  besluit_id_raw    String?
-  besluit_id        String?
-  soort             VoteType?
-  fractie_grootte   BigInt?
-  actor_naam        String?
-  actor_fractie     String?
-  vergissing        Boolean?
-  sid_actor_lid     String?
-  sid_actor_fractie String?
-  persoon_id_raw    String?
-  persoon_id        String?
-  fractie_id_raw    String?
-  fractie_id        String?
-  gewijzigd_op      DateTime? @db.Timestamptz(6)
-  api_gewijzigd_op  DateTime? @db.Timestamptz(6)
+model Vote {
+  id              String    @id @map("id")
+  decisionIdRaw   String?   @map("besluit_id_raw")
+  decisionId      String?   @map("besluit_id")
+  type            VoteType  @map("soort")
+  partySize       BigInt?   @map("fractie_grootte")
+  actorName       String?   @map("actor_naam")
+  actorParty      String?   @map("actor_fractie")
+  mistake         Boolean?  @map("vergissing")
+  sidActorMember  String?   @map("sid_actor_lid")
+  sidActorParty   String?   @map("sid_actor_fractie")
+  politicianIdRaw String?   @map("persoon_id_raw")
+  politicianId    String?   @map("persoon_id")
+  partyIdRaw      String?   @map("fractie_id_raw")
+  partyId         String?   @map("fractie_id")
+  updatedAt       DateTime? @map("gewijzigd_op") @db.Timestamptz(6)
+  apiUpdatedAt    DateTime? @map("api_gewijzigd_op") @db.Timestamptz(6)
 
-  besluit besluiten? @relation(fields: [besluit_id], references: [id])
-  persoon personen?  @relation(fields: [persoon_id], references: [id])
-  fractie fracties?  @relation(fields: [fractie_id], references: [id])
+  decision   Decision?   @relation(fields: [decisionId], references: [id])
+  politician Politician? @relation(fields: [politicianId], references: [id])
+  party      Party?      @relation(fields: [partyId], references: [id])
 
-  @@index([besluit_id], map: "idx_stemmingen_besluit_id")
-  @@index([fractie_id], map: "idx_stemmingen_fractie_id")
-  @@index([persoon_id], map: "idx_stemmingen_persoon_id")
+  @@map("stemmingen")
 }
 
-model zaak_actors {
-  id            String    @id
-  zaak_id       String?
-  persoon_id    String?
-  fractie_id    String?
-  relatie       String?
-  actor_naam    String?
-  actor_fractie String?
-  bijgewerkt    DateTime? @db.Timestamptz(6)
+model CaseActor {
+  id           String    @id @map("id")
+  caseId       String?   @map("zaak_id")
+  politicianId String?   @map("persoon_id")
+  partyId      String?   @map("fractie_id")
+  relation     String?   @map("relatie")
+  actorName    String?   @map("actor_naam")
+  actorParty   String?   @map("actor_fractie")
+  updatedAt    DateTime? @map("bijgewerkt") @db.Timestamptz(6)
 
-  zaak    zaken?    @relation(fields: [zaak_id], references: [id])
-  persoon personen? @relation(fields: [persoon_id], references: [id])
-  fractie fracties? @relation(fields: [fractie_id], references: [id])
+  case       Case?       @relation(fields: [caseId], references: [id])
+  politician Politician? @relation(fields: [politicianId], references: [id])
+  party      Party?      @relation(fields: [partyId], references: [id])
 
-  @@index([fractie_id], map: "idx_zaak_actors_fractie_id")
-  @@index([persoon_id], map: "idx_zaak_actors_persoon_id")
-  @@index([zaak_id], map: "idx_zaak_actors_zaak_id")
+  @@map("zaak_actors")
 }
 
-model zaken {
-  id                     String    @id
-  nummer                 String?
-  onderwerp              String?
-  soort                  String?
-  titel                  String?
-  citeertitel            String?
-  alias                  String?
-  status                 String?
-  datum                  DateTime? @db.Timestamptz(6)
-  gestart_op             DateTime? @db.Timestamptz(6)
-  organisatie            String?
-  grondslagvoorhang      String?
-  termijn                String?
-  vergaderjaar           String?
-  volgnummer             BigInt?
-  huidige_behandelstatus String?
-  afgedaan               Boolean?
-  groot_project          Boolean?
-  gewijzigd_op           DateTime? @db.Timestamptz(6)
-  api_gewijzigd_op       DateTime? @db.Timestamptz(6)
-  verwijderd             Boolean?
-  kabinetsappreciatie    String?
-  datum_afgedaan         DateTime? @db.Timestamptz(6)
-  kamer                  String?
+model Case {
+  id                     String    @id @map("id")
+  number                 String?   @map("nummer")
+  subject                String?   @map("onderwerp")
+  type                   String?   @map("soort")
+  title                  String?   @map("titel")
+  citationTitle          String?   @map("citeertitel")
+  alias                  String?   @map("alias")
+  status                 String?   @map("status")
+  date                   DateTime? @map("datum") @db.Timestamptz(6)
+  startedAt              DateTime? @map("gestart_op") @db.Timestamptz(6)
+  organization           String?   @map("organisatie")
+  basis                  String?   @map("grondslagvoorhang")
+  term                   String?   @map("termijn")
+  meetingYear            String?   @map("vergaderjaar")
+  sequenceNumber         BigInt?   @map("volgnummer")
+  currentTreatmentStatus String?   @map("huidige_behandelstatus")
+  completed              Boolean?  @map("afgedaan")
+  largeProject           Boolean?  @map("groot_project")
+  updatedAt              DateTime? @map("gewijzigd_op") @db.Timestamptz(6)
+  apiUpdatedAt           DateTime? @map("api_gewijzigd_op") @db.Timestamptz(6)
+  removed                Boolean?  @map("verwijderd")
+  cabinetAppreciation    String?   @map("kabinetsappreciatie")
+  completedAt            DateTime? @map("datum_afgedaan") @db.Timestamptz(6)
+  chamber                String?   @map("kamer")
 
-  besluiten         besluiten[]         @relation("ZaakBesluiten")
-  kamerstukdossiers kamerstukdossiers[] @relation("ZaakKamerstukdossiers")
-  zaak_actors       zaak_actors[]
+  decisions             Decision[]              @relation("CaseDecisions")
+  parliamentaryDocuments ParliamentaryDocument[] @relation("CaseParliamentaryDocuments")
+  caseActors            CaseActor[]
+
+  @@map("zaken")
 }
 
-model user_sessions {
+model UserSession {
   id        String   @id @default(cuid())
   answers   Json
   results   Json?
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
+
+  @@map("user_sessions")
 }

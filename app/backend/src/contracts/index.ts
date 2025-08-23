@@ -1,8 +1,7 @@
 import { oc } from "@orpc/contract";
 import { z } from "zod";
 
-// TODO narrow down vote types
-const VoteTypeSchema = z.enum(["Voor", "Tegen", "Niet deelgenomen"]);
+const VoteTypeSchema = z.enum(["FOR", "AGAINST", "NEUTRAL"]);
 
 const PartySchema = z.object({
 	id: z.string(),

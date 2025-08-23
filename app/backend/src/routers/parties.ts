@@ -1,44 +1,9 @@
 import { implement, ORPCError } from "@orpc/server";
-import type { VoteType } from "../contracts/index.js";
 import { apiContract } from "../contracts/index.js";
 import { db } from "../lib/db.js";
+import { mapPartyToContract, mapVoteToContract } from "../utils/mappers.js";
 
 const os = implement(apiContract);
-
-function mapZaakToMotion(zaak: any, dossier?: any) {
-	return {
-		id: zaak.id,
-		title: zaak.titel || zaak.onderwerp || "Untitled Motion",
-		description: zaak.onderwerp,
-		shortTitle: zaak.citeertitel,
-		motionNumber: zaak.nummer,
-		date: zaak.datum,
-		status: zaak.status || "unknown",
-		category: zaak.soort,
-		bulletPoints: dossier?.bullet_points
-			? Array.isArray(dossier.bullet_points)
-				? dossier.bullet_points
-				: []
-			: [],
-		originalId: zaak.id,
-		createdAt: zaak.gestart_op || new Date(),
-		updatedAt: zaak.gewijzigd_op || new Date(),
-	};
-}
-
-function mapFractieToParty(fractie: any) {
-	return {
-		id: fractie.id,
-		name: fractie.naam_nl || fractie.afkorting || "",
-		shortName: fractie.afkorting || "",
-		color: fractie.kleur || null,
-		seats: Number(fractie.aantal_zetels) || 0,
-		activeFrom: fractie.datum_actief,
-		activeTo: fractie.datum_inactief,
-		createdAt: fractie.gewijzigd_op || new Date(),
-		updatedAt: fractie.api_gewijzigd_op || new Date(),
-	};
-}
 
 export const partyRouter = {
 	getAll: os.parties.getAll.handler(async ({ input }) => {
@@ -47,22 +12,22 @@ export const partyRouter = {
 		const where: any = {};
 		if (activeOnly) {
 			where.OR = [
-				{ datum_inactief: null },
-				{ datum_inactief: { gte: new Date() } },
+				{ activeTo: null },
+				{ activeTo: { gte: new Date() } },
 			];
-			where.verwijderd = { not: true };
+			// where.removed = { not: true };
 		}
 
-		const parties = await db.fracties.findMany({
+		const parties = await db.party.findMany({
 			where,
-			orderBy: { naam_nl: "asc" },
+			orderBy: { nameNl: "asc" },
 		});
 
-		return parties.map(mapFractieToParty);
+		return parties.map(p => mapPartyToContract(p));
 	}),
 
 	getById: os.parties.getById.handler(async ({ input }) => {
-		const party = await db.fracties.findUnique({
+		const party = await db.party.findUnique({
 			where: { id: input.id },
 		});
 
@@ -70,13 +35,13 @@ export const partyRouter = {
 			return null;
 		}
 
-		return mapFractieToParty(party);
+		return mapPartyToContract(party);
 	}),
 
 	getWithVotes: os.parties.getWithVotes.handler(async ({ input }) => {
 		const { partyId, motionIds } = input;
 
-		const party = await db.fracties.findUnique({
+		const party = await db.party.findUnique({
 			where: { id: partyId },
 		});
 
@@ -85,65 +50,36 @@ export const partyRouter = {
 		}
 
 		const where: any = {
-			fractie_id: partyId,
+			partyId: partyId,
 		};
 
 		if (motionIds && motionIds.length > 0) {
-			where.besluit = {
-				zaak_id: { in: motionIds },
+			where.decision = {
+				caseId: { in: motionIds },
 			};
 		}
 
-		const votesWithRelations = await db.stemmingen.findMany({
+		const votesWithRelations = await db.vote.findMany({
 			where,
 			include: {
-				persoon: true,
-				besluit: {
+				politician: true,
+				decision: {
 					include: {
-						zaak: {
+						case: {
 							include: {
-								kamerstukdossiers: true,
+								parliamentaryDocuments: true,
 							},
 						},
 					},
 				},
 			},
-			orderBy: { gewijzigd_op: "desc" },
+			orderBy: { updatedAt: "desc" },
 		});
 
-		const votes = votesWithRelations.map((vote) => {
-			const motion = vote.besluit?.zaak
-				? mapZaakToMotion(
-						vote.besluit.zaak,
-						vote.besluit.zaak.kamerstukdossiers?.[0],
-					)
-				: undefined;
-
-			return {
-				id: vote.id,
-				motionId: motion?.id || "",
-				partyId: vote.fractie_id || "",
-				politicianId: vote.persoon_id || "",
-				voteType: (vote.soort as VoteType) || "",
-				reasoning: null,
-				createdAt: vote.gewijzigd_op || new Date(),
-				updatedAt: vote.api_gewijzigd_op || new Date(),
-				motion,
-				politician: vote.persoon
-					? {
-							id: vote.persoon.id,
-							firstName: vote.persoon.voornamen || "",
-							lastName: vote.persoon.achternaam || "",
-							fullName: `${vote.persoon.voornamen || ""} ${
-								vote.persoon.tussenvoegsel || ""
-							} ${vote.persoon.achternaam || ""}`.trim(),
-						}
-					: undefined,
-			};
-		});
+		const votes = votesWithRelations.map(v => mapVoteToContract(v));
 
 		return {
-			party: mapFractieToParty(party),
+			party: mapPartyToContract(party),
 			votes,
 		};
 	}),
