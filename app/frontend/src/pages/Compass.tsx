@@ -97,20 +97,12 @@ export function CompassPage() {
 		setState((prev) => ({ ...prev, answers: updatedAnswers }));
 
 		// Auto-advance to next question after a short delay
-		console.log(
-			`Answered question ${state.currentIndex + 1}/${totalMotions}. isLastQuestion: ${isLastQuestion}`,
-		);
 		setTimeout(() => {
 			if (!isLastQuestion) {
-				console.log(
-					`Auto-advancing from question ${state.currentIndex + 1} to ${state.currentIndex + 2}`,
-				);
 				setState((prev) => ({
 					...prev,
 					currentIndex: prev.currentIndex + 1,
 				}));
-			} else {
-				console.log("Reached last question - not auto-advancing");
 			}
 			// Don't auto-submit on last question - let user control when to submit
 		}, 300);
