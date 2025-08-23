@@ -10,10 +10,10 @@ const PartySchema = z.object({
 	shortName: z.string(),
 	color: z.string().nullable(),
 	seats: z.number(),
-	activeFrom: z.date().nullable(),
-	activeTo: z.date().nullable(),
-	createdAt: z.date(),
-	updatedAt: z.date(),
+	activeFrom: z.coerce.date().nullable(),
+	activeTo: z.coerce.date().nullable(),
+	createdAt: z.coerce.date(),
+	updatedAt: z.coerce.date(),
 });
 
 const PoliticianSchema = z.object({
@@ -22,8 +22,8 @@ const PoliticianSchema = z.object({
 	lastName: z.string(),
 	fullName: z.string(),
 	partyId: z.string().optional(),
-	createdAt: z.date().optional(),
-	updatedAt: z.date().optional(),
+	createdAt: z.coerce.date().optional(),
+	updatedAt: z.coerce.date().optional(),
 	party: PartySchema.optional(),
 });
 
@@ -33,13 +33,13 @@ const MotionSchema = z.object({
 	description: z.string().nullable(),
 	shortTitle: z.string().nullable(),
 	motionNumber: z.string().nullable(),
-	date: z.date().nullable(),
+	date: z.coerce.date().nullable(),
 	status: z.string(),
 	category: z.string().nullable(),
 	bulletPoints: z.array(z.string()),
 	originalId: z.string().nullable(),
-	createdAt: z.date(),
-	updatedAt: z.date(),
+	createdAt: z.coerce.date(),
+	updatedAt: z.coerce.date(),
 });
 
 const VoteSchema = z.object({
@@ -49,8 +49,8 @@ const VoteSchema = z.object({
 	politicianId: z.string(),
 	voteType: VoteTypeSchema,
 	reasoning: z.string().nullable(),
-	createdAt: z.date(),
-	updatedAt: z.date(),
+	createdAt: z.coerce.date(),
+	updatedAt: z.coerce.date(),
 	motion: MotionSchema.optional(),
 	party: PartySchema.optional(),
 	politician: PoliticianSchema.optional(),
@@ -73,7 +73,7 @@ export const CompassResultSchema = z.object({
 	id: z.string(),
 	totalAnswers: z.number(),
 	partyResults: z.array(PartyResultSchema),
-	createdAt: z.date(),
+	createdAt: z.coerce.date(),
 });
 
 // Motion contracts
