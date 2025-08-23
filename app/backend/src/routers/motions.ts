@@ -1,8 +1,12 @@
 import { implement } from "@orpc/server";
+import type { Party as PartyModel } from "@prisma/client";
 import { apiContract, type VoteType } from "../contracts/index.js";
 import { db } from "../lib/db.js";
-import { mapCaseToMotion, mapPartyToContract, mapVoteToContract } from "../utils/mappers.js";
-import type { Party as PartyModel } from '@prisma/client';
+import {
+	mapCaseToMotion,
+	mapPartyToContract,
+	mapVoteToContract,
+} from "../utils/mappers.js";
 
 const os = implement(apiContract);
 
@@ -103,9 +107,12 @@ export const motionRouter = {
 			],
 		});
 
-		const votes = votesWithRelations.map(v => mapVoteToContract(v));
+		const votes = votesWithRelations.map((v) => mapVoteToContract(v));
 
-		const partyVoteMap = new Map<string, { party: PartyModel; votes: string[] }>();
+		const partyVoteMap = new Map<
+			string,
+			{ party: PartyModel; votes: string[] }
+		>();
 
 		votesWithRelations.forEach((vote) => {
 			if (vote.partyId && vote.party) {
@@ -123,6 +130,13 @@ export const motionRouter = {
 
 		const partyPositions = Array.from(partyVoteMap.values()).map(
 			({ party, votes: partyVotes }) => {
+				if (partyVotes.length === 0) {
+					return {
+						party: mapPartyToContract(party),
+						position: "NEUTRAL" as VoteType,
+						count: 0,
+					};
+				}
 				const voteCounts = partyVotes.reduce(
 					(acc, vote) => {
 						acc[vote] = (acc[vote] || 0) + 1;

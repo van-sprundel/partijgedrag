@@ -351,7 +351,7 @@ async function getMotionVoteDetails(answers: UserAnswer[]) {
 						)[0]
 					: null;
 
-			partyData.majorityVote = majorityVote as VoteType;
+			partyData.majorityVote = (majorityVote ?? "NEUTRAL") as VoteType;
 		});
 
 		const partyPositions = Array.from(partyVotes.values()).map(
