@@ -124,7 +124,7 @@ export const compassRouter = {
 				motionId: motionId,
 				partyId: vote.fractie_id || "",
 				politicianId: vote.persoon_id || "",
-				voteType: mapVoteTypeFromDB(vote.soort || ""),
+				voteType: vote.soort as VoteType,
 				reasoning: null, // Not available in your schema
 				createdAt: vote.gewijzigd_op || new Date(),
 				updatedAt: vote.api_gewijzigd_op || new Date(),
@@ -202,7 +202,7 @@ export const compassRouter = {
 							createdAt: party.gewijzigd_op || new Date(),
 							updatedAt: party.api_gewijzigd_op || new Date(),
 						},
-						position: mapVoteTypeFromDB(majorityVote),
+						position: majorityVote,
 						count,
 					};
 				},
@@ -216,26 +216,6 @@ export const compassRouter = {
 		};
 	}),
 };
-
-// Helper function to map database vote types to your VoteType enum
-function mapVoteTypeFromDB(dbVoteType: string | null): VoteType {
-	if (!dbVoteType) return "ABSTAIN" as VoteType;
-
-	// Map Dutch vote types to your enum
-	switch (dbVoteType.toLowerCase()) {
-		case "voor":
-		case "for":
-			return "FOR" as VoteType;
-		case "tegen":
-		case "against":
-			return "AGAINST" as VoteType;
-		case "onthouding":
-		case "abstain":
-			return "ABSTAIN" as VoteType;
-		default:
-			return "ABSTAIN" as VoteType;
-	}
-}
 
 async function calculatePartyAlignment(answers: UserAnswer[]) {
 	const motionIds = answers.map((a) => a.motionId);
@@ -305,14 +285,14 @@ async function calculatePartyAlignment(answers: UserAnswer[]) {
 		);
 
 		// Group votes by party to find majority position
-		const partyPositions = new Map<string, string[]>();
+		const partyPositions = new Map<string, VoteType[]>();
 
 		motionVotes.forEach((vote) => {
 			if (vote.fractie_id && vote.soort) {
 				if (!partyPositions.has(vote.fractie_id)) {
 					partyPositions.set(vote.fractie_id, []);
 				}
-				partyPositions.get(vote.fractie_id)?.push(vote.soort);
+				partyPositions.get(vote.fractie_id)?.push(vote.soort as VoteType);
 			}
 		});
 
@@ -329,7 +309,7 @@ async function calculatePartyAlignment(answers: UserAnswer[]) {
 					acc[vote] = (acc[vote] || 0) + 1;
 					return acc;
 				},
-				{} as Record<string, number>,
+				{} as Record<VoteType, number>,
 			);
 
 			const majorityVote =
@@ -341,7 +321,7 @@ async function calculatePartyAlignment(answers: UserAnswer[]) {
 
 			// Convert to comparable format
 			const userSupports = answer.answer === "agree";
-			const partySupports = mapVoteTypeFromDB(majorityVote) === "FOR";
+			const partySupports = majorityVote === "voor";
 
 			// Award points for alignment
 			if (
@@ -472,7 +452,7 @@ async function getMotionVoteDetails(answers: UserAnswer[]) {
 		// Group votes by party
 		const partyVotes = new Map<
 			string,
-			{ party: any; votes: string[]; majorityVote: string }
+			{ party: fracties; votes: string[]; majorityVote: VoteType }
 		>();
 
 		motionVotes.forEach((vote) => {
@@ -481,7 +461,7 @@ async function getMotionVoteDetails(answers: UserAnswer[]) {
 					partyVotes.set(vote.fractie_id, {
 						party: vote.fractie,
 						votes: [],
-						majorityVote: "",
+						majorityVote: "Niet deelgenomen",
 					});
 				}
 				partyVotes.get(vote.fractie_id)?.votes.push(vote.soort);
@@ -492,10 +472,10 @@ async function getMotionVoteDetails(answers: UserAnswer[]) {
 		partyVotes.forEach((partyData, partyId) => {
 			const voteCounts = partyData.votes.reduce(
 				(acc, vote) => {
-					acc[vote] = (acc[vote] || 0) + 1;
+					acc[vote as VoteType] = (acc[vote as VoteType] || 0) + 1;
 					return acc;
 				},
-				{} as Record<string, number>,
+				{} as Record<VoteType, number>,
 			);
 
 			const majorityVote =
@@ -505,7 +485,7 @@ async function getMotionVoteDetails(answers: UserAnswer[]) {
 						)[0]
 					: null;
 
-			partyData.majorityVote = mapVoteTypeFromDB(majorityVote);
+			partyData.majorityVote = majorityVote as VoteType;
 		});
 
 		// Convert to array format
@@ -531,9 +511,10 @@ async function getMotionVoteDetails(answers: UserAnswer[]) {
 				position: majorityVote,
 				voteCount: votes.length,
 				agreesWithUser:
-					(answer.answer === "agree" && majorityVote === "FOR") ||
-					(answer.answer === "disagree" && majorityVote === "AGAINST") ||
-					answer.answer === "neutral",
+					majorityVote !== "Niet deelgenomen" &&
+					((answer.answer === "agree" && majorityVote === "Voor") ||
+						(answer.answer === "disagree" && majorityVote === "Tegen") ||
+						answer.answer === "neutral"),
 			}),
 		);
 
