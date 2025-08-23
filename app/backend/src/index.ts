@@ -1,4 +1,4 @@
-import { os } from "@orpc/server";
+import { onError, os } from "@orpc/server";
 import { RPCHandler } from "@orpc/server/node";
 import cors from "cors";
 import express from "express";
@@ -25,7 +25,13 @@ export const router = os.router({
 	compass: compassRouter,
 });
 
-const handler = new RPCHandler(router);
+const handler = new RPCHandler(router, {
+	interceptors: [
+		onError((error) => {
+			console.error(error);
+		}),
+	],
+});
 
 app.use("/api*", async (req, res, next) => {
 	const { matched } = await handler.handle(req, res, {

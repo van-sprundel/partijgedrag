@@ -29,7 +29,7 @@ export const compassRouter = {
 			id: session.id,
 			totalAnswers: answers.length,
 			partyResults,
-			createdAt: session.createdAt,
+			createdAt: new Date(session.createdAt),
 		};
 	}),
 
@@ -42,7 +42,10 @@ export const compassRouter = {
 			return null;
 		}
 
-		const results = CompassResultSchema.parse(session.results);
+		const results = CompassResultSchema.parse({
+			...session.results,
+			id: session.id,
+		});
 		return {
 			id: session.id,
 			totalAnswers: results.totalAnswers,
@@ -248,7 +251,6 @@ async function calculatePartyAlignment(answers: UserAnswer[]) {
 	const parties = await db.fracties.findMany({
 		where: {
 			OR: [{ datum_inactief: null }, { datum_inactief: { gte: new Date() } }],
-			verwijderd: { not: true },
 		},
 	});
 
@@ -269,8 +271,18 @@ async function calculatePartyAlignment(answers: UserAnswer[]) {
 		partyScores.set(party.id, {
 			party: {
 				id: party.id,
-				name: party.naam_nl || party.afkorting,
-				shortName: party.afkorting,
+				name: party.naam_nl || party.afkorting || "",
+				shortName: party.afkorting || "",
+				color: null,
+				seats: Number(party.aantal_zetels) || 0,
+				activeFrom: party.datum_actief ? new Date(party.datum_actief) : null,
+				activeTo: party.datum_inactief ? new Date(party.datum_inactief) : null,
+				createdAt: party.gewijzigd_op
+					? new Date(party.gewijzigd_op)
+					: new Date(),
+				updatedAt: party.api_gewijzigd_op
+					? new Date(party.api_gewijzigd_op)
+					: new Date(),
 			},
 			totalVotes: 0,
 			matchingVotes: 0,
