@@ -1,4 +1,5 @@
-import { ArrowLeft, Users } from "lucide-react";
+import { ArrowLeft, Grid, List, Users } from "lucide-react";
+import { useState } from "react";
 import { Link } from "react-router-dom";
 import { Button } from "../components/ui/Button";
 import {
@@ -12,6 +13,7 @@ import type { PartySimilarity } from "../lib/api";
 
 export function PartyLikenessPage() {
 	const { data, isLoading, error } = usePartySimilarity(true, 10);
+	const [viewMode, setViewMode] = useState<"list" | "matrix">("matrix");
 
 	if (isLoading) {
 		return (
@@ -85,6 +87,34 @@ export function PartyLikenessPage() {
 							hetzelfde hebben gestemd.
 						</p>
 					</div>
+
+					{/* View mode toggle */}
+					<div className="flex justify-center mb-8">
+						<div className="bg-white p-1 rounded-lg shadow-sm border">
+							<button
+								onClick={() => setViewMode("matrix")}
+								className={`inline-flex items-center px-4 py-2 rounded-md text-sm font-medium transition-colors ${
+									viewMode === "matrix"
+										? "bg-primary-600 text-white"
+										: "text-gray-700 hover:text-primary-600"
+								}`}
+							>
+								<Grid className="h-4 w-4 mr-2" />
+								Matrix weergave
+							</button>
+							<button
+								onClick={() => setViewMode("list")}
+								className={`inline-flex items-center px-4 py-2 rounded-md text-sm font-medium transition-colors ${
+									viewMode === "list"
+										? "bg-primary-600 text-white"
+										: "text-gray-700 hover:text-primary-600"
+								}`}
+							>
+								<List className="h-4 w-4 mr-2" />
+								Lijst weergave
+							</button>
+						</div>
+					</div>
 				</div>
 
 				{similarities.length === 0 ? (
@@ -95,6 +125,8 @@ export function PartyLikenessPage() {
 							</p>
 						</CardContent>
 					</Card>
+				) : viewMode === "matrix" ? (
+					<PartyMatrix similarities={similarities} />
 				) : (
 					<>
 						{/* Top matches */}
@@ -333,6 +365,164 @@ function SimilarityCard({
 							className={`h-2 rounded-full ${getSimilarityColor(similarity.similarity)}`}
 							style={{ width: `${similarity.similarity}%` }}
 						></div>
+					</div>
+				</div>
+			</CardContent>
+		</Card>
+	);
+}
+
+function PartyMatrix({ similarities }: { similarities: PartySimilarity[] }) {
+	// Get all unique parties
+	const parties = Array.from(
+		new Set(
+			[
+				...similarities.map((s) => s.party1),
+				...similarities.map((s) => s.party2),
+			].map((p) => p.id),
+		),
+	)
+		.map((id) => {
+			const party =
+				similarities.find((s) => s.party1.id === id)?.party1 ||
+				similarities.find((s) => s.party2.id === id)?.party2;
+			return party!;
+		})
+		.sort((a, b) => a.shortName.localeCompare(b.shortName));
+
+	// Create similarity lookup map
+	const similarityMap = new Map<string, PartySimilarity>();
+	similarities.forEach((sim) => {
+		const key1 = `${sim.party1.id}-${sim.party2.id}`;
+		const key2 = `${sim.party2.id}-${sim.party1.id}`;
+		similarityMap.set(key1, sim);
+		similarityMap.set(key2, sim);
+	});
+
+	const getSimilarity = (party1Id: string, party2Id: string): number | null => {
+		if (party1Id === party2Id) return 100; // Same party = 100% similarity
+		const sim = similarityMap.get(`${party1Id}-${party2Id}`);
+		return sim ? sim.similarity : null;
+	};
+
+	const getSimilarityColor = (score: number | null) => {
+		if (score === null) return "bg-gray-100";
+		if (score === 100) return "bg-gray-800"; // Same party
+		if (score >= 90) return "bg-green-500";
+		if (score >= 80) return "bg-green-400";
+		if (score >= 70) return "bg-yellow-400";
+		if (score >= 60) return "bg-orange-400";
+		if (score >= 50) return "bg-orange-500";
+		return "bg-red-500";
+	};
+
+	const getSimilarityTextColor = (score: number | null) => {
+		if (score === null) return "text-gray-400";
+		if (score === 100) return "text-white";
+		if (score >= 70) return "text-white";
+		return "text-white";
+	};
+
+	return (
+		<Card>
+			<CardHeader>
+				<CardTitle>Partijgelijkenis Matrix</CardTitle>
+				<p className="text-sm text-gray-600">
+					Vergelijk alle partijen onderling. Klik op een cel voor details.
+				</p>
+			</CardHeader>
+			<CardContent>
+				<div className="overflow-x-auto">
+					<div className="min-w-full">
+						{/* Header row */}
+						<div className="flex">
+							<div className="w-24 h-12 flex-shrink-0"></div>
+							{parties.map((party) => (
+								<div
+									key={party.id}
+									className="w-16 h-12 flex-shrink-0 flex items-center justify-center border-b border-gray-200"
+								>
+									<div className="transform -rotate-45 text-xs font-medium text-center whitespace-nowrap">
+										{party.shortName}
+									</div>
+								</div>
+							))}
+						</div>
+
+						{/* Matrix rows */}
+						{parties.map((rowParty) => (
+							<div key={rowParty.id} className="flex">
+								{/* Row header */}
+								<div className="w-24 h-12 flex-shrink-0 flex items-center px-2 border-r border-gray-200">
+									<div className="flex items-center">
+										<div
+											className="w-3 h-3 rounded-full mr-2 flex-shrink-0"
+											style={{ backgroundColor: rowParty.color || "#6B7280" }}
+										></div>
+										<span className="text-xs font-medium truncate">
+											{rowParty.shortName}
+										</span>
+									</div>
+								</div>
+
+								{/* Matrix cells */}
+								{parties.map((colParty) => {
+									const similarity = getSimilarity(rowParty.id, colParty.id);
+									const simData = similarityMap.get(
+										`${rowParty.id}-${colParty.id}`,
+									);
+
+									return (
+										<div
+											key={colParty.id}
+											className={`w-16 h-12 flex-shrink-0 border border-gray-200 flex items-center justify-center cursor-pointer hover:border-gray-400 transition-colors ${getSimilarityColor(similarity)}`}
+											title={
+												similarity !== null
+													? `${rowParty.shortName} vs ${colParty.shortName}: ${similarity}%${
+															simData
+																? ` (${simData.agreementCount}/${simData.totalComparisons} moties)`
+																: ""
+														}`
+													: "Geen data beschikbaar"
+											}
+										>
+											<span
+												className={`text-xs font-bold ${getSimilarityTextColor(similarity)}`}
+											>
+												{similarity !== null ? `${similarity}%` : "-"}
+											</span>
+										</div>
+									);
+								})}
+							</div>
+						))}
+					</div>
+				</div>
+
+				{/* Legend */}
+				<div className="mt-6 p-4 bg-gray-50 rounded-lg">
+					<h4 className="font-medium mb-3">Legenda</h4>
+					<div className="flex flex-wrap gap-4 text-sm">
+						<div className="flex items-center">
+							<div className="w-4 h-4 bg-green-500 rounded mr-2"></div>
+							<span>90-100%: Zeer vergelijkbaar</span>
+						</div>
+						<div className="flex items-center">
+							<div className="w-4 h-4 bg-yellow-400 rounded mr-2"></div>
+							<span>70-89%: Grotendeels vergelijkbaar</span>
+						</div>
+						<div className="flex items-center">
+							<div className="w-4 h-4 bg-orange-500 rounded mr-2"></div>
+							<span>50-69%: Gedeeltelijk vergelijkbaar</span>
+						</div>
+						<div className="flex items-center">
+							<div className="w-4 h-4 bg-red-500 rounded mr-2"></div>
+							<span>0-49%: Vaak verschillend</span>
+						</div>
+						<div className="flex items-center">
+							<div className="w-4 h-4 bg-gray-800 rounded mr-2"></div>
+							<span>Zelfde partij</span>
+						</div>
 					</div>
 				</div>
 			</CardContent>
