@@ -74,9 +74,6 @@ public
 tmp/
 temp/
 
-# Prisma
-prisma/
-
 # OS generated files
 .DS_Store
 .DS_Store?
