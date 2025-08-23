@@ -17,6 +17,7 @@ export const orpc = createTanstackQueryUtils(client);
 export type {
 	CompassResult,
 	Motion,
+	MotionDetail,
 	Party,
 	PartyResult,
 	UserAnswer,

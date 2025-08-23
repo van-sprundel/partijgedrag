@@ -69,10 +69,25 @@ const PartyResultSchema = z.object({
 	matchingVotes: z.number(),
 });
 
+const MotionDetailSchema = z.object({
+	motionId: z.string(),
+	userAnswer: z.enum(["agree", "disagree", "neutral"]),
+	motion: MotionSchema.nullable(),
+	partyPositions: z.array(
+		z.object({
+			party: PartySchema,
+			position: VoteTypeSchema,
+			voteCount: z.number(),
+			agreesWithUser: z.boolean(),
+		}),
+	),
+});
+
 export const CompassResultSchema = z.object({
 	id: z.string(),
 	totalAnswers: z.number(),
 	partyResults: z.array(PartyResultSchema),
+	motionDetails: z.array(MotionDetailSchema).optional(),
 	createdAt: z.coerce.date(),
 });
 
@@ -206,4 +221,5 @@ export type Motion = z.infer<typeof MotionSchema>;
 export type Vote = z.infer<typeof VoteSchema>;
 export type UserAnswer = z.infer<typeof UserAnswerSchema>;
 export type PartyResult = z.infer<typeof PartyResultSchema>;
+export type MotionDetail = z.infer<typeof MotionDetailSchema>;
 export type CompassResult = z.infer<typeof CompassResultSchema>;
