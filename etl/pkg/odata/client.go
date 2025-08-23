@@ -77,14 +77,56 @@ func (c *Client) ExecuteQuery(ctx context.Context, entitySet string, options Que
 }
 
 func (c *Client) GetMotiesWithVotes(ctx context.Context, skip int, top int) ([]byte, error) {
+	return c.GetMotiesWithVotesAfter(ctx, skip, top, nil)
+}
+
+func (c *Client) GetMotiesWithVotesAfter(ctx context.Context, skip int, top int, after *time.Time) ([]byte, error) {
+	filter := "verwijderd eq false and Soort eq 'Motie'"
+
+	if after != nil {
+		// Format time for OData filter (ISO 8601 format)
+		afterStr := after.Format("2006-01-02T15:04:05Z")
+		filter = fmt.Sprintf("%s and ApiGewijzigdOp gt %s", filter, afterStr)
+	}
+
 	options := QueryOptions{
-		Filter: "verwijderd eq false and Soort eq 'Motie'",
+		Filter: filter,
 		Expand: "Besluit($filter=Verwijderd eq false;$expand=Stemming($filter=Verwijderd eq false;$expand=Persoon,Fractie)),ZaakActor($filter=relatie eq 'Indiener'),Kamerstukdossier($expand=Document($filter=Soort eq 'Motie' and Verwijderd eq false);$filter=HoogsteVolgnummer gt 0;$select=Id,Nummer,HoogsteVolgnummer)",
 		// dont set top to enable proper pagination with nextlink
 		Skip: skip,
 	}
 
 	return c.ExecuteQuery(ctx, "Zaak", options)
+}
+
+// GetMotiesCount returns an approximate count of motions matching the filter
+func (c *Client) GetMotiesCount(ctx context.Context, after *time.Time) (int, error) {
+	filter := "verwijderd eq false and Soort eq 'Motie'"
+
+	if after != nil {
+		// Format time for OData filter (ISO 8601 format)
+		afterStr := after.Format("2006-01-02T15:04:05Z")
+		filter = fmt.Sprintf("%s and ApiGewijzigdOp gt %s", filter, afterStr)
+	}
+
+	options := QueryOptions{
+		Filter: filter,
+		Select: "Id", // Only select ID to minimize response size
+		Top:    1,    // We only want the count, not the actual data
+		Count:  true, // Request count
+	}
+
+	data, err := c.ExecuteQuery(ctx, "Zaak", options)
+	if err != nil {
+		return 0, fmt.Errorf("getting count: %w", err)
+	}
+
+	response, err := ParseODataResponse(data)
+	if err != nil {
+		return 0, fmt.Errorf("parsing count response: %w", err)
+	}
+
+	return response.Count, nil
 }
 
 func (c *Client) MakeRequest(ctx context.Context, requestURL string) ([]byte, error) {

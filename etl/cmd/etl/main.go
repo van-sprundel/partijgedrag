@@ -27,6 +27,7 @@ import (
 func main() {
 	var (
 		configPath = flag.String("config", "configs/config.yaml", "Path to configuration file")
+		afterDate  = flag.String("after", "", "Only fetch records modified after this date\n\t\tSupported formats:\n\t\t- RFC3339: 2024-01-01T00:00:00Z\n\t\t- Keywords: today, yesterday, this-week, last-week, this-month, last-month")
 	)
 	flag.Parse()
 
@@ -46,6 +47,16 @@ func main() {
 		log.Fatalf("Failed to initialize storage: %v", err)
 	}
 	defer store.Close()
+
+	var afterTime *time.Time
+	if *afterDate != "" {
+		parsedTime, err := parseAfterDate(*afterDate)
+		if err != nil {
+			log.Fatalf("Failed to parse after date: %v", err)
+		}
+		afterTime = &parsedTime
+		log.Printf("Filtering records modified after: %s", afterTime.Format(time.RFC3339))
+	}
 
 	client := odata.NewClient(cfg.API)
 	apiClient := api.NewClient(cfg.API)
@@ -69,7 +80,7 @@ func main() {
 			log.Fatalf("Test query failed: %v", err)
 		}
 	} else {
-		if err := imp.ImportMotiesWithVotes(ctx); err != nil {
+		if err := imp.ImportMotiesWithVotes(ctx, afterTime); err != nil {
 			log.Fatalf("Import failed: %v", err)
 		}
 	}
@@ -185,5 +196,43 @@ func printStats(stats *models.ImportStats) {
 		for i, error := range stats.ErrorDetails {
 			fmt.Printf("  %d: %s\n", i+1, error)
 		}
+	}
+}
+
+func parseAfterDate(dateStr string) (time.Time, error) {
+	now := time.Now().UTC()
+
+	switch strings.ToLower(dateStr) {
+	case "today":
+		return time.Date(now.Year(), now.Month(), now.Day(), 0, 0, 0, 0, time.UTC), nil
+	case "yesterday":
+		yesterday := now.AddDate(0, 0, -1)
+		return time.Date(yesterday.Year(), yesterday.Month(), yesterday.Day(), 0, 0, 0, 0, time.UTC), nil
+	case "this-week":
+		// Start of current week (Monday)
+		weekday := int(now.Weekday())
+		if weekday == 0 { // Sunday
+			weekday = 7
+		}
+		daysBack := weekday - 1
+		startOfWeek := now.AddDate(0, 0, -daysBack)
+		return time.Date(startOfWeek.Year(), startOfWeek.Month(), startOfWeek.Day(), 0, 0, 0, 0, time.UTC), nil
+	case "last-week":
+		// Start of last week (Monday)
+		weekday := int(now.Weekday())
+		if weekday == 0 { // Sunday
+			weekday = 7
+		}
+		daysBack := weekday - 1 + 7 // Go back to start of last week
+		startOfLastWeek := now.AddDate(0, 0, -daysBack)
+		return time.Date(startOfLastWeek.Year(), startOfLastWeek.Month(), startOfLastWeek.Day(), 0, 0, 0, 0, time.UTC), nil
+	case "this-month":
+		return time.Date(now.Year(), now.Month(), 1, 0, 0, 0, 0, time.UTC), nil
+	case "last-month":
+		lastMonth := now.AddDate(0, -1, 0)
+		return time.Date(lastMonth.Year(), lastMonth.Month(), 1, 0, 0, 0, 0, time.UTC), nil
+	default:
+		// Try to parse as RFC3339 format
+		return time.Parse(time.RFC3339, dateStr)
 	}
 }
