@@ -1,8 +1,9 @@
 import { implement, ORPCError } from "@orpc/server";
-import type { fracties, stemmingen } from "@prisma/client";
 import type { Party, UserAnswer, Vote, VoteType } from "../contracts/index.js";
 import { apiContract, CompassResultSchema } from "../contracts/index.js";
 import { db } from "../lib/db.js";
+import { mapCaseToMotion, mapPartyToContract, mapVoteToContract } from "../utils/mappers.js";
+import type { Party as PartyModel, Vote as VoteModel } from '@prisma/client';
 
 const os = implement(apiContract);
 
@@ -14,7 +15,7 @@ export const compassRouter = {
 		const partyResults = await calculatePartyAlignment(answers);
 
 		// Save session
-		const session = await db.user_sessions.create({
+		const session = await db.userSession.create({
 			data: {
 				answers: answers,
 				results: {
@@ -34,7 +35,7 @@ export const compassRouter = {
 	}),
 
 	getResults: os.compass.getResults.handler(async ({ input }) => {
-		const session = await db.user_sessions.findUnique({
+		const session = await db.userSession.findUnique({
 			where: { id: input.sessionId },
 		});
 
@@ -63,11 +64,10 @@ export const compassRouter = {
 	getMotionDetails: os.compass.getMotionDetails.handler(async ({ input }) => {
 		const { motionId, includeVotes } = input;
 
-		// Find the motion in zaken (since motie is a type of zaak)
-		const zaak = await db.zaken.findUnique({
+		const zaak = await db.case.findUnique({
 			where: { id: motionId },
 			include: {
-				kamerstukdossiers: true,
+				parliamentaryDocuments: true,
 			},
 		});
 
@@ -75,31 +75,9 @@ export const compassRouter = {
 			throw new ORPCError("NOT_FOUND", { message: "Motion not found" });
 		}
 
-		// Get the related kamerstukdossier for additional info
-		const dossier = zaak.kamerstukdossiers[0];
+		const dossier = zaak.parliamentaryDocuments[0];
 
-		// Map zaak to motion format
-		const motion = {
-			id: zaak.id,
-			title: zaak.titel || zaak.onderwerp || "Untitled Motion",
-			description: zaak.onderwerp,
-			shortTitle: zaak.citeertitel,
-			motionNumber: zaak.nummer,
-			date: zaak.datum,
-			status: zaak.status || "unknown",
-			category: zaak.soort,
-			bulletPoints:
-				dossier &&
-				dossier.bullet_points != null &&
-				Array.isArray(dossier.bullet_points)
-					? dossier.bullet_points.filter(
-							(bp): bp is string => typeof bp === "string",
-						)
-					: [],
-			originalId: zaak.id,
-			createdAt: zaak.gestart_op || new Date(),
-			updatedAt: zaak.gewijzigd_op || new Date(),
-		};
+		const motion = mapCaseToMotion(zaak, dossier);
 
 		let votes: Vote[] = [];
 		let partyPositions: {
@@ -109,76 +87,39 @@ export const compassRouter = {
 		}[] = [];
 
 		if (includeVotes) {
-			// Get votes through the proper relationship chain
-			const votesWithRelations = await db.stemmingen.findMany({
+			const votesWithRelations = await db.vote.findMany({
 				where: {
-					besluit: {
-						zaak_id: motionId,
+					decision: {
+						caseId: motionId,
 					},
 				},
 				include: {
-					persoon: true,
-					fractie: true,
+					politician: true,
+					party: true,
 				},
 			});
 
-			// Map votes to expected format
-			votes = votesWithRelations.map((vote) => ({
-				id: vote.id,
-				motionId: motionId,
-				partyId: vote.fractie_id || "",
-				politicianId: vote.persoon_id || "",
-				voteType: vote.soort as VoteType,
-				reasoning: null, // Not available in your schema
-				createdAt: vote.gewijzigd_op || new Date(),
-				updatedAt: vote.api_gewijzigd_op || new Date(),
-				// Optional nested objects
-				party: vote.fractie
-					? {
-							id: vote.fractie.id,
-							name: vote.fractie.naam_nl || vote.fractie.afkorting || "",
-							shortName: vote.fractie.afkorting || "",
-							color: null, // Not available in your schema
-							seats: Number(vote.fractie.aantal_zetels) || 0,
-							activeFrom: vote.fractie.datum_actief,
-							activeTo: vote.fractie.datum_inactief,
-							createdAt: vote.fractie.gewijzigd_op || new Date(),
-							updatedAt: vote.fractie.api_gewijzigd_op || new Date(),
-						}
-					: undefined,
-				politician: vote.persoon
-					? {
-							id: vote.persoon.id,
-							firstName: vote.persoon.voornamen || "",
-							lastName: vote.persoon.achternaam || "",
-							fullName:
-								`${vote.persoon.voornamen || ""} ${vote.persoon.tussenvoegsel || ""} ${vote.persoon.achternaam || ""}`.trim(),
-							// Add other politician fields as needed
-						}
-					: undefined,
-			}));
+			votes = votesWithRelations.map(v => mapVoteToContract(v));
 
-			// Group votes by party (fractie)
 			const partyVoteMap = new Map<
 				string,
-				{ party: fracties; votes: string[] }
+				{ party: PartyModel; votes: VoteType[] }
 			>();
 
 			votesWithRelations.forEach((vote) => {
-				if (vote.fractie_id && vote.fractie) {
-					if (!partyVoteMap.has(vote.fractie_id)) {
-						partyVoteMap.set(vote.fractie_id, {
-							party: vote.fractie,
+				if (vote.partyId && vote.party) {
+					if (!partyVoteMap.has(vote.partyId)) {
+						partyVoteMap.set(vote.partyId, {
+							party: vote.party,
 							votes: [],
 						});
 					}
-					if (vote.soort) {
-						partyVoteMap.get(vote.fractie_id)?.votes.push(vote.soort);
+					if (vote.type) {
+						partyVoteMap.get(vote.partyId)?.votes.push(vote.type);
 					}
 				}
 			});
 
-			// Calculate majority position for each party
 			partyPositions = Array.from(partyVoteMap.values()).map(
 				({ party, votes: partyVotes }) => {
 					const voteCounts = partyVotes.reduce(
@@ -189,31 +130,20 @@ export const compassRouter = {
 						{} as Record<string, number>,
 					);
 
-					// Find majority vote
 					const majorityVoteEntry =
-						voteCounts.length > 0
+						Object.keys(voteCounts).length > 0
 							? Object.entries(voteCounts).reduce((a, b) =>
 									a[1] > b[1] ? a : b,
-								)
+							)
 							: [];
 
 					const majorityVote =
-						(majorityVoteEntry[0] as VoteType) ?? ("Niet deelgenomen" as const);
+						(majorityVoteEntry[0] as VoteType) ?? ("NEUTRAL" as const);
 					const count = majorityVoteEntry[1] ?? null;
 
 					return {
-						party: {
-							id: party.id,
-							name: party.naam_nl || party.afkorting || "",
-							shortName: party.afkorting || "",
-							color: null, // Not available in your schema
-							seats: Number(party.aantal_zetels) || 0,
-							activeFrom: party.datum_actief,
-							activeTo: party.datum_inactief,
-							createdAt: party.gewijzigd_op || new Date(),
-							updatedAt: party.api_gewijzigd_op || new Date(),
-						},
-						position: majorityVote as VoteType,
+						party: mapPartyToContract(party),
+						position: majorityVote,
 						count,
 					};
 				},
@@ -231,27 +161,24 @@ export const compassRouter = {
 async function calculatePartyAlignment(answers: UserAnswer[]) {
 	const motionIds = answers.map((a) => a.motionId);
 
-	// Get all votes for the motions in question
-	const votes = await db.stemmingen.findMany({
+	const votes = await db.vote.findMany({
 		where: {
-			besluit: {
-				zaak_id: { in: motionIds },
+			decision: {
+				caseId: { in: motionIds },
 			},
 		},
 		include: {
-			fractie: true,
-			besluit: true,
+			party: true,
+			decision: true,
 		},
 	});
 
-	// Get all active parties (fracties)
-	const parties = await db.fracties.findMany({
+	const parties = await db.party.findMany({
 		where: {
-			OR: [{ datum_inactief: null }, { datum_inactief: { gte: new Date() } }],
+			OR: [{ activeTo: null }, { activeTo: { gte: new Date() } }],
 		},
 	});
 
-	// Calculate scores for each party
 	const partyScores = new Map<
 		string,
 		{
@@ -263,24 +190,9 @@ async function calculatePartyAlignment(answers: UserAnswer[]) {
 		}
 	>();
 
-	// Initialize party scores
 	parties.forEach((party) => {
 		partyScores.set(party.id, {
-			party: {
-				id: party.id,
-				name: party.naam_nl || party.afkorting || "",
-				shortName: party.afkorting || "",
-				color: null,
-				seats: Number(party.aantal_zetels) || 0,
-				activeFrom: party.datum_actief ? new Date(party.datum_actief) : null,
-				activeTo: party.datum_inactief ? new Date(party.datum_inactief) : null,
-				createdAt: party.gewijzigd_op
-					? new Date(party.gewijzigd_op)
-					: new Date(),
-				updatedAt: party.api_gewijzigd_op
-					? new Date(party.api_gewijzigd_op)
-					: new Date(),
-			},
+			party: mapPartyToContract(party),
 			totalVotes: 0,
 			matchingVotes: 0,
 			score: 0,
@@ -288,33 +200,28 @@ async function calculatePartyAlignment(answers: UserAnswer[]) {
 		});
 	});
 
-	// Calculate alignment for each answer
 	answers.forEach((answer) => {
-		// Get votes for this specific motion
 		const motionVotes = votes.filter(
-			(v) => v.besluit?.zaak_id === answer.motionId,
+			(v) => v.decision?.caseId === answer.motionId,
 		);
 
-		// Group votes by party to find majority position
 		const partyPositions = new Map<string, VoteType[]>();
 
 		motionVotes.forEach((vote) => {
-			if (vote.fractie_id && vote.soort) {
-				if (!partyPositions.has(vote.fractie_id)) {
-					partyPositions.set(vote.fractie_id, []);
+			if (vote.partyId && vote.type) {
+				if (!partyPositions.has(vote.partyId)) {
+					partyPositions.set(vote.partyId, []);
 				}
-				partyPositions.get(vote.fractie_id)?.push(vote.soort as VoteType);
+				partyPositions.get(vote.partyId)?.push(vote.type);
 			}
 		});
 
-		// Calculate majority vote for each party and compare with user answer
 		partyPositions.forEach((votes, partyId) => {
 			const partyScore = partyScores.get(partyId);
 			if (!partyScore) return;
 
 			partyScore.totalVotes++;
 
-			// Find majority vote for this party
 			const voteCounts = votes.reduce(
 				(acc, vote) => {
 					acc[vote] = (acc[vote] || 0) + 1;
@@ -330,11 +237,9 @@ async function calculatePartyAlignment(answers: UserAnswer[]) {
 						)[0] as VoteType)
 					: null;
 
-			// Convert to comparable format
 			const userSupports = answer.answer === "agree";
-			const partySupports = majorityVote === "Voor";
+			const partySupports = majorityVote === "FOR";
 
-			// Award points for alignment
 			if (
 				(userSupports && partySupports) ||
 				(!userSupports && !partySupports)
@@ -345,7 +250,6 @@ async function calculatePartyAlignment(answers: UserAnswer[]) {
 				partyScore.score += 0.5;
 			}
 
-			// Calculate agreement percentage
 			partyScore.agreement =
 				partyScore.totalVotes > 0
 					? (partyScore.matchingVotes / partyScore.totalVotes) * 100
@@ -353,9 +257,8 @@ async function calculatePartyAlignment(answers: UserAnswer[]) {
 		});
 	});
 
-	// Check which motions have votes
 	const motionsWithVotes = new Set(
-		votes.map((v) => v.besluit?.zaak_id).filter(Boolean),
+		votes.map((v) => v.decision?.caseId).filter(Boolean),
 	);
 
 	partyScores.forEach((score, partyId) => {
@@ -366,22 +269,17 @@ async function calculatePartyAlignment(answers: UserAnswer[]) {
 		}
 	});
 
-	// Filter out parties with very low vote coverage (less than 25% of motions)
 	const minVotesThreshold = Math.max(1, Math.floor(answers.length * 0.25));
 
-	// Convert to array and apply improved sorting
 	const results = Array.from(partyScores.values())
-		.filter((result) => result.totalVotes >= minVotesThreshold) // Filter out parties with insufficient vote coverage
+		.filter((result) => result.totalVotes >= minVotesThreshold)
 		.sort((a, b) => {
-			// Primary sort: agreement percentage (descending)
 			if (Math.abs(b.agreement - a.agreement) > 0.1) {
 				return b.agreement - a.agreement;
 			}
-			// Secondary sort: total votes (descending) - prefer parties that voted on more issues when agreement is similar
 			if (Math.abs(b.totalVotes - a.totalVotes) > 0) {
 				return b.totalVotes - a.totalVotes;
 			}
-			// Tertiary sort: raw score (descending)
 			return b.score - a.score;
 		});
 
@@ -403,54 +301,50 @@ async function calculatePartyAlignment(answers: UserAnswer[]) {
 async function getMotionVoteDetails(answers: UserAnswer[]) {
 	const motionIds = answers.map((a) => a.motionId);
 
-	// Get motion details
-	const motions = await db.zaken.findMany({
+	const motions = await db.case.findMany({
 		where: { id: { in: motionIds } },
 		include: {
-			kamerstukdossiers: true,
+			parliamentaryDocuments: true,
 		},
 	});
 
-	// Get all votes for these motions
-	const votes = await db.stemmingen.findMany({
+	const votes = await db.vote.findMany({
 		where: {
-			besluit: {
-				zaak_id: { in: motionIds },
+			decision: {
+				caseId: { in: motionIds },
 			},
 		},
 		include: {
-			fractie: true,
-			persoon: true,
-			besluit: true,
+			party: true,
+			politician: true,
+			decision: true,
 		},
 	});
 
 	return answers.map((answer) => {
 		const motion = motions.find((m) => m.id === answer.motionId);
 		const motionVotes = votes.filter(
-			(v) => v.besluit?.zaak_id === answer.motionId,
+			(v) => v.decision?.caseId === answer.motionId,
 		);
 
-		// Group votes by party
 		const partyVotes = new Map<
 			string,
-			{ party: fracties; votes: string[]; majorityVote: VoteType }
+			{ party: PartyModel; votes: VoteType[]; majorityVote: VoteType }
 		>();
 
 		motionVotes.forEach((vote) => {
-			if (vote.fractie_id && vote.fractie && vote.soort) {
-				if (!partyVotes.has(vote.fractie_id)) {
-					partyVotes.set(vote.fractie_id, {
-						party: vote.fractie,
+			if (vote.partyId && vote.party && vote.type) {
+				if (!partyVotes.has(vote.partyId)) {
+					partyVotes.set(vote.partyId, {
+						party: vote.party,
 						votes: [],
-						majorityVote: "Niet deelgenomen",
+						majorityVote: "NEUTRAL",
 					});
 				}
-				partyVotes.get(vote.fractie_id)?.votes.push(vote.soort);
+				partyVotes.get(vote.partyId)?.votes.push(vote.type);
 			}
 		});
 
-		// Calculate majority vote for each party
 		partyVotes.forEach((partyData, partyId) => {
 			const voteCounts = partyData.votes.reduce(
 				(acc, vote) => {
@@ -470,61 +364,26 @@ async function getMotionVoteDetails(answers: UserAnswer[]) {
 			partyData.majorityVote = majorityVote as VoteType;
 		});
 
-		// Convert to array format
 		const partyPositions = Array.from(partyVotes.values()).map(
 			({ party, votes, majorityVote }) => ({
-				party: {
-					id: party.id,
-					name: party.naam_nl || party.afkorting || "",
-					shortName: party.afkorting || "",
-					color: null,
-					seats: Number(party.aantal_zetels) || 0,
-					activeFrom: party.datum_actief ? new Date(party.datum_actief) : null,
-					activeTo: party.datum_inactief
-						? new Date(party.datum_inactief)
-						: null,
-					createdAt: party.gewijzigd_op
-						? new Date(party.gewijzigd_op)
-						: new Date(),
-					updatedAt: party.api_gewijzigd_op
-						? new Date(party.api_gewijzigd_op)
-						: new Date(),
-				},
+				party: mapPartyToContract(party),
 				position: majorityVote,
 				voteCount: votes.length,
 				agreesWithUser:
-					majorityVote !== "Niet deelgenomen" &&
-					((answer.answer === "agree" && majorityVote === "Voor") ||
-						(answer.answer === "disagree" && majorityVote === "Tegen") ||
+					majorityVote !== "NEUTRAL" &&
+					((answer.answer === "agree" && majorityVote === "FOR") ||
+						(answer.answer === "disagree" && majorityVote === "AGAINST") ||
 						answer.answer === "neutral"),
 			}),
 		);
 
-		const dossier = motion?.kamerstukdossiers?.[0];
+		const dossier = motion?.parliamentaryDocuments?.[0];
 
 		return {
 			motionId: answer.motionId,
 			userAnswer: answer.answer,
 			motion: motion
-				? {
-						id: motion.id,
-						title: motion.titel || motion.onderwerp || "Untitled Motion",
-						description: motion.onderwerp,
-						shortTitle: motion.citeertitel,
-						motionNumber: motion.nummer,
-						date: motion.datum,
-						status: motion.status || "unknown",
-						category: motion.soort,
-						bulletPoints:
-							dossier?.bullet_points && Array.isArray(dossier.bullet_points)
-								? dossier.bullet_points.filter(
-										(bp): bp is string => typeof bp === "string",
-									)
-								: [],
-						originalId: motion.id,
-						createdAt: motion.gestart_op || new Date(),
-						updatedAt: motion.gewijzigd_op || new Date(),
-					}
+				? mapCaseToMotion(motion, dossier)
 				: null,
 			partyPositions,
 		};

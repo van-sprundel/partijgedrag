@@ -119,11 +119,11 @@ export function ResultsPage() {
 
 	const getVoteEmoji = (position: VoteType) => {
 		switch (position) {
-			case "Voor":
+			case "FOR":
 				return "✅";
-			case "Tegen":
+			case "AGAINST":
 				return "❌";
-			case "Niet deelgenomen":
+			case "NEUTRAL":
 				return "⚪";
 			default:
 				return "❓";
@@ -435,9 +435,9 @@ export function ResultsPage() {
 																	</div>
 																	<div className="flex items-center space-x-2">
 																		<span className="text-sm text-gray-600">
-																			{partyPos.position === "Voor"
+																			{partyPos.position === "FOR"
 																				? "Voor"
-																				: partyPos.position === "Tegen"
+																				: partyPos.position === "AGAINST"
 																					? "Tegen"
 																					: "Onthouding"}
 																		</span>
