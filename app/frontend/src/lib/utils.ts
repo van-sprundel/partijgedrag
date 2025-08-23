@@ -81,27 +81,3 @@ export function truncateText(text: string, maxLength: number): string {
 export function calculateProgress(current: number, total: number): number {
 	return Math.round((current / total) * 100);
 }
-
-export function getVoteTypeLabel(voteType: string): string {
-	const labels: Record<string, string> = {
-		FOR: "Voor",
-		AGAINST: "Tegen",
-		ABSTAIN: "Onthouding",
-		ABSENT: "Afwezig",
-	};
-	return labels[voteType] || voteType;
-}
-
-export function getVoteTypeColor(voteType: string): string {
-	const colors: Record<string, string> = {
-		FOR: "text-green-600",
-		AGAINST: "text-red-600",
-		ABSTAIN: "text-yellow-600",
-		ABSENT: "text-gray-600",
-	};
-	return colors[voteType] || "text-gray-600";
-}
-
-export function generateSessionId(): string {
-	return `session_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
-}

@@ -1,9 +1,7 @@
 import { implement } from "@orpc/server";
-import type { VoteType } from "../contracts/index.js";
-import { apiContract } from "../contracts/index.js";
+import { apiContract, type VoteType } from "../contracts/index.js";
 import { db } from "../lib/db.js";
 import { mapZaakToMotion } from "../utils/motion.js";
-import { mapVoteTypeFromDB } from "../utils/vote.js";
 
 const os = implement(apiContract);
 
@@ -109,7 +107,7 @@ export const motionRouter = {
 			motionId: input.motionId,
 			partyId: vote.fractie_id || "",
 			politicianId: vote.persoon_id || "",
-			voteType: mapVoteTypeFromDB(vote.soort || ""),
+			voteType: vote.soort as VoteType,
 			reasoning: null,
 			createdAt: vote.gewijzigd_op || new Date(),
 			updatedAt: vote.api_gewijzigd_op || new Date(),
@@ -186,7 +184,7 @@ export const motionRouter = {
 						createdAt: party.gewijzigd_op || new Date(),
 						updatedAt: party.api_gewijzigd_op || new Date(),
 					},
-					position: mapVoteTypeFromDB(majorityVote),
+					position: majorityVote as VoteType,
 					count,
 				};
 			},

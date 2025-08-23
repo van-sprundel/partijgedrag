@@ -26,25 +26,6 @@ function mapZaakToMotion(zaak: any, dossier?: any) {
 	};
 }
 
-function mapVoteTypeFromDB(dbVoteType: string | null): VoteType {
-	if (!dbVoteType) return "ABSTAIN" as VoteType;
-
-	// Map Dutch vote types to your enum
-	switch (dbVoteType.toLowerCase()) {
-		case "voor":
-		case "for":
-			return "FOR" as VoteType;
-		case "tegen":
-		case "against":
-			return "AGAINST" as VoteType;
-		case "onthouding":
-		case "abstain":
-			return "ABSTAIN" as VoteType;
-		default:
-			return "ABSTAIN" as VoteType;
-	}
-}
-
 function mapFractieToParty(fractie: any) {
 	return {
 		id: fractie.id,
@@ -143,7 +124,7 @@ export const partyRouter = {
 				motionId: motion?.id || "",
 				partyId: vote.fractie_id || "",
 				politicianId: vote.persoon_id || "",
-				voteType: mapVoteTypeFromDB(vote.soort || ""),
+				voteType: (vote.soort as VoteType) || "",
 				reasoning: null,
 				createdAt: vote.gewijzigd_op || new Date(),
 				updatedAt: vote.api_gewijzigd_op || new Date(),

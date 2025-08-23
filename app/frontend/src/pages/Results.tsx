@@ -18,7 +18,7 @@ import {
 } from "../components/ui/Card";
 import { Progress } from "../components/ui/Progress";
 import { useCompassResults } from "../hooks/api";
-import type { MotionDetail, PartyResult } from "../lib/api";
+import type { MotionDetail, PartyResult, VoteType } from "../lib/api";
 import { formatPercentage, getPartyColorClass } from "../lib/utils";
 
 export function ResultsPage() {
@@ -117,13 +117,13 @@ export function ResultsPage() {
 		}
 	};
 
-	const getVoteEmoji = (position: string) => {
+	const getVoteEmoji = (position: VoteType) => {
 		switch (position) {
-			case "FOR":
+			case "Voor":
 				return "✅";
-			case "AGAINST":
+			case "Tegen":
 				return "❌";
-			case "ABSTAIN":
+			case "Niet deelgenomen":
 				return "⚪";
 			default:
 				return "❓";
@@ -435,9 +435,9 @@ export function ResultsPage() {
 																	</div>
 																	<div className="flex items-center space-x-2">
 																		<span className="text-sm text-gray-600">
-																			{partyPos.position === "FOR"
+																			{partyPos.position === "Voor"
 																				? "Voor"
-																				: partyPos.position === "AGAINST"
+																				: partyPos.position === "Tegen"
 																					? "Tegen"
 																					: "Onthouding"}
 																		</span>
