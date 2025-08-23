@@ -37,11 +37,15 @@ func (imp *SimpleImporter) GetStats() *models.ImportStats {
 	return imp.stats
 }
 
-func (imp *SimpleImporter) ImportMotiesWithVotes(ctx context.Context) error {
-	log.Println("Starting import of motions with votes...")
+func (imp *SimpleImporter) ImportMotiesWithVotes(ctx context.Context, after *time.Time) error {
+	if after != nil {
+		log.Printf("Starting import of motions with votes modified after %s...", after.Format(time.RFC3339))
+	} else {
+		log.Println("Starting import of motions with votes...")
+	}
 	startTime := time.Now()
 
-	err := imp.processAllMotions(ctx)
+	err := imp.processAllMotions(ctx, after)
 	if err != nil {
 		return fmt.Errorf("import failed: %w", err)
 	}
@@ -53,15 +57,28 @@ func (imp *SimpleImporter) ImportMotiesWithVotes(ctx context.Context) error {
 	return nil
 }
 
-func (imp *SimpleImporter) processAllMotions(ctx context.Context) error {
+func (imp *SimpleImporter) processAllMotions(ctx context.Context, after *time.Time) error {
 	skip := 0
 	pageNum := 1
+	totalProcessed := 0
+	startTime := time.Now()
+	lastBatchSize := 0
+
+	// Try to get total count for better progress tracking
+	totalCount := 0
+	if count, err := imp.client.GetMotiesCount(ctx, after); err == nil {
+		totalCount = count
+		log.Printf("Estimated total records to process: %d", totalCount)
+	} else {
+		log.Printf("Could not get total count (will show relative progress): %v", err)
+	}
 
 	for {
+		batchStartTime := time.Now()
 		log.Printf("Processing page %d (skip=%d)...", pageNum, skip)
 
 		// Fetch page of zaken
-		zaken, err := imp.fetchZakenPage(ctx, skip)
+		zaken, err := imp.fetchZakenPageAfter(ctx, skip, after)
 		if err != nil {
 			return fmt.Errorf("fetching page %d: %w", pageNum, err)
 		}
@@ -80,7 +97,42 @@ func (imp *SimpleImporter) processAllMotions(ctx context.Context) error {
 		// Update stats
 		imp.updateStats(entities)
 
-		log.Printf("Page %d complete: processed %d zaken", pageNum, len(zaken))
+		batchDuration := time.Since(batchStartTime)
+		totalProcessed += len(zaken)
+		avgDuration := time.Since(startTime) / time.Duration(pageNum)
+
+		// Progress indicators
+		progressMsg := fmt.Sprintf("Page %d complete: processed %d zaken in %v (total: %d)",
+			pageNum, len(zaken), batchDuration.Round(time.Second), totalProcessed)
+
+		// Add percentage and ETA if we have total count
+		if totalCount > 0 {
+			percentage := float64(totalProcessed) / float64(totalCount) * 100
+			progressMsg += fmt.Sprintf(" [%.1f%%]", percentage)
+
+			if totalProcessed > 0 {
+				avgTimePerRecord := time.Since(startTime) / time.Duration(totalProcessed)
+				remainingRecords := totalCount - totalProcessed
+				estimatedTimeLeft := time.Duration(remainingRecords) * avgTimePerRecord
+				progressMsg += fmt.Sprintf(" | ETA: %v", estimatedTimeLeft.Round(time.Minute))
+			}
+		}
+
+		// Add batch size trend to help estimate progress
+		if lastBatchSize > 0 {
+			trend := ""
+			if len(zaken) < lastBatchSize {
+				trend = " (↓ smaller batch - likely approaching end)"
+			} else if len(zaken) > lastBatchSize {
+				trend = " (↑ larger batch)"
+			} else {
+				trend = " (→ same size)"
+			}
+			progressMsg += trend
+		}
+
+		log.Printf("%s | avg batch time: %v", progressMsg, avgDuration.Round(time.Second))
+		lastBatchSize = len(zaken)
 
 		skip += len(zaken)
 		pageNum++
@@ -90,7 +142,11 @@ func (imp *SimpleImporter) processAllMotions(ctx context.Context) error {
 }
 
 func (imp *SimpleImporter) fetchZakenPage(ctx context.Context, skip int) ([]models.Zaak, error) {
-	data, err := imp.client.GetMotiesWithVotes(ctx, skip, 0)
+	return imp.fetchZakenPageAfter(ctx, skip, nil)
+}
+
+func (imp *SimpleImporter) fetchZakenPageAfter(ctx context.Context, skip int, after *time.Time) ([]models.Zaak, error) {
+	data, err := imp.client.GetMotiesWithVotesAfter(ctx, skip, 0, after)
 	if err != nil {
 		return nil, err
 	}
