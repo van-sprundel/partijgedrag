@@ -43,13 +43,19 @@ export const compassRouter = {
 		}
 
 		const results = CompassResultSchema.parse({
-			...session.results,
+			...(session.results as object),
 			id: session.id,
 		});
+
+		// Get detailed motion breakdown if requested
+		const answers = session.answers as UserAnswer[];
+		const motionDetails = await getMotionVoteDetails(answers);
+
 		return {
 			id: session.id,
 			totalAnswers: results.totalAnswers,
 			partyResults: results.partyResults,
+			motionDetails,
 			createdAt: session.createdAt,
 		};
 	}),
@@ -327,7 +333,7 @@ async function calculatePartyAlignment(answers: UserAnswer[]) {
 			);
 
 			const majorityVote =
-				voteCounts.length > 0
+				Object.keys(voteCounts).length > 0
 					? Object.entries(voteCounts).reduce((a, b) =>
 							a[1] > b[1] ? a : b,
 						)[0]
@@ -356,15 +362,208 @@ async function calculatePartyAlignment(answers: UserAnswer[]) {
 		});
 	});
 
-	// Convert to array and sort by score
-	return Array.from(partyScores.values())
-		.filter((result) => result.totalVotes > 0) // Only include parties with votes
-		.sort((a, b) => b.score - a.score)
-		.map((result) => ({
-			party: result.party,
-			score: Math.round(result.score * 100) / 100,
-			agreement: Math.round(result.agreement * 100) / 100,
-			totalVotes: result.totalVotes,
-			matchingVotes: result.matchingVotes,
-		}));
+	// Add debugging information
+	console.log(`\n=== Vote Analysis Debug ===`);
+	console.log(`Total motions answered by user: ${answers.length}`);
+	console.log(`Total votes found in database: ${votes.length}`);
+
+	// Check which motions have votes
+	const motionsWithVotes = new Set(
+		votes.map((v) => v.besluit?.zaak_id).filter(Boolean),
+	);
+	console.log(
+		`Motions with votes in DB: ${motionsWithVotes.size}/${answers.length}`,
+	);
+
+	answers.forEach((answer, index) => {
+		const hasVotes = motionsWithVotes.has(answer.motionId);
+		console.log(
+			`Motion ${index + 1} (${answer.motionId}): ${hasVotes ? "HAS VOTES" : "NO VOTES"} - User answered: ${answer.answer}`,
+		);
+	});
+
+	// Add logging to understand vote coverage
+	console.log("\nVote coverage per party:");
+	partyScores.forEach((score, partyId) => {
+		if (score.totalVotes > 0) {
+			console.log(
+				`${score.party.shortName}: ${score.matchingVotes}/${score.totalVotes} matches (${Math.round(score.agreement)}% agreement) - Score: ${score.score}`,
+			);
+		}
+	});
+
+	// Filter out parties with very low vote coverage (less than 25% of motions)
+	const minVotesThreshold = Math.max(1, Math.floor(answers.length * 0.25));
+	console.log(
+		`\nMinimum vote threshold: ${minVotesThreshold}/${answers.length} motions`,
+	);
+
+	partyScores.forEach((score, partyId) => {
+		if (score.totalVotes > 0 && score.totalVotes < minVotesThreshold) {
+			console.log(
+				`Filtering out ${score.party.shortName} due to low vote coverage: ${score.totalVotes}/${answers.length} motions`,
+			);
+		}
+	});
+
+	// Convert to array and apply improved sorting
+	const results = Array.from(partyScores.values())
+		.filter((result) => result.totalVotes >= minVotesThreshold) // Filter out parties with insufficient vote coverage
+		.sort((a, b) => {
+			// Primary sort: agreement percentage (descending)
+			if (Math.abs(b.agreement - a.agreement) > 0.1) {
+				return b.agreement - a.agreement;
+			}
+			// Secondary sort: total votes (descending) - prefer parties that voted on more issues when agreement is similar
+			if (Math.abs(b.totalVotes - a.totalVotes) > 0) {
+				return b.totalVotes - a.totalVotes;
+			}
+			// Tertiary sort: raw score (descending)
+			return b.score - a.score;
+		});
+
+	console.log("\nFinal ranking:");
+	results.slice(0, 5).forEach((result, index) => {
+		console.log(
+			`${index + 1}. ${result.party.shortName}: ${result.matchingVotes}/${result.totalVotes} (${Math.round(result.agreement)}%) - Score: ${result.score}`,
+		);
+	});
+
+	return results.map((result) => ({
+		party: result.party,
+		score: Math.round(result.score * 100) / 100,
+		agreement: Math.round(result.agreement * 100) / 100,
+		totalVotes: result.totalVotes,
+		matchingVotes: result.matchingVotes,
+	}));
+}
+
+async function getMotionVoteDetails(answers: UserAnswer[]) {
+	const motionIds = answers.map((a) => a.motionId);
+
+	// Get motion details
+	const motions = await db.zaken.findMany({
+		where: { id: { in: motionIds } },
+		include: {
+			kamerstukdossiers: true,
+		},
+	});
+
+	// Get all votes for these motions
+	const votes = await db.stemmingen.findMany({
+		where: {
+			besluit: {
+				zaak_id: { in: motionIds },
+			},
+		},
+		include: {
+			fractie: true,
+			persoon: true,
+			besluit: true,
+		},
+	});
+
+	return answers.map((answer) => {
+		const motion = motions.find((m) => m.id === answer.motionId);
+		const motionVotes = votes.filter(
+			(v) => v.besluit?.zaak_id === answer.motionId,
+		);
+
+		// Group votes by party
+		const partyVotes = new Map<
+			string,
+			{ party: any; votes: string[]; majorityVote: string }
+		>();
+
+		motionVotes.forEach((vote) => {
+			if (vote.fractie_id && vote.fractie && vote.soort) {
+				if (!partyVotes.has(vote.fractie_id)) {
+					partyVotes.set(vote.fractie_id, {
+						party: vote.fractie,
+						votes: [],
+						majorityVote: "",
+					});
+				}
+				partyVotes.get(vote.fractie_id)?.votes.push(vote.soort);
+			}
+		});
+
+		// Calculate majority vote for each party
+		partyVotes.forEach((partyData, partyId) => {
+			const voteCounts = partyData.votes.reduce(
+				(acc, vote) => {
+					acc[vote] = (acc[vote] || 0) + 1;
+					return acc;
+				},
+				{} as Record<string, number>,
+			);
+
+			const majorityVote =
+				Object.keys(voteCounts).length > 0
+					? Object.entries(voteCounts).reduce((a, b) =>
+							a[1] > b[1] ? a : b,
+						)[0]
+					: null;
+
+			partyData.majorityVote = mapVoteTypeFromDB(majorityVote);
+		});
+
+		// Convert to array format
+		const partyPositions = Array.from(partyVotes.values()).map(
+			({ party, votes, majorityVote }) => ({
+				party: {
+					id: party.id,
+					name: party.naam_nl || party.afkorting || "",
+					shortName: party.afkorting || "",
+					color: null,
+					seats: Number(party.aantal_zetels) || 0,
+					activeFrom: party.datum_actief ? new Date(party.datum_actief) : null,
+					activeTo: party.datum_inactief
+						? new Date(party.datum_inactief)
+						: null,
+					createdAt: party.gewijzigd_op
+						? new Date(party.gewijzigd_op)
+						: new Date(),
+					updatedAt: party.api_gewijzigd_op
+						? new Date(party.api_gewijzigd_op)
+						: new Date(),
+				},
+				position: majorityVote,
+				voteCount: votes.length,
+				agreesWithUser:
+					(answer.answer === "agree" && majorityVote === "FOR") ||
+					(answer.answer === "disagree" && majorityVote === "AGAINST") ||
+					answer.answer === "neutral",
+			}),
+		);
+
+		const dossier = motion?.kamerstukdossiers?.[0];
+
+		return {
+			motionId: answer.motionId,
+			userAnswer: answer.answer,
+			motion: motion
+				? {
+						id: motion.id,
+						title: motion.titel || motion.onderwerp || "Untitled Motion",
+						description: motion.onderwerp,
+						shortTitle: motion.citeertitel,
+						motionNumber: motion.nummer,
+						date: motion.datum,
+						status: motion.status || "unknown",
+						category: motion.soort,
+						bulletPoints:
+							dossier?.bullet_points && Array.isArray(dossier.bullet_points)
+								? dossier.bullet_points.filter(
+										(bp): bp is string => typeof bp === "string",
+									)
+								: [],
+						originalId: motion.id,
+						createdAt: motion.gestart_op || new Date(),
+						updatedAt: motion.gewijzigd_op || new Date(),
+					}
+				: null,
+			partyPositions,
+		};
+	});
 }

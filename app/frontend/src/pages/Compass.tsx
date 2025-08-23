@@ -1,6 +1,6 @@
 import { ArrowLeft, ArrowRight, CheckCircle, RotateCcw } from "lucide-react";
-import { useState } from "react";
-import { Link, useNavigate } from "react-router-dom";
+import { useEffect, useState } from "react";
+import { Link, useNavigate, useSearchParams } from "react-router-dom";
 import { Button } from "../components/ui/Button";
 import {
 	Card,
@@ -10,7 +10,11 @@ import {
 	CardTitle,
 } from "../components/ui/Card";
 import { Progress } from "../components/ui/Progress";
-import { useCompassMotions, useSubmitAnswers } from "../hooks/api";
+import {
+	useCompassMotions,
+	useCompassResults,
+	useSubmitAnswers,
+} from "../hooks/api";
 import type { UserAnswer } from "../lib/api";
 import { calculateProgress, truncateText } from "../lib/utils";
 
@@ -24,19 +28,52 @@ interface CompassState {
 
 export function CompassPage() {
 	const navigate = useNavigate();
+	const [searchParams] = useSearchParams();
+	const sessionId = searchParams.get("session");
 	const [state, setState] = useState<CompassState>({
 		currentIndex: 0,
 		answers: [],
 		showExplanation: false,
 	});
 
+	// Get existing results if continuing a session
+	const { data: existingResults } = useCompassResults(sessionId || "");
+
 	const { data: motions = [], isLoading, error } = useCompassMotions(20, []);
 
 	const submitAnswers = useSubmitAnswers();
 
-	const currentMotion = motions[state.currentIndex];
-	const progress = calculateProgress(state.currentIndex + 1, motions.length);
-	const isLastQuestion = state.currentIndex === motions.length - 1;
+	// Load existing answers when continuing a session
+	useEffect(() => {
+		if (existingResults?.motionDetails) {
+			const existingAnswers: UserAnswer[] = existingResults.motionDetails.map(
+				(detail) => ({
+					motionId: detail.motionId,
+					answer: detail.userAnswer,
+				}),
+			);
+
+			setState((prev) => ({
+				...prev,
+				answers: existingAnswers,
+			}));
+		}
+	}, [existingResults]);
+
+	// Get unanswered motions for session continuation
+	const getUnansweredMotions = () => {
+		if (!sessionId) return motions;
+		const answeredMotionIds = new Set(state.answers.map((a) => a.motionId));
+		return motions.filter((motion) => !answeredMotionIds.has(motion.id));
+	};
+
+	const unansweredMotions = getUnansweredMotions();
+	const currentMotion = sessionId
+		? unansweredMotions[state.currentIndex]
+		: motions[state.currentIndex];
+	const totalMotions = sessionId ? unansweredMotions.length : motions.length;
+	const progress = calculateProgress(state.currentIndex + 1, totalMotions);
+	const isLastQuestion = state.currentIndex === totalMotions - 1;
 
 	const handleAnswer = (answer: Answer) => {
 		if (!currentMotion) return;
@@ -59,16 +96,23 @@ export function CompassPage() {
 
 		setState((prev) => ({ ...prev, answers: updatedAnswers }));
 
-		// Auto-advance after a short delay
+		// Auto-advance to next question after a short delay
+		console.log(
+			`Answered question ${state.currentIndex + 1}/${totalMotions}. isLastQuestion: ${isLastQuestion}`,
+		);
 		setTimeout(() => {
-			if (isLastQuestion) {
-				handleSubmit(updatedAnswers);
-			} else {
+			if (!isLastQuestion) {
+				console.log(
+					`Auto-advancing from question ${state.currentIndex + 1} to ${state.currentIndex + 2}`,
+				);
 				setState((prev) => ({
 					...prev,
 					currentIndex: prev.currentIndex + 1,
 				}));
+			} else {
+				console.log("Reached last question - not auto-advancing");
 			}
+			// Don't auto-submit on last question - let user control when to submit
 		}, 300);
 	};
 
@@ -90,12 +134,25 @@ export function CompassPage() {
 		}
 	};
 
+	const handleNext = () => {
+		if (state.currentIndex < totalMotions - 1) {
+			setState((prev) => ({
+				...prev,
+				currentIndex: prev.currentIndex + 1,
+			}));
+		}
+	};
+
 	const handleReset = () => {
 		setState({
 			currentIndex: 0,
-			answers: [],
+			answers: sessionId ? [] : [],
 			showExplanation: false,
 		});
+		if (sessionId) {
+			// Navigate to new compass session
+			navigate("/compass");
+		}
 	};
 
 	const getCurrentAnswer = (): Answer | undefined => {
@@ -141,8 +198,35 @@ export function CompassPage() {
 		);
 	}
 
+	// Show completion message if continuing session and no more unanswered motions
+	if (sessionId && unansweredMotions.length === 0 && state.answers.length > 0) {
+		return (
+			<div className="min-h-screen bg-gray-50 flex items-center justify-center">
+				<Card className="max-w-md mx-auto">
+					<CardHeader>
+						<CardTitle>🎉 Alle stellingen beantwoord!</CardTitle>
+						<CardDescription>
+							Je hebt alle beschikbare stellingen beantwoord. Bekijk je
+							resultaten of start een nieuwe stemwijzer.
+						</CardDescription>
+					</CardHeader>
+					<CardContent>
+						<div className="flex gap-2">
+							<Link to={`/results/${sessionId}`}>
+								<Button variant="primary">Bekijk resultaten</Button>
+							</Link>
+							<Link to="/compass">
+								<Button variant="secondary">Nieuwe stemwijzer</Button>
+							</Link>
+						</div>
+					</CardContent>
+				</Card>
+			</div>
+		);
+	}
+
 	return (
-		<div className="min-h-screen bg-gray-50">
+		<div className="min-h-screen bg-gray-50 pb-32">
 			{/* Header */}
 			<div className="bg-white shadow-sm">
 				<div className="container mx-auto px-4 py-4">
@@ -155,8 +239,17 @@ export function CompassPage() {
 							Terug naar home
 						</Link>
 						<div className="flex items-center gap-4">
+							{sessionId && (
+								<Link to={`/results/${sessionId}`}>
+									<Button variant="ghost" size="sm">
+										Huidige resultaten
+									</Button>
+								</Link>
+							)}
 							<span className="text-sm text-gray-600">
-								Vraag {state.currentIndex + 1} van {motions.length}
+								{sessionId
+									? `${state.currentIndex + 1} van ${unansweredMotions.length} nieuwe stellingen`
+									: `Vraag ${state.currentIndex + 1} van ${motions.length}`}
 							</span>
 							<Button
 								variant="ghost"
@@ -165,7 +258,7 @@ export function CompassPage() {
 								className="text-gray-500 hover:text-gray-700"
 							>
 								<RotateCcw className="h-4 w-4 mr-1" />
-								Opnieuw
+								{sessionId ? "Nieuwe sessie" : "Opnieuw"}
 							</Button>
 						</div>
 					</div>
@@ -174,17 +267,53 @@ export function CompassPage() {
 
 			{/* Progress */}
 			<div className="container mx-auto px-4 py-6">
+				{sessionId && state.answers.length > 0 && (
+					<div className="max-w-4xl mx-auto mb-6 p-4 bg-blue-50 border border-blue-200 rounded-lg">
+						<p className="text-blue-800">
+							Je zet een bestaande sessie voort met {state.answers.length}{" "}
+							eerder beantwoorde stellingen.
+							{unansweredMotions.length > 0 &&
+								` We tonen je nu ${unansweredMotions.length} nieuwe stellingen.`}
+						</p>
+					</div>
+				)}
 				<Progress value={progress} showValue className="mb-8" />
 
 				{/* Question Card */}
-				<div className="max-w-4xl mx-auto">
-					<Card className="mb-6">
+				<div className="max-w-4xl mx-auto mb-8">
+					<Card
+						className={`mb-6 ${getCurrentAnswer() ? "ring-2 ring-green-200 bg-green-50" : ""}`}
+					>
 						<CardHeader>
 							<div className="flex items-start justify-between">
 								<div className="flex-1">
-									<CardTitle className="text-2xl mb-3">
-										{currentMotion?.title}
-									</CardTitle>
+									<div className="flex items-center gap-3 mb-3">
+										<CardTitle className="text-2xl">
+											{currentMotion?.title}
+										</CardTitle>
+										{getCurrentAnswer() && (
+											<span className="text-green-600 text-xl">
+												{getCurrentAnswer() === "agree"
+													? "👍"
+													: getCurrentAnswer() === "neutral"
+														? "🤷"
+														: "👎"}
+											</span>
+										)}
+									</div>
+									{getCurrentAnswer() && (
+										<div className="inline-flex items-center gap-2 mb-2 text-sm font-medium text-green-700">
+											<span>✓</span>
+											<span>
+												Beantwoord:{" "}
+												{getCurrentAnswer() === "agree"
+													? "Eens"
+													: getCurrentAnswer() === "neutral"
+														? "Neutraal"
+														: "Oneens"}
+											</span>
+										</div>
+									)}
 									{currentMotion?.description && (
 										<CardDescription className="text-base leading-relaxed">
 											{state.showExplanation
@@ -225,7 +354,7 @@ export function CompassPage() {
 									<ul className="space-y-1">
 										{currentMotion.bulletPoints.map((point, index) => (
 											<li
-												key={index}
+												key={`bullet-${currentMotion.id}-${index}`}
 												className="text-sm text-gray-700 flex items-start"
 											>
 												<span className="text-primary-500 mr-2 mt-0.5">•</span>
@@ -238,107 +367,109 @@ export function CompassPage() {
 						)}
 					</Card>
 
-					{/* Answer Buttons */}
-					<div className="grid md:grid-cols-3 gap-4 mb-8">
-						<Button
-							variant={getCurrentAnswer() === "agree" ? "primary" : "secondary"}
-							size="lg"
-							onClick={() => handleAnswer("agree")}
-							className="h-20 text-lg font-semibold relative"
-							disabled={submitAnswers.isPending}
-						>
-							{getCurrentAnswer() === "agree" && (
-								<CheckCircle className="absolute top-3 right-3 h-5 w-5" />
-							)}
-							<div className="flex flex-col items-center">
-								<span className="text-2xl mb-1">👍</span>
-								<span>Eens</span>
-							</div>
-						</Button>
-
-						<Button
-							variant={
-								getCurrentAnswer() === "neutral" ? "primary" : "secondary"
-							}
-							size="lg"
-							onClick={() => handleAnswer("neutral")}
-							className="h-20 text-lg font-semibold relative"
-							disabled={submitAnswers.isPending}
-						>
-							{getCurrentAnswer() === "neutral" && (
-								<CheckCircle className="absolute top-3 right-3 h-5 w-5" />
-							)}
-							<div className="flex flex-col items-center">
-								<span className="text-2xl mb-1">🤷</span>
-								<span>Neutraal</span>
-							</div>
-						</Button>
-
-						<Button
-							variant={
-								getCurrentAnswer() === "disagree" ? "primary" : "secondary"
-							}
-							size="lg"
-							onClick={() => handleAnswer("disagree")}
-							className="h-20 text-lg font-semibold relative"
-							disabled={submitAnswers.isPending}
-						>
-							{getCurrentAnswer() === "disagree" && (
-								<CheckCircle className="absolute top-3 right-3 h-5 w-5" />
-							)}
-							<div className="flex flex-col items-center">
-								<span className="text-2xl mb-1">👎</span>
-								<span>Oneens</span>
-							</div>
-						</Button>
-					</div>
-
 					{/* Navigation */}
 					<div className="flex justify-between items-center">
-						<Button
-							variant="ghost"
-							onClick={handlePrevious}
-							disabled={state.currentIndex === 0 || submitAnswers.isPending}
-							className="flex items-center"
-						>
-							<ArrowLeft className="h-4 w-4 mr-2" />
-							Vorige
-						</Button>
-
 						<span className="text-sm text-gray-500">
-							{state.answers.length} van {motions.length} beantwoord
+							{sessionId ? (
+								<>
+									{state.currentIndex + 1} van {unansweredMotions.length} nieuwe
+									<span className="ml-2 text-xs text-blue-600">
+										({state.answers.length} eerder beantwoord)
+									</span>
+								</>
+							) : (
+								<>
+									{state.answers.length} van {motions.length} beantwoord
+								</>
+							)}
 						</span>
+					</div>
+				</div>
+			</div>
 
-						{isLastQuestion && getCurrentAnswer() ? (
+			{/* Sticky Answer Buttons */}
+			<div className="fixed bottom-0 left-0 right-0 bg-white border-t border-gray-200 shadow-lg z-10">
+				<div className="container mx-auto px-4 py-4">
+					<div className="max-w-4xl mx-auto">
+						{/* Answer Buttons */}
+						<div className="grid grid-cols-3 gap-4 mb-4">
 							<Button
-								onClick={() => handleSubmit(state.answers)}
-								loading={submitAnswers.isPending}
-								className="flex items-center"
+								variant={
+									getCurrentAnswer() === "agree" ? "primary" : "secondary"
+								}
+								size="lg"
+								onClick={() => handleAnswer("agree")}
+								className="h-20 text-lg font-semibold relative"
+								disabled={submitAnswers.isPending}
 							>
-								Resultaten bekijken
-								<ArrowRight className="h-4 w-4 ml-2" />
+								{getCurrentAnswer() === "agree" && (
+									<CheckCircle className="absolute top-3 right-3 h-5 w-5" />
+								)}
+								<div className="flex flex-col items-center">
+									<span className="text-2xl mb-1">👍</span>
+									<span>Eens</span>
+								</div>
 							</Button>
-						) : (
+
 							<Button
-								variant="ghost"
-								onClick={() =>
-									setState((prev) => ({
-										...prev,
-										currentIndex: Math.min(
-											prev.currentIndex + 1,
-											motions.length - 1,
-										),
-									}))
+								variant={
+									getCurrentAnswer() === "neutral" ? "primary" : "secondary"
 								}
-								disabled={
-									state.currentIndex >= motions.length - 1 ||
-									submitAnswers.isPending
-								}
-								className="flex items-center"
+								size="lg"
+								onClick={() => handleAnswer("neutral")}
+								className="h-20 text-lg font-semibold relative"
+								disabled={submitAnswers.isPending}
 							>
-								Volgende
-								<ArrowRight className="h-4 w-4 ml-2" />
+								{getCurrentAnswer() === "neutral" && (
+									<CheckCircle className="absolute top-3 right-3 h-5 w-5" />
+								)}
+								<div className="flex flex-col items-center">
+									<span className="text-2xl mb-1">🤷</span>
+									<span>Neutraal</span>
+								</div>
 							</Button>
+
+							<Button
+								variant={
+									getCurrentAnswer() === "disagree" ? "primary" : "secondary"
+								}
+								size="lg"
+								onClick={() => handleAnswer("disagree")}
+								className="h-20 text-lg font-semibold relative"
+								disabled={submitAnswers.isPending}
+							>
+								{getCurrentAnswer() === "disagree" && (
+									<CheckCircle className="absolute top-3 right-3 h-5 w-5" />
+								)}
+								<div className="flex flex-col items-center">
+									<span className="text-2xl mb-1">👎</span>
+									<span>Oneens</span>
+								</div>
+							</Button>
+						</div>
+
+						{/* Submit Button */}
+						{state.answers.length >= 5 && (
+							<div className="text-center">
+								<Button
+									onClick={() => handleSubmit(state.answers)}
+									loading={submitAnswers.isPending}
+									className="flex items-center mx-auto"
+									size="lg"
+									variant={isLastQuestion ? "primary" : "secondary"}
+								>
+									{isLastQuestion
+										? `🎉 Bekijk je resultaten (${state.answers.length} antwoorden)`
+										: `Bekijk resultaten (${state.answers.length} antwoorden)`}
+									<ArrowRight className="h-4 w-4 ml-2" />
+								</Button>
+								{isLastQuestion && (
+									<p className="text-sm text-gray-600 mt-2">
+										Je hebt alle stellingen beantwoord! Klik om je resultaten te
+										bekijken.
+									</p>
+								)}
+							</div>
 						)}
 					</div>
 				</div>

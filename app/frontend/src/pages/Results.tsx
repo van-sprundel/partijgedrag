@@ -1,7 +1,8 @@
 import {
 	ArrowLeft,
 	ArrowRight,
-	ExternalLink,
+	ChevronDown,
+	ChevronUp,
 	RotateCcw,
 	Share2,
 } from "lucide-react";
@@ -17,12 +18,15 @@ import {
 } from "../components/ui/Card";
 import { Progress } from "../components/ui/Progress";
 import { useCompassResults } from "../hooks/api";
-import type { PartyResult } from "../lib/api";
+import type { MotionDetail, PartyResult } from "../lib/api";
 import { formatPercentage, getPartyColorClass } from "../lib/utils";
 
 export function ResultsPage() {
 	const { sessionId } = useParams<{ sessionId: string }>();
 	const [showAllParties, setShowAllParties] = useState(false);
+	const [expandedMotions, setExpandedMotions] = useState<Set<string>>(
+		new Set(),
+	);
 	const {
 		data: results,
 		isLoading,
@@ -85,6 +89,44 @@ export function ResultsPage() {
 			// Fallback: copy to clipboard
 			await navigator.clipboard.writeText(window.location.href);
 			// You could show a toast notification here
+		}
+	};
+
+	const toggleMotionDetails = (motionId: string) => {
+		setExpandedMotions((prev) => {
+			const newSet = new Set(prev);
+			if (newSet.has(motionId)) {
+				newSet.delete(motionId);
+			} else {
+				newSet.add(motionId);
+			}
+			return newSet;
+		});
+	};
+
+	const getUserAnswerEmoji = (answer: string) => {
+		switch (answer) {
+			case "agree":
+				return "👍";
+			case "disagree":
+				return "👎";
+			case "neutral":
+				return "🤷";
+			default:
+				return "❓";
+		}
+	};
+
+	const getVoteEmoji = (position: string) => {
+		switch (position) {
+			case "FOR":
+				return "✅";
+			case "AGAINST":
+				return "❌";
+			case "ABSTAIN":
+				return "⚪";
+			default:
+				return "❓";
 		}
 	};
 
@@ -254,21 +296,191 @@ export function ResultsPage() {
 					</CardContent>
 				</Card>
 
+				{/* Motion Details */}
+				{results.motionDetails && results.motionDetails.length > 0 && (
+					<Card className="mb-8">
+						<CardHeader>
+							<CardTitle>Gedetailleerde uitslagen</CardTitle>
+							<CardDescription>
+								Bekijk hoe de partijen hebben gestemd op elke stelling en
+								vergelijk met jouw antwoord.
+							</CardDescription>
+							<div className="mt-3 p-3 bg-blue-50 border border-blue-200 rounded-lg">
+								<p className="text-sm text-blue-800">
+									💡 <strong>Let op:</strong> Neutrale antwoorden worden niet
+									meegeteld in de berekening en zijn grijs weergegeven.
+								</p>
+							</div>
+						</CardHeader>
+						<CardContent>
+							<div className="space-y-4">
+								{results.motionDetails.map(
+									(detail: MotionDetail, index: number) => (
+										<div
+											key={detail.motionId}
+											className={`border rounded-lg ${
+												detail.userAnswer === "neutral"
+													? "border-gray-300 bg-gray-50 opacity-75"
+													: "border-gray-200"
+											}`}
+										>
+											<button
+												type="button"
+												onClick={() => toggleMotionDetails(detail.motionId)}
+												className="w-full p-4 text-left hover:bg-gray-50 transition-colors flex items-center justify-between"
+											>
+												<div className="flex items-center space-x-3">
+													<span className="text-2xl">
+														{getUserAnswerEmoji(detail.userAnswer)}
+													</span>
+													<div>
+														<h3 className="font-semibold text-gray-900">
+															Stelling {index + 1}:{" "}
+															{detail.motion?.title || "Untitled"}
+														</h3>
+														<p className="text-sm text-gray-600 mt-1">
+															Jij antwoordde:{" "}
+															<span
+																className={`font-medium ${
+																	detail.userAnswer === "neutral"
+																		? "text-gray-500"
+																		: ""
+																}`}
+															>
+																{detail.userAnswer === "agree"
+																	? "Eens"
+																	: detail.userAnswer === "disagree"
+																		? "Oneens"
+																		: "Neutraal (niet meegeteld)"}
+															</span>
+														</p>
+													</div>
+												</div>
+												{expandedMotions.has(detail.motionId) ? (
+													<ChevronUp className="h-5 w-5 text-gray-400" />
+												) : (
+													<ChevronDown className="h-5 w-5 text-gray-400" />
+												)}
+											</button>
+
+											{expandedMotions.has(detail.motionId) && (
+												<div className="border-t border-gray-200 p-4 bg-gray-50">
+													{detail.motion?.description && (
+														<p className="text-gray-700 mb-4">
+															{detail.motion.description}
+														</p>
+													)}
+
+													{detail.motion?.bulletPoints &&
+														detail.motion.bulletPoints.length > 0 && (
+															<div className="mb-4">
+																<h4 className="font-medium text-gray-900 mb-2">
+																	Kernpunten:
+																</h4>
+																<ul className="space-y-1">
+																	{detail.motion.bulletPoints.map(
+																		(point, pointIndex) => (
+																			<li
+																				key={`motion-${detail.motionId}-bullet-${pointIndex}`}
+																				className="text-sm text-gray-700 flex items-start"
+																			>
+																				<span className="text-primary-500 mr-2 mt-0.5">
+																					•
+																				</span>
+																				{point}
+																			</li>
+																		),
+																	)}
+																</ul>
+															</div>
+														)}
+
+													<h4 className="font-medium text-gray-900 mb-3">
+														Hoe stemden de partijen?
+													</h4>
+													<div className="grid gap-2">
+														{detail.partyPositions
+															.sort((a, b) => {
+																// Sort by agreement with user first, then by party name
+																if (a.agreesWithUser !== b.agreesWithUser) {
+																	return a.agreesWithUser ? -1 : 1;
+																}
+																return a.party.shortName.localeCompare(
+																	b.party.shortName,
+																);
+															})
+															.map((partyPos) => (
+																<div
+																	key={partyPos.party.id}
+																	className={`flex items-center justify-between p-3 rounded-lg border ${
+																		detail.userAnswer === "neutral"
+																			? "bg-gray-50 border-gray-200 opacity-60"
+																			: partyPos.agreesWithUser
+																				? "bg-green-50 border-green-200"
+																				: "bg-red-50 border-red-200"
+																	}`}
+																>
+																	<div className="flex items-center space-x-3">
+																		<span className="text-lg">
+																			{getVoteEmoji(partyPos.position)}
+																		</span>
+																		<div>
+																			<span className="font-medium text-gray-900">
+																				{partyPos.party.shortName}
+																			</span>
+																			<span className="text-sm text-gray-600 ml-2">
+																				({partyPos.party.name})
+																			</span>
+																		</div>
+																	</div>
+																	<div className="flex items-center space-x-2">
+																		<span className="text-sm text-gray-600">
+																			{partyPos.position === "FOR"
+																				? "Voor"
+																				: partyPos.position === "AGAINST"
+																					? "Tegen"
+																					: "Onthouding"}
+																		</span>
+																		{detail.userAnswer === "neutral" ? (
+																			<span className="text-xs bg-gray-100 text-gray-600 px-2 py-1 rounded-full">
+																				Niet meegeteld
+																			</span>
+																		) : partyPos.agreesWithUser ? (
+																			<span className="text-xs bg-green-100 text-green-800 px-2 py-1 rounded-full">
+																				✓ Eens met jou
+																			</span>
+																		) : null}
+																	</div>
+																</div>
+															))}
+													</div>
+												</div>
+											)}
+										</div>
+									),
+								)}
+							</div>
+						</CardContent>
+					</Card>
+				)}
+
 				{/* What's Next */}
 				<div className="grid md:grid-cols-2 gap-6">
 					<Card>
 						<CardHeader>
-							<CardTitle>Wil je meer weten?</CardTitle>
+							<CardTitle>Meer stellingen beantwoorden</CardTitle>
 							<CardDescription>
-								Bekijk gedetailleerde informatie over hoe partijen hebben
-								gestemd op specifieke onderwerpen.
+								Wil je een nauwkeuriger resultaat? Beantwoord meer stellingen om
+								je politieke voorkeur nog beter in kaart te brengen.
 							</CardDescription>
 						</CardHeader>
 						<CardContent>
-							<Button className="w-full" disabled>
-								<ExternalLink className="h-4 w-4 mr-2" />
-								Bekijk stemgedrag (binnenkort)
-							</Button>
+							<Link to={`/compass?session=${sessionId}`} className="block">
+								<Button className="w-full">
+									<ArrowRight className="h-4 w-4 mr-2" />
+									Meer stellingen
+								</Button>
+							</Link>
 						</CardContent>
 					</Card>
 
