@@ -81,13 +81,7 @@ func (c *Client) GetMotiesWithVotes(ctx context.Context, skip int, top int) ([]b
 }
 
 func (c *Client) GetMotiesWithVotesAfter(ctx context.Context, skip int, top int, after *time.Time) ([]byte, error) {
-	filter := "verwijderd eq false and Soort eq 'Motie'"
-
-	if after != nil {
-		// Format time for OData filter (ISO 8601 format)
-		afterStr := after.Format("2006-01-02T15:04:05Z")
-		filter = fmt.Sprintf("%s and ApiGewijzigdOp gt %s", filter, afterStr)
-	}
+	filter := buildMotiesFilter(after)
 
 	options := QueryOptions{
 		Filter: filter,
@@ -99,21 +93,14 @@ func (c *Client) GetMotiesWithVotesAfter(ctx context.Context, skip int, top int,
 	return c.ExecuteQuery(ctx, "Zaak", options)
 }
 
-// GetMotiesCount returns an approximate count of motions matching the filter
 func (c *Client) GetMotiesCount(ctx context.Context, after *time.Time) (int, error) {
-	filter := "verwijderd eq false and Soort eq 'Motie'"
-
-	if after != nil {
-		// Format time for OData filter (ISO 8601 format)
-		afterStr := after.Format("2006-01-02T15:04:05Z")
-		filter = fmt.Sprintf("%s and ApiGewijzigdOp gt %s", filter, afterStr)
-	}
+	filter := buildMotiesFilter(after)
 
 	options := QueryOptions{
 		Filter: filter,
-		Select: "Id", // Only select ID to minimize response size
-		Top:    1,    // We only want the count, not the actual data
-		Count:  true, // Request count
+		Select: "Id",
+		Top:    1,
+		Count:  true,
 	}
 
 	data, err := c.ExecuteQuery(ctx, "Zaak", options)
@@ -206,4 +193,14 @@ func (r *ODataResponse) GetNextSkip() int {
 	var skip int
 	fmt.Sscanf(skipValue, "%d", &skip)
 	return skip
+}
+
+func buildMotiesFilter(after *time.Time) string {
+	filter := "verwijderd eq false and Soort eq 'Motie'"
+	if after != nil {
+		// format time for OData filter (ISO 8601 format)
+		afterStr := after.Format("2006-01-02T15:04:05Z")
+		filter = fmt.Sprintf("%s and ApiGewijzigdOp gt %s", filter, afterStr)
+	}
+	return filter
 }
