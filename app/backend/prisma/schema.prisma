@@ -90,7 +90,7 @@ model personen {
   zaak_actors zaak_actors[]
 }
 
-enum stemmingsType {
+enum VoteType {
   Voor
   Tegen
   NietDeelgenomen @map("Niet deelgenomen")
@@ -100,7 +100,7 @@ model stemmingen {
   id                String    @id
   besluit_id_raw    String?
   besluit_id        String?
-  soort             String?
+  soort             VoteType?
   fractie_grootte   BigInt?
   actor_naam        String?
   actor_fractie     String?

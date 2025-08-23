@@ -101,8 +101,12 @@ export const compassRouter = {
 			updatedAt: zaak.gewijzigd_op || new Date(),
 		};
 
-		let votes: any[] = [];
-		let partyPositions: any[] = [];
+		let votes: Vote[] = [];
+		let partyPositions: {
+			party: Party;
+			position: VoteType;
+			count: number;
+		}[] = [];
 
 		if (includeVotes) {
 			// Get votes through the proper relationship chain
@@ -155,7 +159,10 @@ export const compassRouter = {
 			}));
 
 			// Group votes by party (fractie)
-			const partyVoteMap = new Map<string, { party: any; votes: string[] }>();
+			const partyVoteMap = new Map<
+				string,
+				{ party: fracties; votes: string[] }
+			>();
 
 			votesWithRelations.forEach((vote) => {
 				if (vote.fractie_id && vote.fractie) {
@@ -183,12 +190,16 @@ export const compassRouter = {
 					);
 
 					// Find majority vote
-					const majorityVoteEntry = Object.entries(voteCounts).reduce((a, b) =>
-						a[1] > b[1] ? a : b,
-					);
+					const majorityVoteEntry =
+						voteCounts.length > 0
+							? Object.entries(voteCounts).reduce((a, b) =>
+									a[1] > b[1] ? a : b,
+								)
+							: [];
 
-					const majorityVote = majorityVoteEntry[0];
-					const count = majorityVoteEntry[1];
+					const majorityVote =
+						(majorityVoteEntry[0] as VoteType) ?? ("Niet deelgenomen" as const);
+					const count = majorityVoteEntry[1] ?? null;
 
 					return {
 						party: {
@@ -202,7 +213,7 @@ export const compassRouter = {
 							createdAt: party.gewijzigd_op || new Date(),
 							updatedAt: party.api_gewijzigd_op || new Date(),
 						},
-						position: majorityVote,
+						position: majorityVote as VoteType,
 						count,
 					};
 				},
@@ -244,7 +255,7 @@ async function calculatePartyAlignment(answers: UserAnswer[]) {
 	const partyScores = new Map<
 		string,
 		{
-			party: any;
+			party: Party;
 			totalVotes: number;
 			matchingVotes: number;
 			score: number;
@@ -314,14 +325,14 @@ async function calculatePartyAlignment(answers: UserAnswer[]) {
 
 			const majorityVote =
 				Object.keys(voteCounts).length > 0
-					? Object.entries(voteCounts).reduce((a, b) =>
+					? (Object.entries(voteCounts).reduce((a, b) =>
 							a[1] > b[1] ? a : b,
-						)[0]
+						)[0] as VoteType)
 					: null;
 
 			// Convert to comparable format
 			const userSupports = answer.answer === "agree";
-			const partySupports = majorityVote === "voor";
+			const partySupports = majorityVote === "Voor";
 
 			// Award points for alignment
 			if (
@@ -342,28 +353,11 @@ async function calculatePartyAlignment(answers: UserAnswer[]) {
 		});
 	});
 
-	// Add debugging information
-	console.log(`\n=== Vote Analysis Debug ===`);
-	console.log(`Total motions answered by user: ${answers.length}`);
-	console.log(`Total votes found in database: ${votes.length}`);
-
 	// Check which motions have votes
 	const motionsWithVotes = new Set(
 		votes.map((v) => v.besluit?.zaak_id).filter(Boolean),
 	);
-	console.log(
-		`Motions with votes in DB: ${motionsWithVotes.size}/${answers.length}`,
-	);
 
-	answers.forEach((answer, index) => {
-		const hasVotes = motionsWithVotes.has(answer.motionId);
-		console.log(
-			`Motion ${index + 1} (${answer.motionId}): ${hasVotes ? "HAS VOTES" : "NO VOTES"} - User answered: ${answer.answer}`,
-		);
-	});
-
-	// Add logging to understand vote coverage
-	console.log("\nVote coverage per party:");
 	partyScores.forEach((score, partyId) => {
 		if (score.totalVotes > 0) {
 			console.log(
@@ -374,17 +368,6 @@ async function calculatePartyAlignment(answers: UserAnswer[]) {
 
 	// Filter out parties with very low vote coverage (less than 25% of motions)
 	const minVotesThreshold = Math.max(1, Math.floor(answers.length * 0.25));
-	console.log(
-		`\nMinimum vote threshold: ${minVotesThreshold}/${answers.length} motions`,
-	);
-
-	partyScores.forEach((score, partyId) => {
-		if (score.totalVotes > 0 && score.totalVotes < minVotesThreshold) {
-			console.log(
-				`Filtering out ${score.party.shortName} due to low vote coverage: ${score.totalVotes}/${answers.length} motions`,
-			);
-		}
-	});
 
 	// Convert to array and apply improved sorting
 	const results = Array.from(partyScores.values())
@@ -402,7 +385,6 @@ async function calculatePartyAlignment(answers: UserAnswer[]) {
 			return b.score - a.score;
 		});
 
-	console.log("\nFinal ranking:");
 	results.slice(0, 5).forEach((result, index) => {
 		console.log(
 			`${index + 1}. ${result.party.shortName}: ${result.matchingVotes}/${result.totalVotes} (${Math.round(result.agreement)}%) - Score: ${result.score}`,

@@ -75,7 +75,7 @@ tmp/
 temp/
 
 # Prisma
-prisma/migrations/
+prisma/
 
 # OS generated files
 .DS_Store
