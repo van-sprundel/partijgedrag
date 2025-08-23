@@ -1,4 +1,4 @@
-import { ArrowRight, Vote } from "lucide-react";
+import { ArrowRight, BarChart3, Vote } from "lucide-react";
 import { Link } from "react-router-dom";
 import { Button } from "../components/ui/Button";
 import {
@@ -27,12 +27,24 @@ export function HomePage() {
 						Nederlandse politieke partij het beste aansluit bij jouw
 						standpunten.
 					</p>
-					<Link to="/compass/settings">
-						<Button size="lg" className="text-lg px-8 py-4">
-							Start de stemwijzer
-							<ArrowRight className="ml-2 h-5 w-5" />
-						</Button>
-					</Link>
+					<div className="flex flex-col sm:flex-row gap-4 justify-center">
+						<Link to="/compass">
+							<Button size="lg" className="text-lg px-8 py-4">
+								Start de stemwijzer
+								<ArrowRight className="ml-2 h-5 w-5" />
+							</Button>
+						</Link>
+						<Link to="/party-likeness">
+							<Button
+								variant="secondary"
+								size="lg"
+								className="text-lg px-8 py-4"
+							>
+								Partijgelijkenissen
+								<BarChart3 className="ml-2 h-5 w-5" />
+							</Button>
+						</Link>
+					</div>
 				</div>
 
 				{/* Features */}
@@ -83,6 +95,52 @@ export function HomePage() {
 							</p>
 						</CardContent>
 					</Card>
+				</div>
+
+				{/* Party Likeness Section */}
+				<div className="bg-gradient-to-r from-blue-50 to-indigo-50 rounded-2xl p-8 mb-16 border border-blue-100">
+					<div className="text-center mb-8">
+						<div className="flex justify-center mb-6">
+							<div className="p-4 bg-blue-100 rounded-full">
+								<BarChart3 className="h-12 w-12 text-blue-600" />
+							</div>
+						</div>
+						<h2 className="text-3xl font-bold text-gray-900 mb-4">
+							Partijgelijkenissen
+						</h2>
+						<p className="text-lg text-gray-700 max-w-3xl mx-auto mb-6">
+							Ontdek welke politieke partijen het meest overeenkomen in hun
+							stemgedrag. Gebaseerd op echte stemmingen in de Tweede Kamer.
+						</p>
+						<Link to="/party-likeness">
+							<Button
+								size="lg"
+								variant="secondary"
+								className="bg-white hover:bg-blue-50 text-blue-600 border-blue-200"
+							>
+								Bekijk partijgelijkenissen
+								<ArrowRight className="ml-2 h-5 w-5" />
+							</Button>
+						</Link>
+					</div>
+
+					<div className="grid md:grid-cols-2 gap-6 text-center">
+						<div className="bg-white/50 rounded-lg p-4">
+							<div className="text-2xl font-bold text-blue-600 mb-2">📊</div>
+							<h3 className="font-semibold mb-2">Vergelijk stemgedrag</h3>
+							<p className="text-sm text-gray-600">
+								Zie welke partijen vaak hetzelfde stemmen op belangrijke moties
+							</p>
+						</div>
+						<div className="bg-white/50 rounded-lg p-4">
+							<div className="text-2xl font-bold text-blue-600 mb-2">🎯</div>
+							<h3 className="font-semibold mb-2">Objectieve analyse</h3>
+							<p className="text-sm text-gray-600">
+								Gebaseerd op daadwerkelijke stemmingen, niet op
+								verkiezingsprogramma's
+							</p>
+						</div>
+					</div>
 				</div>
 
 				{/* How it works */}
@@ -141,12 +199,24 @@ export function HomePage() {
 					<p className="text-xl text-gray-600 mb-8">
 						Het duurt maar 5 minuten en het is volledig gratis.
 					</p>
-					<Link to="/compass/settings">
-						<Button size="lg" className="text-lg px-12 py-4">
-							Begin nu
-							<ArrowRight className="ml-2 h-5 w-5" />
-						</Button>
-					</Link>
+					<div className="flex flex-col sm:flex-row gap-4 justify-center">
+						<Link to="/compass">
+							<Button size="lg" className="text-lg px-12 py-4">
+								Begin nu
+								<ArrowRight className="ml-2 h-5 w-5" />
+							</Button>
+						</Link>
+						<Link to="/party-likeness">
+							<Button
+								variant="secondary"
+								size="lg"
+								className="text-lg px-8 py-4"
+							>
+								Of bekijk partijgelijkenissen
+								<BarChart3 className="ml-2 h-5 w-5" />
+							</Button>
+						</Link>
+					</div>
 				</div>
 			</div>
 		</div>

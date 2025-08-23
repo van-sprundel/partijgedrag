@@ -120,3 +120,17 @@ export const useMotionDetails = (
 		}),
 	);
 };
+
+export const usePartySimilarity = (
+	activeOnly: boolean = true,
+	minMotions: number = 10,
+) => {
+	return useQuery(
+		orpc.parties.getSimilarity.queryOptions({
+			input: {
+				activeOnly,
+				minMotions,
+			},
+		}),
+	);
+};

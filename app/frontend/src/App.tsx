@@ -4,6 +4,7 @@ import { BrowserRouter, Route, Routes } from "react-router-dom";
 import { CompassPage } from "./pages/Compass";
 import { CompassSettingsPage } from "./pages/CompassSettings";
 import { HomePage } from "./pages/Home";
+import { PartyLikenessPage } from "./pages/PartyLikeness";
 import { ResultsPage } from "./pages/Results";
 
 const queryClient = new QueryClient({
@@ -24,6 +25,7 @@ function App() {
 						<Route path="/" element={<HomePage />} />
 						<Route path="/compass/settings" element={<CompassSettingsPage />} />
 						<Route path="/compass" element={<CompassPage />} />
+						<Route path="/party-likeness" element={<PartyLikenessPage />} />
 						<Route path="/results/:sessionId" element={<ResultsPage />} />
 						<Route path="*" element={<NotFoundPage />} />
 					</Routes>

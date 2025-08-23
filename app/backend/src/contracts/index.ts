@@ -79,6 +79,14 @@ const PartyResultSchema = z.object({
 	matchingVotes: z.number(),
 });
 
+const PartySimilaritySchema = z.object({
+	party1: PartySchema,
+	party2: PartySchema,
+	similarity: z.number(), // percentage 0-100
+	agreementCount: z.number(),
+	totalComparisons: z.number(),
+});
+
 const MotionDetailSchema = z.object({
 	motionId: z.string(),
 	userAnswer: z.enum(["agree", "disagree", "neutral"]),
@@ -178,6 +186,20 @@ const partyGetWithVotesContract = oc
 		}),
 	);
 
+const partySimilarityContract = oc
+	.input(
+		z.object({
+			activeOnly: z.boolean().default(true),
+			minMotions: z.number().min(1).default(10),
+		}),
+	)
+	.output(
+		z.object({
+			similarities: z.array(PartySimilaritySchema),
+			totalMotions: z.number(),
+		}),
+	);
+
 // Compass contracts
 const compassSubmitAnswersContract = oc
 	.input(z.object({ answers: z.array(UserAnswerSchema) }))
@@ -223,6 +245,7 @@ export const apiContract = {
 		getAll: partyGetAllContract,
 		getById: partyGetByIdContract,
 		getWithVotes: partyGetWithVotesContract,
+		getSimilarity: partySimilarityContract,
 	},
 	compass: {
 		submitAnswers: compassSubmitAnswersContract,
@@ -243,3 +266,4 @@ export type UserAnswer = z.infer<typeof UserAnswerSchema>;
 export type PartyResult = z.infer<typeof PartyResultSchema>;
 export type MotionDetail = z.infer<typeof MotionDetailSchema>;
 export type CompassResult = z.infer<typeof CompassResultSchema>;
+export type PartySimilarity = z.infer<typeof PartySimilaritySchema>;

@@ -21,6 +21,7 @@ export type {
 	MotionDetail,
 	Party,
 	PartyResult,
+	PartySimilarity,
 	UserAnswer,
 	Vote,
 	VoteType,
