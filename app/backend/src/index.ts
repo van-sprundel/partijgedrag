@@ -2,7 +2,6 @@ import { onError, os } from "@orpc/server";
 import { RPCHandler } from "@orpc/server/node";
 import cors from "cors";
 import express from "express";
-import { apiContract } from "./contracts/index.js";
 import { db } from "./lib/db.js";
 import { compassRouter } from "./routers/compass.js";
 import { motionRouter } from "./routers/motions.js";
