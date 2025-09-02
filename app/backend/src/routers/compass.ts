@@ -1,5 +1,5 @@
 import { implement, ORPCError } from "@orpc/server";
-import type { Party as PartyModel, Vote as VoteModel } from "@prisma/client";
+import type { Party as PartyModel } from "@prisma/client";
 import type { Party, UserAnswer, Vote, VoteType } from "../contracts/index.js";
 import { apiContract, CompassResultSchema } from "../contracts/index.js";
 import { db } from "../lib/db.js";
@@ -261,10 +261,6 @@ async function calculatePartyAlignment(answers: UserAnswer[]) {
 		});
 	});
 
-	const motionsWithVotes = new Set(
-		votes.map((v) => v.decision?.caseId).filter(Boolean),
-	);
-
 	const minVotesThreshold = Math.max(1, Math.floor(answers.length * 0.25));
 
 	const results = Array.from(partyScores.values())
@@ -335,7 +331,7 @@ async function getMotionVoteDetails(answers: UserAnswer[]) {
 			}
 		});
 
-		partyVotes.forEach((partyData, partyId) => {
+		partyVotes.forEach((partyData, _partyId) => {
 			const voteCounts = partyData.votes.reduce(
 				(acc, vote) => {
 					acc[vote as VoteType] = (acc[vote as VoteType] || 0) + 1;

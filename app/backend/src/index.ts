@@ -50,12 +50,12 @@ app.use(express.json());
 // Create the main API router
 
 // Health check endpoint
-app.get("/health", (req, res) => {
+app.get("/health", (_req, res) => {
 	res.json({ status: "ok", timestamp: new Date().toISOString() });
 });
 
 // Basic route for testing
-app.get("/", (req, res) => {
+app.get("/", (_req, res) => {
 	res.json({
 		message: "Partijgedrag API Server",
 		version: "1.0.0",
@@ -70,9 +70,9 @@ app.get("/", (req, res) => {
 app.use(
 	(
 		err: Error,
-		req: express.Request,
+		_req: express.Request,
 		res: express.Response,
-		next: express.NextFunction,
+		_next: express.NextFunction,
 	) => {
 		console.error("Server error:", err);
 		res.status(500).json({

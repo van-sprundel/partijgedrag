@@ -27,7 +27,7 @@ export function HomePage() {
 						Nederlandse politieke partij het beste aansluit bij jouw
 						standpunten.
 					</p>
-					<Link to="/compass">
+					<Link to="/compass/settings">
 						<Button size="lg" className="text-lg px-8 py-4">
 							Start de stemwijzer
 							<ArrowRight className="ml-2 h-5 w-5" />
@@ -141,7 +141,7 @@ export function HomePage() {
 					<p className="text-xl text-gray-600 mb-8">
 						Het duurt maar 5 minuten en het is volledig gratis.
 					</p>
-					<Link to="/compass">
+					<Link to="/compass/settings">
 						<Button size="lg" className="text-lg px-12 py-4">
 							Begin nu
 							<ArrowRight className="ml-2 h-5 w-5" />

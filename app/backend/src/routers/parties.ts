@@ -1,4 +1,5 @@
 import { implement, ORPCError } from "@orpc/server";
+import type { Prisma } from "@prisma/client";
 import { apiContract } from "../contracts/index.js";
 import { db } from "../lib/db.js";
 import { mapPartyToContract, mapVoteToContract } from "../utils/mappers.js";
@@ -9,12 +10,9 @@ export const partyRouter = {
 	getAll: os.parties.getAll.handler(async ({ input }) => {
 		const { activeOnly } = input;
 
-		const where: any = {};
+		const where: Prisma.PartyWhereInput = {};
 		if (activeOnly) {
-			where.OR = [
-				{ activeTo: null },
-				{ activeTo: { gte: new Date() } },
-			];
+			where.OR = [{ activeTo: null }, { activeTo: { gte: new Date() } }];
 			// where.removed = { not: true };
 		}
 
@@ -23,7 +21,7 @@ export const partyRouter = {
 			orderBy: { nameNl: "asc" },
 		});
 
-		return parties.map(p => mapPartyToContract(p));
+		return parties.map((p) => mapPartyToContract(p));
 	}),
 
 	getById: os.parties.getById.handler(async ({ input }) => {
@@ -49,7 +47,7 @@ export const partyRouter = {
 			throw new ORPCError("NOT_FOUND", { message: "Party not found" });
 		}
 
-		const where: any = {
+		const where: Prisma.VoteWhereInput = {
 			partyId: partyId,
 		};
 
@@ -76,7 +74,7 @@ export const partyRouter = {
 			orderBy: { updatedAt: "desc" },
 		});
 
-		const votes = votesWithRelations.map(v => mapVoteToContract(v));
+		const votes = votesWithRelations.map((v) => mapVoteToContract(v));
 
 		return {
 			party: mapPartyToContract(party),
