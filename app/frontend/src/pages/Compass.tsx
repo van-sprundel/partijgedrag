@@ -181,13 +181,34 @@ export function CompassPage() {
 		);
 	}
 
-	if (isLoading || motions.length === 0) {
+	if (isLoading) {
 		return (
 			<div className="min-h-screen bg-gray-50 flex items-center justify-center">
 				<div className="text-center">
 					<div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary-600 mx-auto mb-4"></div>
 					<p className="text-gray-600">Stellingen laden...</p>
 				</div>
+			</div>
+		);
+	}
+
+	if (motions.length === 0) {
+		return (
+			<div className="min-h-screen bg-gray-50 flex items-center justify-center">
+				<Card className="max-w-md mx-auto">
+					<CardHeader>
+						<CardTitle>Geen stellingen gevonden</CardTitle>
+						<CardDescription>
+							Er zijn geen stellingen gevonden die overeenkomen met de
+							geselecteerde filters.
+						</CardDescription>
+					</CardHeader>
+					<CardContent>
+						<Link to={`/compass/settings?${searchParams.toString()}`}>
+							<Button variant="primary">Pas filters aan</Button>
+						</Link>
+					</CardContent>
+				</Card>
 			</div>
 		);
 	}
