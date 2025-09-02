@@ -107,11 +107,6 @@ func loadConfig(path string) (*config.Config, error) {
 func parseStorageConfig(cfg *config.Config) (*config.StorageConfig, error) {
 	databaseURL := os.Getenv("DATABASE_URL")
 	if databaseURL == "" {
-		// prompt for password if not provided
-		if cfg.Storage.Type == "postgres" && cfg.Storage.Password == "" {
-			fmt.Print("Database password: ")
-			fmt.Scanln(&cfg.Storage.Password)
-		}
 		return &cfg.Storage, nil
 	}
 

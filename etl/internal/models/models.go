@@ -6,6 +6,8 @@ import (
 	"fmt"
 	"strings"
 	"time"
+
+	"github.com/lib/pq"
 )
 
 type CustomDate struct {
@@ -191,6 +193,8 @@ type Zaak struct {
 	Besluit          []Besluit          `json:"Besluit,omitempty" gorm:"-"`
 	ZaakActor        []ZaakActor        `json:"ZaakActor,omitempty" gorm:"-"`
 	Kamerstukdossier []Kamerstukdossier `json:"Kamerstukdossier,omitempty" gorm:"-"`
+
+	Categories []MotionCategory `json:"Categories,omitempty" gorm:"many2many:zaak_categories;"`
 }
 
 func (Zaak) TableName() string {
@@ -374,4 +378,30 @@ func (s *ImportStats) AddError(err string) {
 func (s *ImportStats) Finalize() {
 	s.ProcessingEndTime = time.Now()
 	s.ProcessingDuration = s.ProcessingEndTime.Sub(s.ProcessingStartTime)
+}
+
+type MotionCategory struct {
+	ID          string         `json:"id" gorm:"primaryKey;column:id"`
+	Name        string         `json:"name" gorm:"column:name;uniqueIndex;not null"`
+	Type        *string        `json:"type,omitempty" gorm:"column:type"` // "generic", "hot_topic", or null for general keywords
+	Description *string        `json:"description,omitempty" gorm:"column:description"`
+	Keywords    pq.StringArray `json:"keywords" gorm:"type:text[];column:keywords"`
+	CreatedAt   time.Time      `json:"created_at" gorm:"column:created_at"`
+	UpdatedAt   time.Time      `json:"updated_at" gorm:"column:updated_at"`
+
+	Zaken []Zaak `json:"zaken,omitempty" gorm:"many2many:zaak_categories;"`
+}
+
+func (MotionCategory) TableName() string {
+	return "motion_categories"
+}
+
+type ZaakCategory struct {
+	ZaakID     string    `json:"zaak_id" gorm:"primaryKey;column:zaak_id"`
+	CategoryID string    `json:"category_id" gorm:"primaryKey;column:category_id"`
+	CreatedAt  time.Time `json:"created_at" gorm:"column:created_at"`
+}
+
+func (ZaakCategory) TableName() string {
+	return "zaak_categories"
 }
