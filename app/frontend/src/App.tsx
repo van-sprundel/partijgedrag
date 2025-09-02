@@ -2,6 +2,7 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { ReactQueryDevtools } from "@tanstack/react-query-devtools";
 import { BrowserRouter, Route, Routes } from "react-router-dom";
 import { CompassPage } from "./pages/Compass";
+import { CompassSettingsPage } from "./pages/CompassSettings";
 import { HomePage } from "./pages/Home";
 import { ResultsPage } from "./pages/Results";
 
@@ -21,6 +22,7 @@ function App() {
 				<div className="min-h-screen bg-gray-50">
 					<Routes>
 						<Route path="/" element={<HomePage />} />
+						<Route path="/compass/settings" element={<CompassSettingsPage />} />
 						<Route path="/compass" element={<CompassPage />} />
 						<Route path="/results/:sessionId" element={<ResultsPage />} />
 						<Route path="*" element={<NotFoundPage />} />
