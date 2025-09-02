@@ -1,4 +1,3 @@
-import { createORPCReactQueryUtils } from "@orpc/react-query";
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { orpc } from "../lib/api.js";
 
@@ -31,13 +30,27 @@ export const useMotion = (id: string) => {
 export const useCompassMotions = (
 	count: number = 20,
 	excludeIds?: string[],
+	categoryIds?: string[],
+	after?: Date,
 ) => {
 	return useQuery(
 		orpc.motions.getForCompass.queryOptions({
 			input: {
 				count,
 				excludeIds,
+				categoryIds,
+				after,
 			},
+		}),
+	);
+};
+
+export const useMotionCategories = (
+	type: "generic" | "hot_topic" | "all" = "all",
+) => {
+	return useQuery(
+		orpc.motions.getCategories.queryOptions({
+			input: { type },
 		}),
 	);
 };

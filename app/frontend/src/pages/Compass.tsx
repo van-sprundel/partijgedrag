@@ -1,5 +1,5 @@
 import { ArrowLeft, ArrowRight, CheckCircle, RotateCcw } from "lucide-react";
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { Link, useNavigate, useSearchParams } from "react-router-dom";
 import { Button } from "../components/ui/Button";
 import {
@@ -39,7 +39,27 @@ export function CompassPage() {
 	// Get existing results if continuing a session
 	const { data: existingResults } = useCompassResults(sessionId || "");
 
-	const { data: motions = [], isLoading, error } = useCompassMotions(20, []);
+	// Parse query parameters for filtering
+	const filterParams = useMemo(() => {
+		const categoryIds = searchParams
+			.get("categoryIds")
+			?.split(",")
+			.filter(Boolean);
+		const afterParam = searchParams.get("after");
+		const after = afterParam ? new Date(afterParam) : undefined;
+
+		return {
+			categoryIds,
+			after,
+		};
+	}, [searchParams]);
+
+	const {
+		data: motions = [],
+		isLoading,
+		isError,
+		error,
+	} = useCompassMotions(20, [], filterParams.categoryIds, filterParams.after);
 
 	const submitAnswers = useSubmitAnswers();
 
@@ -60,7 +80,6 @@ export function CompassPage() {
 		}
 	}, [existingResults]);
 
-	// Get unanswered motions for session continuation
 	const getUnansweredMotions = () => {
 		if (!sessionId) return motions;
 		const answeredMotionIds = new Set(state.answers.map((a) => a.motionId));
@@ -117,24 +136,6 @@ export function CompassPage() {
 		}
 	};
 
-	const handlePrevious = () => {
-		if (state.currentIndex > 0) {
-			setState((prev) => ({
-				...prev,
-				currentIndex: prev.currentIndex - 1,
-			}));
-		}
-	};
-
-	const handleNext = () => {
-		if (state.currentIndex < totalMotions - 1) {
-			setState((prev) => ({
-				...prev,
-				currentIndex: prev.currentIndex + 1,
-			}));
-		}
-	};
-
 	const handleReset = () => {
 		setState({
 			currentIndex: 0,
@@ -151,18 +152,8 @@ export function CompassPage() {
 		return state.answers.find((a) => a.motionId === currentMotion?.id)?.answer;
 	};
 
-	if (isLoading) {
-		return (
-			<div className="min-h-screen bg-gray-50 flex items-center justify-center">
-				<div className="text-center">
-					<div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary-600 mx-auto mb-4"></div>
-					<p className="text-gray-600">Stellingen laden...</p>
-				</div>
-			</div>
-		);
-	}
-
-	if (error || !motions.length) {
+	if (isError) {
+		console.log(error);
 		return (
 			<div className="min-h-screen bg-gray-50 flex items-center justify-center">
 				<Card className="max-w-md mx-auto">
@@ -186,6 +177,17 @@ export function CompassPage() {
 						</div>
 					</CardContent>
 				</Card>
+			</div>
+		);
+	}
+
+	if (isLoading || motions.length === 0) {
+		return (
+			<div className="min-h-screen bg-gray-50 flex items-center justify-center">
+				<div className="text-center">
+					<div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary-600 mx-auto mb-4"></div>
+					<p className="text-gray-600">Stellingen laden...</p>
+				</div>
 			</div>
 		);
 	}
@@ -224,11 +226,11 @@ export function CompassPage() {
 				<div className="container mx-auto px-4 py-4">
 					<div className="flex items-center justify-between">
 						<Link
-							to="/"
+							to="/compass/settings"
 							className="flex items-center text-gray-600 hover:text-gray-900"
 						>
 							<ArrowLeft className="h-5 w-5 mr-2" />
-							Terug naar home
+							Terug naar instellingen
 						</Link>
 						<div className="flex items-center gap-4">
 							{sessionId && (
@@ -259,6 +261,50 @@ export function CompassPage() {
 
 			{/* Progress */}
 			<div className="container mx-auto px-4 py-6">
+				{/* Filter info */}
+				{(filterParams.categoryIds || filterParams.after) && (
+					<div className="max-w-4xl mx-auto mb-6 p-4 bg-green-50 border border-green-200 rounded-lg">
+						<div className="flex items-start justify-between">
+							<div>
+								<p className="text-green-800 font-medium mb-1">
+									🎯 Actieve filters:
+								</p>
+								<ul className="text-green-700 text-sm space-y-1">
+									{filterParams.categoryIds && (
+										<li>
+											• <strong>Onderwerpen:</strong>{" "}
+											{filterParams.categoryIds.length} categorie(ën)
+											geselecteerd
+										</li>
+									)}
+									{filterParams.after && (
+										<li>
+											• <strong>Periode:</strong> Vanaf{" "}
+											{filterParams.after.toLocaleDateString("nl-NL")} (huidige
+											coalitie)
+										</li>
+									)}
+								</ul>
+							</div>
+							<Link
+								to={`/compass/settings?${new URLSearchParams(
+									Object.entries(filterParams)
+										.filter(([, value]) => value !== undefined)
+										.map(([key, value]) => [key, String(value)]),
+								).toString()}`}
+							>
+								<Button
+									variant="ghost"
+									size="sm"
+									className="text-green-700 hover:text-green-800"
+								>
+									Wijzig filters
+								</Button>
+							</Link>
+						</div>
+					</div>
+				)}
+
 				{sessionId && state.answers.length > 0 && (
 					<div className="max-w-4xl mx-auto mb-6 p-4 bg-blue-50 border border-blue-200 rounded-lg">
 						<p className="text-blue-800">

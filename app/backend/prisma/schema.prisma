@@ -8,15 +8,15 @@ datasource db {
 }
 
 model Decision {
-  id                           String  @id @map("id")
-  agendaPointId                String? @map("agendapunt_id")
-  caseId                       String? @map("zaak_id")
-  votingType                   String? @map("stemmings_soort")
-  decisionType                 String? @map("besluit_soort")
-  decisionText                 String? @map("besluit_tekst")
-  comment                      String? @map("opmerking")
-  status                       String? @map("status")
-  agendaPointCaseDecisionOrder BigInt? @map("agendapunt_zaak_besluit_volgorde")
+  id                           String    @id @map("id")
+  agendaPointId                String?   @map("agendapunt_id")
+  caseId                       String?   @map("zaak_id")
+  votingType                   String?   @map("stemmings_soort")
+  decisionType                 String?   @map("besluit_soort")
+  decisionText                 String?   @map("besluit_tekst")
+  comment                      String?   @map("opmerking")
+  status                       String?   @map("status")
+  agendaPointCaseDecisionOrder BigInt?   @map("agendapunt_zaak_besluit_volgorde")
   updatedAt                    DateTime? @map("gewijzigd_op") @db.Timestamptz(6)
   apiUpdatedAt                 DateTime? @map("api_gewijzigd_op") @db.Timestamptz(6)
 
@@ -168,11 +168,42 @@ model Case {
   completedAt            DateTime? @map("datum_afgedaan") @db.Timestamptz(6)
   chamber                String?   @map("kamer")
 
-  decisions             Decision[]              @relation("CaseDecisions")
+  decisions              Decision[]              @relation("CaseDecisions")
   parliamentaryDocuments ParliamentaryDocument[] @relation("CaseParliamentaryDocuments")
-  caseActors            CaseActor[]
+  caseActors             CaseActor[]
+  caseCategories         CaseCategories[]
 
   @@map("zaken")
+}
+
+enum MotionCategoryType {
+  generic
+  hot_topic
+}
+
+model MotionCategory {
+  id          String             @id
+  name        String
+  description String?
+  type        MotionCategoryType
+  keywords    String[]
+
+  createdAt      DateTime         @map("created_at")
+  updatedAt      DateTime         @map("updated_at")
+  CaseCategories CaseCategories[]
+
+  @@map("motion_categories")
+}
+
+model CaseCategories {
+  caseId     String @map("zaak_id")
+  categoryId String @map("category_id")
+
+  case     Case           @relation(fields: [caseId], references: [id])
+  category MotionCategory @relation(fields: [categoryId], references: [id])
+
+  @@id([caseId, categoryId])
+  @@map("zaak_categories")
 }
 
 model UserSession {

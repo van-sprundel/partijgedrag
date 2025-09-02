@@ -66,28 +66,94 @@ export const motionRouter = {
 	}),
 
 	getForCompass: os.motions.getForCompass.handler(async ({ input }) => {
-		const { count, excludeIds = [] } = input;
+		const { count, excludeIds = [], categoryIds, after } = input;
+
+		const where: any = {
+			type: "Motie",
+			id: {
+				notIn: excludeIds,
+			},
+		};
+
+		if (after) {
+			where.startedAt = {
+				gte: after,
+			};
+		}
+
+		if (categoryIds && categoryIds.length > 0) {
+			where.caseCategories = {
+				some: {
+					categoryId: {
+						in: categoryIds,
+					},
+				},
+			};
+		}
 
 		const cases = await db.case.findMany({
-			where: {
-				type: "Motie",
-				id: {
-					notIn: excludeIds,
-				},
-			},
+			where,
 			include: {
 				parliamentaryDocuments: true,
+				caseCategories: {
+					include: {
+						category: true,
+					},
+				},
 			},
-			orderBy: { date: "desc" },
+			orderBy: { startedAt: "desc" },
 			take: count,
 		});
 
 		const motions = cases.map((c) => {
 			const dossier = c.parliamentaryDocuments?.[0];
-			return mapCaseToMotion(c, dossier);
+			const motion = mapCaseToMotion(c, dossier);
+
+			if (c.caseCategories) {
+				motion.categories = c.caseCategories
+					.filter((cc) => cc.category)
+					.map((cc) => ({
+						id: cc.category.id,
+						name: cc.category.name,
+						type: cc.category.type,
+						description: cc.category.description,
+						keywords: cc.category.keywords,
+						createdAt: cc.category.createdAt,
+						updatedAt: cc.category.updatedAt,
+					}));
+			}
+
+			return motion;
 		});
 
 		return motions;
+	}),
+
+	getCategories: os.motions.getCategories.handler(async ({ input }) => {
+		const { type } = input;
+
+		const where: any = {};
+		if (type !== "all") {
+			where.type = type;
+		}
+
+		const categories = await db.motionCategory.findMany({
+			where,
+			orderBy: [
+				{ type: "asc" }, // hot_topic first, then generic
+				{ name: "asc" },
+			],
+		});
+
+		return categories.map((cat) => ({
+			id: cat.id,
+			name: cat.name,
+			type: cat.type as "generic" | "hot_topic",
+			description: cat.description,
+			keywords: cat.keywords,
+			createdAt: cat.createdAt,
+			updatedAt: cat.updatedAt,
+		}));
 	}),
 
 	getVotes: os.motions.getVotes.handler(async ({ input }) => {

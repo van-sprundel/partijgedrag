@@ -26,6 +26,16 @@ const PoliticianSchema = z.object({
 	party: PartySchema.optional(),
 });
 
+const MotionCategorySchema = z.object({
+	id: z.string(),
+	name: z.string(),
+	type: z.enum(["generic", "hot_topic"]),
+	description: z.string().nullable(),
+	keywords: z.array(z.string()),
+	createdAt: z.coerce.date(),
+	updatedAt: z.coerce.date(),
+});
+
 const MotionSchema = z.object({
 	id: z.string(),
 	title: z.string(),
@@ -36,6 +46,7 @@ const MotionSchema = z.object({
 	status: z.string(),
 	category: z.string().nullable(),
 	bulletPoints: z.array(z.string()),
+	categories: z.array(MotionCategorySchema).optional(),
 	originalId: z.string().nullable(),
 	createdAt: z.coerce.date(),
 	updatedAt: z.coerce.date(),
@@ -117,9 +128,17 @@ const motionGetForCompassContract = oc
 		z.object({
 			count: z.number().min(1).max(50).default(20),
 			excludeIds: z.array(z.string()).optional(),
+			categoryIds: z.array(z.string()).optional(),
+			after: z.coerce.date().optional(),
 		}),
 	)
 	.output(z.array(MotionSchema));
+
+const motionGetCategoriesContract = oc
+	.input(
+		z.object({ type: z.enum(["generic", "hot_topic", "all"]).default("all") }),
+	)
+	.output(z.array(MotionCategorySchema));
 
 const motionGetVotesContract = oc
 	.input(z.object({ motionId: z.string() }))
@@ -197,6 +216,7 @@ export const apiContract = {
 		getAll: motionGetAllContract,
 		getById: motionGetByIdContract,
 		getForCompass: motionGetForCompassContract,
+		getCategories: motionGetCategoriesContract,
 		getVotes: motionGetVotesContract,
 	},
 	parties: {
@@ -216,6 +236,7 @@ export type ApiContract = typeof apiContract;
 export type VoteType = z.infer<typeof VoteTypeSchema>;
 export type Party = z.infer<typeof PartySchema>;
 export type Politician = z.infer<typeof PoliticianSchema>;
+export type MotionCategory = z.infer<typeof MotionCategorySchema>;
 export type Motion = z.infer<typeof MotionSchema>;
 export type Vote = z.infer<typeof VoteSchema>;
 export type UserAnswer = z.infer<typeof UserAnswerSchema>;
