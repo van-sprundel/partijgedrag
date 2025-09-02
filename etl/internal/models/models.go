@@ -6,6 +6,8 @@ import (
 	"fmt"
 	"strings"
 	"time"
+
+	"github.com/lib/pq"
 )
 
 type CustomDate struct {
@@ -379,13 +381,13 @@ func (s *ImportStats) Finalize() {
 }
 
 type MotionCategory struct {
-	ID          string    `json:"id" gorm:"primaryKey;column:id"`
-	Name        string    `json:"name" gorm:"column:name;uniqueIndex;not null"`
-	Type        *string   `json:"type,omitempty" gorm:"column:type"` // "generic", "hot_topic", or null for general keywords
-	Description *string   `json:"description,omitempty" gorm:"column:description"`
-	Keywords    []string  `json:"keywords" gorm:"type:text[];column:keywords"`
-	CreatedAt   time.Time `json:"created_at" gorm:"column:created_at"`
-	UpdatedAt   time.Time `json:"updated_at" gorm:"column:updated_at"`
+	ID          string         `json:"id" gorm:"primaryKey;column:id"`
+	Name        string         `json:"name" gorm:"column:name;uniqueIndex;not null"`
+	Type        *string        `json:"type,omitempty" gorm:"column:type"` // "generic", "hot_topic", or null for general keywords
+	Description *string        `json:"description,omitempty" gorm:"column:description"`
+	Keywords    pq.StringArray `json:"keywords" gorm:"type:text[];column:keywords"`
+	CreatedAt   time.Time      `json:"created_at" gorm:"column:created_at"`
+	UpdatedAt   time.Time      `json:"updated_at" gorm:"column:updated_at"`
 
 	Zaken []Zaak `json:"zaken,omitempty" gorm:"many2many:zaak_categories;"`
 }

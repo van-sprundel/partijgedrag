@@ -14,6 +14,7 @@ import (
 	"etl/pkg/storage"
 
 	"github.com/google/uuid"
+	"github.com/lib/pq"
 	"gopkg.in/yaml.v3"
 )
 
@@ -134,17 +135,15 @@ func seedInitialCategories(ctx context.Context, store storage.Storage) error {
 			Name:        topic,
 			Type:        &genericType,
 			Description: nil,
-			Keywords:    keywords,
+			Keywords:    pq.StringArray(keywords),
 			CreatedAt:   now,
 			UpdatedAt:   now,
 		})
 	}
 
 	hotTopicsWithKeywords := map[string][]string{
-		"Vaccinaties":        {"vaccinatie", "vaccin", "inenting", "immunisatie", "prik"},
-		"Immigratie":         {"immigratie", "migratie", "asielzoeker", "vluchtelingen", "grenzen"},
-		"Oorlog":             {"oorlog", "conflict", "militair", "defensie", "wapen", "vrede", "oekraïne", "rusland"},
-		"Corona":             {"corona", "covid", "pandemie", "lockdown", "mondkapje", "quarantaine"},
+		"Immigratie":         {"immigratie", "migratie", "asielzoeker", "vluchtelingen", "grenzen", "azc"},
+		"Oorlog":             {"oorlog", "conflict", "militair", "defensie", "wapen", "vrede", "oekraïne", "rusland", "Gaza", "Israel", "Palestina"},
 		"Klimaatverandering": {"klimaatverandering", "opwarming", "broeikas", "klimaat", "duurzaamheid"},
 		"Woningcrisis":       {"woningcrisis", "woningtekort", "betaalbaar wonen", "huurprijzen"},
 		"Inflatie":           {"inflatie", "prijsstijging", "koopkracht", "duurte"},
@@ -158,7 +157,7 @@ func seedInitialCategories(ctx context.Context, store storage.Storage) error {
 			Name:        topic,
 			Type:        &hotType,
 			Description: nil,
-			Keywords:    keywords,
+			Keywords:    pq.StringArray(keywords),
 			CreatedAt:   now,
 			UpdatedAt:   now,
 		})
@@ -309,7 +308,7 @@ func findCategoryMatches(zaak models.Zaak, categories []models.MotionCategory) [
 	}
 
 	for _, category := range categories {
-		for _, keyword := range category.Keywords {
+		for _, keyword := range []string(category.Keywords) {
 			if strings.Contains(searchText, strings.ToLower(keyword)) {
 				matches = append(matches, category.ID)
 				break
