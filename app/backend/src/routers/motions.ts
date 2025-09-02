@@ -1,5 +1,5 @@
 import { implement } from "@orpc/server";
-import type { Party as PartyModel } from "@prisma/client";
+import type { Party as PartyModel, Prisma } from "@prisma/client";
 import { apiContract, type VoteType } from "../contracts/index.js";
 import { db } from "../lib/db.js";
 import {
@@ -14,7 +14,7 @@ export const motionRouter = {
 	getAll: os.motions.getAll.handler(async ({ input }) => {
 		const { limit, offset, category, status } = input;
 
-		const where: any = {
+		const where: Prisma.CaseWhereInput = {
 			type: "Motie",
 		};
 		if (category) {
@@ -68,7 +68,7 @@ export const motionRouter = {
 	getForCompass: os.motions.getForCompass.handler(async ({ input }) => {
 		const { count, excludeIds = [], categoryIds, after } = input;
 
-		const where: any = {
+		const where: Prisma.CaseWhereInput = {
 			type: "Motie",
 			id: {
 				notIn: excludeIds,
@@ -132,7 +132,7 @@ export const motionRouter = {
 	getCategories: os.motions.getCategories.handler(async ({ input }) => {
 		const { type } = input;
 
-		const where: any = {};
+		const where: Prisma.MotionCategoryWhereInput = {};
 		if (type !== "all") {
 			where.type = type;
 		}
