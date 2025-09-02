@@ -58,13 +58,6 @@ export function CompassSettingsPage() {
 		}));
 	};
 
-	const handleSelectAll = () => {
-		setSettings((prev) => ({
-			...prev,
-			categoryIds: availableCategories.map((cat) => cat.id),
-		}));
-	};
-
 	const handleSelectNone = () => {
 		setSettings((prev) => ({
 			...prev,
