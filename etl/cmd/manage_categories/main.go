@@ -33,12 +33,11 @@ func main() {
 		log.Fatalf("Failed to load config: %v", err)
 	}
 
-	storageConfig, err := parseStorageConfig(cfg)
 	if err != nil {
 		log.Fatalf("Failed to parse storage config: %v", err)
 	}
 
-	store, err := storage.NewStorage(*storageConfig)
+	store, err := storage.NewStorage(cfg.Storage)
 	if err != nil {
 		log.Fatalf("Failed to initialize storage: %v", err)
 	}
@@ -74,40 +73,10 @@ func main() {
 func seedInitialCategories(ctx context.Context, store storage.Storage) error {
 	fmt.Println("Seeding initial categories...")
 
-	genericTopics := []string{
-		"Bestuur",
-		"Cultuur en recreatie",
-		"Economie",
-		"Financiën",
-		"Huisvesting",
-		"Internationaal",
-		"Landbouw",
-		"Migratie en integratie",
-		"Natuur en milieu",
-		"Onderwijs en wetenschap",
-		"Openbare orde en veiligheid",
-		"Recht",
-		"Ruimte en infrastructuur",
-		"Sociale zekerheid",
-		"Verkeer",
-		"Werk",
-		"Zorg en gezondheid",
-	}
-
-	hotTopics := []string{
-		"Vaccinaties",
-		"Immigratie",
-		"Oorlog",
-		"Corona",
-		"Klimaatverandering",
-		"Woningcrisis",
-		"Inflatie",
-	}
-
 	var categories []models.MotionCategory
 	now := time.Now()
 
-	genericTopicsWithKeywords := map[string][]string{
+	genericTopics := map[string][]string{
 		"Bestuur":                     {"bestuur", "governance", "regering", "kabinet", "minister", "staatssecretaris"},
 		"Cultuur en recreatie":        {"cultuur", "kunst", "sport", "recreatie", "museum", "theater", "bibliotheek"},
 		"Economie":                    {"economie", "economisch", "handel", "industrie", "ondernemerschap", "mkb", "bedrijven"},
@@ -127,9 +96,9 @@ func seedInitialCategories(ctx context.Context, store storage.Storage) error {
 		"Zorg en gezondheid":          {"zorg", "gezondheid", "medisch", "ziekenhuis", "dokter", "medicijn", "patiënt"},
 	}
 
-	for _, topic := range genericTopics {
+	for topic := range genericTopics {
 		genericType := "generic"
-		keywords := genericTopicsWithKeywords[topic]
+		keywords := genericTopics[topic]
 		categories = append(categories, models.MotionCategory{
 			ID:          uuid.New().String(),
 			Name:        topic,
@@ -141,7 +110,7 @@ func seedInitialCategories(ctx context.Context, store storage.Storage) error {
 		})
 	}
 
-	hotTopicsWithKeywords := map[string][]string{
+	hotTopics := map[string][]string{
 		"Immigratie":         {"immigratie", "migratie", "asielzoeker", "vluchtelingen", "grenzen", "azc"},
 		"Oorlog":             {"oorlog", "conflict", "militair", "defensie", "wapen", "vrede", "oekraïne", "rusland", "Gaza", "Israel", "Palestina"},
 		"Klimaatverandering": {"klimaatverandering", "opwarming", "broeikas", "klimaat", "duurzaamheid"},
@@ -149,9 +118,9 @@ func seedInitialCategories(ctx context.Context, store storage.Storage) error {
 		"Inflatie":           {"inflatie", "prijsstijging", "koopkracht", "duurte"},
 	}
 
-	for _, topic := range hotTopics {
+	for topic := range hotTopics {
 		hotType := "hot_topic"
-		keywords := hotTopicsWithKeywords[topic]
+		keywords := hotTopics[topic]
 		categories = append(categories, models.MotionCategory{
 			ID:          uuid.New().String(),
 			Name:        topic,
@@ -309,7 +278,7 @@ func findCategoryMatches(zaak models.Zaak, categories []models.MotionCategory) [
 
 	for _, category := range categories {
 		for _, keyword := range []string(category.Keywords) {
-			if strings.Contains(searchText, strings.ToLower(keyword)) {
+			if strings.Contains(searchText, keyword) {
 				matches = append(matches, category.ID)
 				break
 			}
@@ -331,8 +300,4 @@ func loadConfig(path string) (*config.Config, error) {
 	}
 
 	return &cfg, nil
-}
-
-func parseStorageConfig(cfg *config.Config) (*config.StorageConfig, error) {
-	return &cfg.Storage, nil
 }
