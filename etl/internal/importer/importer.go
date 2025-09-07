@@ -231,7 +231,6 @@ func (imp *SimpleImporter) extractEntities(zaken []models.Zaak) ExtractedEntitie
 		}
 
 		for _, dossier := range zaak.Kamerstukdossier {
-			dossier.ZaakID = &zaak.ID
 			kamerstukdossierMap[dossier.ID] = dossier
 		}
 	}
@@ -263,6 +262,15 @@ func (imp *SimpleImporter) saveEntities(ctx context.Context, entities ExtractedE
 		return fmt.Errorf("saving fracties: %w", err)
 	}
 
+	if err := imp.storage.SaveKamerstukdossiers(ctx, entities.Kamerstukdossiers); err != nil {
+		return fmt.Errorf("saving kamerstukdossiers: %w", err)
+	}
+
+	// Process documents for kamerstukdossiers
+	if err := imp.processDocumentsForDossiers(ctx, entities.Kamerstukdossiers); err != nil {
+		log.Printf("Warning: failed to process documents for some kamerstukdossiers: %v", err)
+	}
+
 	// 2. Zaken (independent)
 	if err := imp.storage.SaveZaken(ctx, entities.Zaken); err != nil {
 		return fmt.Errorf("saving zaken: %w", err)
@@ -271,15 +279,6 @@ func (imp *SimpleImporter) saveEntities(ctx context.Context, entities ExtractedE
 	// 3. Entities that depend on zaken
 	if err := imp.storage.SaveZaakActors(ctx, entities.ZaakActors); err != nil {
 		return fmt.Errorf("saving zaak actors: %w", err)
-	}
-
-	if err := imp.storage.SaveKamerstukdossiers(ctx, entities.Kamerstukdossiers); err != nil {
-		return fmt.Errorf("saving kamerstukdossiers: %w", err)
-	}
-
-	// Process documents for kamerstukdossiers
-	if err := imp.processDocumentsForDossiers(ctx, entities.Kamerstukdossiers); err != nil {
-		log.Printf("Warning: failed to process documents for some kamerstukdossiers: %v", err)
 	}
 
 	if err := imp.storage.SaveBesluiten(ctx, entities.Besluiten); err != nil {
