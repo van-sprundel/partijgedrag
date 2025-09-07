@@ -192,7 +192,7 @@ type Zaak struct {
 
 	Besluit          []Besluit          `json:"Besluit,omitempty" gorm:"-"`
 	ZaakActor        []ZaakActor        `json:"ZaakActor,omitempty" gorm:"-"`
-	Kamerstukdossier []Kamerstukdossier `json:"Kamerstukdossier,omitempty" gorm:"-"`
+	Kamerstukdossier []Kamerstukdossier `json:"Kamerstukdossier,omitempty" gorm:"many2many:zaak_kamerstukdossiers;"`
 
 	Categories []MotionCategory `json:"Categories,omitempty" gorm:"many2many:zaak_categories;"`
 }
@@ -314,7 +314,6 @@ func (ZaakActor) TableName() string {
 
 type Kamerstukdossier struct {
 	ID                string              `json:"Id" gorm:"primaryKey;column:id"`
-	ZaakID            *string             `json:"zaak_id,omitempty" gorm:"column:zaak_id;index"`
 	Nummer            *CustomStringNumber `json:"Nummer" gorm:"column:nummer"`
 	Titel             *string             `json:"Titel" gorm:"column:titel"`
 	Citeertitel       *string             `json:"Citeertitel" gorm:"column:citeertitel"`
@@ -331,6 +330,7 @@ type Kamerstukdossier struct {
 	DocumentURL       *string             `json:"DocumentURL" gorm:"column:document_url"`
 
 	Document []Document `json:"Document,omitempty" gorm:"-"`
+	Zaken    []Zaak     `json:"-" gorm:"many2many:zaak_kamerstukdossiers;"`
 }
 
 func (Kamerstukdossier) TableName() string {
