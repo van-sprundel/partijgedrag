@@ -63,6 +63,7 @@ model ParliamentaryDocument {
   updatedAt             DateTime? @map("bijgewerkt") @db.Timestamptz(6)
   apiUpdatedAt          DateTime? @map("api_gewijzigd_op") @db.Timestamptz(6)
   bulletPoints          Json?     @map("bullet_points")
+  documentURL           String?   @map("document_url")
 
   case Case? @relation("CaseParliamentaryDocuments", fields: [caseId], references: [id])
 
