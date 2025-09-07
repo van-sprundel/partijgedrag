@@ -5,11 +5,14 @@ import (
 	"encoding/xml"
 	"fmt"
 	"io"
+	"regexp"
 	"strings"
 
 	"golang.org/x/text/encoding/charmap"
 	"golang.org/x/text/transform"
 )
+
+var MotionRegex = regexp.MustCompile(`\bmotie\b`)
 
 type DocumentParser struct{}
 
@@ -76,7 +79,7 @@ func (p *DocumentParser) ExtractBulletPoints(xmlData []byte, documentURL string)
 
 	// Check if this document is a motie (motion)
 	title := strings.TrimSpace(doc.Kamerstuk.Stuk.Titel)
-	if title == "" || !strings.Contains(strings.ToLower(title), "motie") {
+	if title == "" || !MotionRegex.MatchString(strings.ToLower(title)) {
 		// Not a motion, return nil to indicate this should be skipped
 		return nil, nil
 	}

@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"log"
+	"regexp"
 	"strings"
 	"time"
 
@@ -401,7 +402,7 @@ func (imp *SimpleImporter) getMotieVolgnummers(dossier models.Kamerstukdossier) 
 	var volgnummers []int
 	for _, doc := range dossier.Document {
 		onderwerp := strings.ToLower(doc.Onderwerp)
-		if strings.HasPrefix(onderwerp, "motie") || strings.Contains(onderwerp, "motie ") {
+		if parser.MotionRegex.MatchString(onderwerp) {
 			log.Printf("Found motion document: '%s' (volgnummer: %d)", doc.Onderwerp, doc.Volgnummer)
 			volgnummers = append(volgnummers, doc.Volgnummer)
 		}
