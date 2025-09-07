@@ -148,11 +148,14 @@ func (s *PostgresStorage) Ping(ctx context.Context) error {
 	return sqlDB.PingContext(ctx)
 }
 
-func (s *PostgresStorage) UpdateKamerstukdossierBulletPoints(ctx context.Context, id string, bulletPointsJSON string) error {
+func (s *PostgresStorage) UpdateKamerstukdossierBulletPoints(ctx context.Context, id string, bulletPointsJSON string, documentURL string) error {
 	return s.db.WithContext(ctx).
 		Model(&models.Kamerstukdossier{}).
 		Where("id = ?", id).
-		Update("bullet_points", bulletPointsJSON).Error
+		Updates(map[string]interface{}{
+			"bullet_points": bulletPointsJSON,
+			"document_url":  documentURL,
+		}).Error
 }
 
 func (s *PostgresStorage) SaveCategories(ctx context.Context, categories []models.MotionCategory) error {

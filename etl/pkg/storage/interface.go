@@ -17,7 +17,7 @@ type Storage interface {
 	SaveKamerstukdossiers(ctx context.Context, dossiers []models.Kamerstukdossier) error
 
 	// Kamerstukdossier operations
-	UpdateKamerstukdossierBulletPoints(ctx context.Context, id string, bulletPointsJSON string) error
+	UpdateKamerstukdossierBulletPoints(ctx context.Context, id string, bulletPointsJSON string, documentURL string) error
 
 	SaveCategories(ctx context.Context, categories []models.MotionCategory) error
 	SaveZaakCategories(ctx context.Context, zaakCategories []models.ZaakCategory) error
