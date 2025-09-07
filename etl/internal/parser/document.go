@@ -5,11 +5,14 @@ import (
 	"encoding/xml"
 	"fmt"
 	"io"
+	"regexp"
 	"strings"
 
 	"golang.org/x/text/encoding/charmap"
 	"golang.org/x/text/transform"
 )
+
+var MotionRegex = regexp.MustCompile(`\bmotie\b`)
 
 type DocumentParser struct{}
 
@@ -34,6 +37,7 @@ type Algemeen struct {
 }
 
 type Stuk struct {
+	Titel    string   `xml:"titel"`
 	Algemeen Algemeen `xml:"algemeen"`
 }
 
@@ -45,7 +49,14 @@ type OfficielePublicatie struct {
 	Kamerstuk Kamerstuk `xml:"kamerstuk"`
 }
 
-func (p *DocumentParser) ExtractBulletPoints(xmlData []byte) ([]string, error) {
+// DocumentResult contains the parsed bullet points and document URL
+type DocumentResult struct {
+	BulletPoints []string
+	URL          string
+	Title        string
+}
+
+func (p *DocumentParser) ExtractBulletPoints(xmlData []byte, documentURL string) (*DocumentResult, error) {
 	var doc OfficielePublicatie
 
 	decoder := xml.NewDecoder(bytes.NewReader(xmlData))
@@ -66,14 +77,33 @@ func (p *DocumentParser) ExtractBulletPoints(xmlData []byte) ([]string, error) {
 		return nil, fmt.Errorf("parsing XML: %w", err)
 	}
 
+	// Check if this document is a motie (motion)
+	title := strings.TrimSpace(doc.Kamerstuk.Stuk.Titel)
+	if title == "" || !MotionRegex.MatchString(strings.ToLower(title)) {
+		// Not a motion, return nil to indicate this should be skipped
+		return nil, nil
+	}
+
 	var bulletPoints []string
+
+	// skip common meaningless starting points
+	skipPhrases := map[string]struct{}{
+		"De Kamer,":                 {},
+		"gehoord de beraadslaging,": {},
+	}
 
 	for _, al := range doc.Kamerstuk.Stuk.Algemeen.VrijeTekst.Tekst.Al {
 		content := strings.TrimSpace(al.Content)
 		if content != "" {
-			bulletPoints = append(bulletPoints, content)
+			if _, shouldSkip := skipPhrases[content]; !shouldSkip {
+				bulletPoints = append(bulletPoints, content)
+			}
 		}
 	}
 
-	return bulletPoints, nil
+	return &DocumentResult{
+		BulletPoints: bulletPoints,
+		URL:          documentURL,
+		Title:        title,
+	}, nil
 }

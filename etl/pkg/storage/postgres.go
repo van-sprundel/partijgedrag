@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"log"
+	"time"
 
 	"etl/internal/config"
 	"etl/internal/models"
@@ -38,6 +39,8 @@ func NewPostgresStorage(config config.StorageConfig) (*PostgresStorage, error) {
 		&models.Fractie{},
 		&models.ZaakActor{},
 		&models.Kamerstukdossier{},
+		&models.MotionCategory{},
+		&models.ZaakCategory{},
 	); err != nil {
 		return nil, fmt.Errorf("failed to migrate schema: %w", err)
 	}
@@ -145,9 +148,78 @@ func (s *PostgresStorage) Ping(ctx context.Context) error {
 	return sqlDB.PingContext(ctx)
 }
 
-func (s *PostgresStorage) UpdateKamerstukdossierBulletPoints(ctx context.Context, id string, bulletPointsJSON string) error {
+func (s *PostgresStorage) UpdateKamerstukdossierBulletPoints(ctx context.Context, id string, bulletPointsJSON string, documentURL string) error {
 	return s.db.WithContext(ctx).
 		Model(&models.Kamerstukdossier{}).
 		Where("id = ?", id).
-		Update("bullet_points", bulletPointsJSON).Error
+		Updates(map[string]interface{}{
+			"bullet_points": bulletPointsJSON,
+			"document_url":  documentURL,
+		}).Error
+}
+
+func (s *PostgresStorage) SaveCategories(ctx context.Context, categories []models.MotionCategory) error {
+	if len(categories) == 0 {
+		return nil
+	}
+
+	log.Printf("Saving %d categories...", len(categories))
+
+	return s.db.WithContext(ctx).Clauses(clause.OnConflict{
+		Columns:   []clause.Column{{Name: "name"}},
+		UpdateAll: true,
+	}).CreateInBatches(categories, 1000).Error
+}
+
+func (s *PostgresStorage) SaveZaakCategories(ctx context.Context, zaakCategories []models.ZaakCategory) error {
+	if len(zaakCategories) == 0 {
+		return nil
+	}
+
+	log.Printf("Saving %d zaak categories...", len(zaakCategories))
+
+	return s.db.WithContext(ctx).Clauses(clause.OnConflict{
+		DoNothing: true,
+	}).CreateInBatches(zaakCategories, 1000).Error
+}
+
+func (s *PostgresStorage) GetAllCategories(ctx context.Context) ([]models.MotionCategory, error) {
+	var categories []models.MotionCategory
+	err := s.db.WithContext(ctx).Order("name").Find(&categories).Error
+	return categories, err
+}
+
+func (s *PostgresStorage) GetCategoriesByType(ctx context.Context, categoryType string) ([]models.MotionCategory, error) {
+	var categories []models.MotionCategory
+	err := s.db.WithContext(ctx).Where("type = ?", categoryType).Order("name").Find(&categories).Error
+	return categories, err
+}
+
+func (s *PostgresStorage) AssignCategoryToZaak(ctx context.Context, zaakID, categoryID string) error {
+	zaakCategory := models.ZaakCategory{
+		ZaakID:     zaakID,
+		CategoryID: categoryID,
+		CreatedAt:  time.Now(),
+	}
+
+	return s.db.WithContext(ctx).Clauses(clause.OnConflict{
+		DoNothing: true,
+	}).Create(&zaakCategory).Error
+}
+
+func (s *PostgresStorage) RemoveCategoryFromZaak(ctx context.Context, zaakID, categoryID string) error {
+	return s.db.WithContext(ctx).
+		Where("zaak_id = ? AND category_id = ?", zaakID, categoryID).
+		Delete(&models.ZaakCategory{}).Error
+}
+
+func (s *PostgresStorage) GetZakenForEnrichment(ctx context.Context) ([]models.Zaak, error) {
+	var zaken []models.Zaak
+
+	err := s.db.WithContext(ctx).
+		Where("soort = ? AND verwijderd = ? AND titel IS NOT NULL", "Motie", false).
+		Where("NOT EXISTS (SELECT 1 FROM zaak_categories WHERE zaak_categories.zaak_id = zaken.id)").
+		Find(&zaken).Error
+
+	return zaken, err
 }

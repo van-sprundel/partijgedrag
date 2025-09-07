@@ -184,21 +184,16 @@ func (imp *SimpleImporter) extractEntities(zaken []models.Zaak) ExtractedEntitie
 		Zaken: zaken,
 	}
 
-	// Use maps to deduplicate by ID
 	persoonMap := make(map[string]models.Persoon)
 	fractieMap := make(map[string]models.Fractie)
 	kamerstukdossierMap := make(map[string]models.Kamerstukdossier)
 
 	for _, zaak := range zaken {
-		// Extract besluiten
 		for _, besluit := range zaak.Besluit {
-			// Set FK relationship
 			besluit.ZaakID = &zaak.ID
 			entities.Besluiten = append(entities.Besluiten, besluit)
 
-			// Extract stemmingen from each besluit
 			for _, stemming := range besluit.Stemming {
-				// Set FK relationships
 				stemming.BesluitID = &besluit.ID
 
 				if stemming.Persoon != nil {
@@ -221,25 +216,25 @@ func (imp *SimpleImporter) extractEntities(zaken []models.Zaak) ExtractedEntitie
 			if zaakActor.Persoon != nil {
 				zaakActor.PersoonID = &zaakActor.Persoon.ID
 				persoonMap[zaakActor.Persoon.ID] = *zaakActor.Persoon
+			} else {
+				zaakActor.PersoonID = nil
 			}
 
 			if zaakActor.Fractie != nil {
 				zaakActor.FractieID = &zaakActor.Fractie.ID
 				fractieMap[zaakActor.Fractie.ID] = *zaakActor.Fractie
+			} else {
+				zaakActor.FractieID = nil
 			}
 
 			entities.ZaakActors = append(entities.ZaakActors, zaakActor)
 		}
 
-		// Extract kamerstukdossiers
 		for _, dossier := range zaak.Kamerstukdossier {
-			// Set FK relationship
-			dossier.ZaakID = &zaak.ID
 			kamerstukdossierMap[dossier.ID] = dossier
 		}
 	}
 
-	// Convert maps to slices
 	for _, persoon := range persoonMap {
 		entities.Personen = append(entities.Personen, persoon)
 	}
@@ -267,6 +262,15 @@ func (imp *SimpleImporter) saveEntities(ctx context.Context, entities ExtractedE
 		return fmt.Errorf("saving fracties: %w", err)
 	}
 
+	if err := imp.storage.SaveKamerstukdossiers(ctx, entities.Kamerstukdossiers); err != nil {
+		return fmt.Errorf("saving kamerstukdossiers: %w", err)
+	}
+
+	// Process documents for kamerstukdossiers
+	if err := imp.processDocumentsForDossiers(ctx, entities.Kamerstukdossiers); err != nil {
+		log.Printf("Warning: failed to process documents for some kamerstukdossiers: %v", err)
+	}
+
 	// 2. Zaken (independent)
 	if err := imp.storage.SaveZaken(ctx, entities.Zaken); err != nil {
 		return fmt.Errorf("saving zaken: %w", err)
@@ -275,15 +279,6 @@ func (imp *SimpleImporter) saveEntities(ctx context.Context, entities ExtractedE
 	// 3. Entities that depend on zaken
 	if err := imp.storage.SaveZaakActors(ctx, entities.ZaakActors); err != nil {
 		return fmt.Errorf("saving zaak actors: %w", err)
-	}
-
-	if err := imp.storage.SaveKamerstukdossiers(ctx, entities.Kamerstukdossiers); err != nil {
-		return fmt.Errorf("saving kamerstukdossiers: %w", err)
-	}
-
-	// Process documents for kamerstukdossiers
-	if err := imp.processDocumentsForDossiers(ctx, entities.Kamerstukdossiers); err != nil {
-		log.Printf("Warning: failed to process documents for some kamerstukdossiers: %v", err)
 	}
 
 	if err := imp.storage.SaveBesluiten(ctx, entities.Besluiten); err != nil {
@@ -308,7 +303,7 @@ func (imp *SimpleImporter) updateStats(entities ExtractedEntities) {
 
 	// Track zaak types
 	for _, zaak := range entities.Zaken {
-		imp.stats.ZakenByType[zaak.Soort]++
+		imp.stats.ZakenByType[*zaak.Soort]++
 	}
 }
 
@@ -339,54 +334,73 @@ func (imp *SimpleImporter) processDossierDocument(ctx context.Context, dossier m
 	// Get all potential volgnummers from the Document data we already have
 	volgnummers := imp.getMotieVolgnummers(dossier)
 	if len(volgnummers) == 0 {
-		log.Printf("No suitable documents found for dossier %s", imp.formatDossierNumber(dossier))
+		log.Printf("No motion documents found for dossier %s (checked %d documents)",
+			imp.formatDossierNumber(dossier), len(dossier.Document))
 		return nil
 	}
 
-	// Try each volgnummer in descending order until one works
-	var xmlData []byte
-	var lastErr error
+	log.Printf("Found %d potential motion documents for dossier %s: %v",
+		len(volgnummers), imp.formatDossierNumber(dossier), volgnummers)
 
+	// The list from getMotieVolgnummers is sorted descendingly.
+	// Iterate through all potential volgnummers until we find a valid motion document.
 	for _, volgnummer := range volgnummers {
-		var err error
-		xmlData, err = imp.apiClient.FetchDocument(ctx, dossier, volgnummer)
-		if err == nil {
-			break
+		log.Printf("Attempting to process document with volgnummer %d for dossier %s", volgnummer, imp.formatDossierNumber(dossier))
+
+		docResponse, err := imp.apiClient.FetchDocument(ctx, dossier, volgnummer)
+		if err != nil {
+			log.Printf("Failed to fetch document with volgnummer %d for dossier %s: %v. Trying next one.", volgnummer, imp.formatDossierNumber(dossier), err)
+			continue // Try the next volgnummer
 		}
-		lastErr = err
-	}
 
-	if xmlData == nil {
-		return fmt.Errorf("all volgnummers failed for dossier %s, last error: %w", imp.formatDossierNumber(dossier), lastErr)
-	}
+		result, err := imp.parser.ExtractBulletPoints(docResponse.XMLData, docResponse.URL)
+		if err != nil {
+			log.Printf("Failed to parse document with volgnummer %d for dossier %s: %v. Trying next one.", volgnummer, imp.formatDossierNumber(dossier), err)
+			continue // Try the next volgnummer
+		}
 
-	bulletPoints, err := imp.parser.ExtractBulletPoints(xmlData)
-	if err != nil {
-		return fmt.Errorf("parsing document: %w", err)
-	}
+		// If result is nil, this document is not a motion (motie)
+		if result == nil {
+			log.Printf("Document with volgnummer %d at %s is not a motion, trying next one for dossier %s",
+				volgnummer, docResponse.URL, imp.formatDossierNumber(dossier))
+			continue // Try the next volgnummer
+		}
 
-	if len(bulletPoints) == 0 {
+		log.Printf("Confirmed motion document: '%s' for dossier %s with volgnummer %d", result.Title, imp.formatDossierNumber(dossier), volgnummer)
+
+                if len(result.BulletPoints) == 0 {
+                        log.Printf("Motion '%s' (dossier %s, volgnummer %d) has no bullet points, trying next document.", result.Title, imp.formatDossierNumber(dossier), volgnummer)
+                        continue // Try next volgnummer to find a motion with bullet points
+                }
+
+		// Convert to JSON bytes for proper JSONB storage
+		bulletPointsJSON, err := json.Marshal(result.BulletPoints)
+		if err != nil {
+			return fmt.Errorf("marshaling bullet points for dossier %s, volgnummer %d: %w", imp.formatDossierNumber(dossier), volgnummer, err)
+		}
+
+		if err := imp.storage.UpdateKamerstukdossierBulletPoints(ctx, dossier.ID, string(bulletPointsJSON), result.URL); err != nil {
+			return fmt.Errorf("updating bullet points for dossier %s, volgnummer %d: %w", imp.formatDossierNumber(dossier), volgnummer, err)
+		}
+
+		log.Printf("Successfully stored %d bullet points for motion '%s' (dossier %s, volgnummer %d)",
+			len(result.BulletPoints), result.Title, imp.formatDossierNumber(dossier), volgnummer)
+
+		// If we successfully process a document, we can stop.
 		return nil
 	}
 
-	// Convert to JSON bytes for proper JSONB storage
-	bulletPointsJSON, err := json.Marshal(bulletPoints)
-	if err != nil {
-		return fmt.Errorf("marshaling bullet points: %w", err)
-	}
-
-	if err := imp.storage.UpdateKamerstukdossierBulletPoints(ctx, dossier.ID, string(bulletPointsJSON)); err != nil {
-		return fmt.Errorf("updating bullet points: %w", err)
-	}
-
+	log.Printf("No valid motion document found for dossier %s after trying all potential volgnummers.", imp.formatDossierNumber(dossier))
 	return nil
 }
 
 func (imp *SimpleImporter) getMotieVolgnummers(dossier models.Kamerstukdossier) []int {
-	// Get all volgnummers for documents that have Onderwerp starting with 'Motie'
+	// Get all volgnummers for documents that have Onderwerp starting with 'Motie' (case-insensitive)
 	var volgnummers []int
 	for _, doc := range dossier.Document {
-		if strings.HasPrefix(doc.Onderwerp, "Motie") {
+		onderwerp := strings.ToLower(doc.Onderwerp)
+		if parser.MotionRegex.MatchString(onderwerp) {
+			log.Printf("Found motion document: '%s' (volgnummer: %d)", doc.Onderwerp, doc.Volgnummer)
 			volgnummers = append(volgnummers, doc.Volgnummer)
 		}
 	}

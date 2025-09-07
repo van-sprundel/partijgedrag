@@ -1,0 +1,228 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model Decision {
+  id                           String    @id @map("id")
+  agendaPointId                String?   @map("agendapunt_id")
+  caseId                       String?   @map("zaak_id")
+  votingType                   String?   @map("stemmings_soort")
+  decisionType                 String?   @map("besluit_soort")
+  decisionText                 String?   @map("besluit_tekst")
+  comment                      String?   @map("opmerking")
+  status                       String?   @map("status")
+  agendaPointCaseDecisionOrder BigInt?   @map("agendapunt_zaak_besluit_volgorde")
+  updatedAt                    DateTime? @map("gewijzigd_op") @db.Timestamptz(6)
+  apiUpdatedAt                 DateTime? @map("api_gewijzigd_op") @db.Timestamptz(6)
+
+  case  Case?  @relation("CaseDecisions", fields: [caseId], references: [id])
+  votes Vote[]
+
+  @@map("besluiten")
+}
+
+model Party {
+  id            String    @id @map("id")
+  number        BigInt?   @map("nummer")
+  shortName     String?   @map("afkorting")
+  nameNl        String?   @map("naam_nl")
+  nameEn        String?   @map("naam_en")
+  seats         BigInt?   @map("aantal_zetels")
+  votesCount    BigInt?   @map("aantal_stemmen")
+  activeFrom    DateTime? @map("datum_actief") @db.Timestamptz(6)
+  activeTo      DateTime? @map("datum_inactief") @db.Timestamptz(6)
+  contentType   String?   @map("content_type")
+  contentLength BigInt?   @map("content_length")
+  updatedAt     DateTime? @map("gewijzigd_op") @db.Timestamptz(6)
+  apiUpdatedAt  DateTime? @map("api_gewijzigd_op") @db.Timestamptz(6)
+
+  votes      Vote[]
+  caseActors CaseActor[]
+
+  @@map("fracties")
+}
+
+model ParliamentaryDocument {
+  id                    String    @id @map("id")
+  number                String?   @map("nummer")
+  title                 String?   @map("titel")
+  citationTitle         String?   @map("citeertitel")
+  alias                 String?   @map("alias")
+  addition              String?   @map("toevoeging")
+  highestSequenceNumber BigInt?   @map("hoogste_volgnummer")
+  closed                Boolean?  @map("afgesloten")
+  createdAt             DateTime? @map("datum_aangemaakt") @db.Timestamptz(6)
+  closedAt              DateTime? @map("datum_gesloten") @db.Timestamptz(6)
+  chamber               String?   @map("kamer")
+  updatedAt             DateTime? @map("bijgewerkt") @db.Timestamptz(6)
+  apiUpdatedAt          DateTime? @map("api_gewijzigd_op") @db.Timestamptz(6)
+  bulletPoints          Json?     @map("bullet_points")
+  documentURL           String?   @map("document_url")
+
+  cases CaseParliamentaryDocument[]
+
+  @@map("kamerstukdossiers")
+}
+
+model CaseParliamentaryDocument {
+  caseId                  String @map("zaak_id")
+  parliamentaryDocumentId String @map("kamerstukdossier_id")
+
+  case                  Case                  @relation(fields: [caseId], references: [id])
+  parliamentaryDocument ParliamentaryDocument @relation(fields: [parliamentaryDocumentId], references: [id])
+
+  @@id([caseId, parliamentaryDocumentId])
+  @@map("zaak_kamerstukdossiers")
+}
+
+model Politician {
+  id           String    @id @map("id")
+  titles       String?   @map("titels")
+  initials     String?   @map("initialen")
+  prefix       String?   @map("tussenvoegsel")
+  lastName     String?   @map("achternaam")
+  firstNames   String?   @map("voornamen")
+  nickname     String?   @map("roepnaam")
+  gender       String?   @map("geslacht")
+  birthDate    DateTime? @map("geboortedatum") @db.Timestamptz(6)
+  birthPlace   String?   @map("geboorteplaats")
+  birthCountry String?   @map("geboorteland")
+  deathDate    DateTime? @map("overlijdensdatum") @db.Timestamptz(6)
+  deathPlace   String?   @map("overlijdensplaats")
+  deathCountry String?   @map("overlijdensland")
+  residence    String?   @map("woonplaats")
+  country      String?   @map("land")
+  updatedAt    DateTime? @map("bijgewerkt") @db.Timestamptz(6)
+
+  votes      Vote[]
+  caseActors CaseActor[]
+
+  @@map("personen")
+}
+
+enum VoteType {
+  FOR     @map("Voor")
+  AGAINST @map("Tegen")
+  NEUTRAL @map("Niet deelgenomen")
+}
+
+model Vote {
+  id              String    @id @map("id")
+  decisionIdRaw   String?   @map("besluit_id_raw")
+  decisionId      String?   @map("besluit_id")
+  type            VoteType  @map("soort")
+  partySize       BigInt?   @map("fractie_grootte")
+  actorName       String?   @map("actor_naam")
+  actorParty      String?   @map("actor_fractie")
+  mistake         Boolean?  @map("vergissing")
+  sidActorMember  String?   @map("sid_actor_lid")
+  sidActorParty   String?   @map("sid_actor_fractie")
+  politicianIdRaw String?   @map("persoon_id_raw")
+  politicianId    String?   @map("persoon_id")
+  partyIdRaw      String?   @map("fractie_id_raw")
+  partyId         String?   @map("fractie_id")
+  updatedAt       DateTime? @map("gewijzigd_op") @db.Timestamptz(6)
+  apiUpdatedAt    DateTime? @map("api_gewijzigd_op") @db.Timestamptz(6)
+
+  decision   Decision?   @relation(fields: [decisionId], references: [id])
+  politician Politician? @relation(fields: [politicianId], references: [id])
+  party      Party?      @relation(fields: [partyId], references: [id])
+
+  @@map("stemmingen")
+}
+
+model CaseActor {
+  id           String    @id @map("id")
+  caseId       String?   @map("zaak_id")
+  politicianId String?   @map("persoon_id")
+  partyId      String?   @map("fractie_id")
+  relation     String?   @map("relatie")
+  actorName    String?   @map("actor_naam")
+  actorParty   String?   @map("actor_fractie")
+  updatedAt    DateTime? @map("bijgewerkt") @db.Timestamptz(6)
+
+  case       Case?       @relation(fields: [caseId], references: [id])
+  politician Politician? @relation(fields: [politicianId], references: [id])
+  party      Party?      @relation(fields: [partyId], references: [id])
+
+  @@map("zaak_actors")
+}
+
+model Case {
+  id                     String    @id @map("id")
+  number                 String?   @map("nummer")
+  subject                String?   @map("onderwerp")
+  type                   String?   @map("soort")
+  title                  String?   @map("titel")
+  citationTitle          String?   @map("citeertitel")
+  alias                  String?   @map("alias")
+  status                 String?   @map("status")
+  date                   DateTime? @map("datum") @db.Timestamptz(6)
+  startedAt              DateTime? @map("gestart_op") @db.Timestamptz(6)
+  organization           String?   @map("organisatie")
+  basis                  String?   @map("grondslagvoorhang")
+  term                   String?   @map("termijn")
+  meetingYear            String?   @map("vergaderjaar")
+  sequenceNumber         BigInt?   @map("volgnummer")
+  currentTreatmentStatus String?   @map("huidige_behandelstatus")
+  completed              Boolean?  @map("afgedaan")
+  largeProject           Boolean?  @map("groot_project")
+  updatedAt              DateTime? @map("gewijzigd_op") @db.Timestamptz(6)
+  apiUpdatedAt           DateTime? @map("api_gewijzigd_op") @db.Timestamptz(6)
+  removed                Boolean?  @map("verwijderd")
+  cabinetAppreciation    String?   @map("kabinetsappreciatie")
+  completedAt            DateTime? @map("datum_afgedaan") @db.Timestamptz(6)
+  chamber                String?   @map("kamer")
+
+  decisions              Decision[]                  @relation("CaseDecisions")
+  parliamentaryDocuments CaseParliamentaryDocument[]
+  caseActors             CaseActor[]
+  caseCategories         CaseCategories[]
+
+  @@map("zaken")
+}
+
+enum MotionCategoryType {
+  generic
+  hot_topic
+}
+
+model MotionCategory {
+  id          String             @id
+  name        String
+  description String?
+  type        MotionCategoryType
+  keywords    String[]
+
+  createdAt      DateTime         @map("created_at")
+  updatedAt      DateTime         @map("updated_at")
+  CaseCategories CaseCategories[]
+
+  @@map("motion_categories")
+}
+
+model CaseCategories {
+  caseId     String @map("zaak_id")
+  categoryId String @map("category_id")
+
+  case     Case           @relation(fields: [caseId], references: [id])
+  category MotionCategory @relation(fields: [categoryId], references: [id])
+
+  @@id([caseId, categoryId])
+  @@map("zaak_categories")
+}
+
+model UserSession {
+  id        String   @id @default(cuid())
+  answers   Json
+  results   Json?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@map("user_sessions")
+}
