@@ -328,6 +328,7 @@ type Kamerstukdossier struct {
 	Bijgewerkt        *time.Time          `json:"Bijgewerkt" gorm:"column:bijgewerkt"`
 	ApiGewijzigdOp    *time.Time          `json:"ApiGewijzigdOp" gorm:"column:api_gewijzigd_op"`
 	BulletPoints      []string            `json:"BulletPoints" gorm:"type:jsonb;column:bullet_points"` // This should match Json in Prisma
+	DocumentURL       *string             `json:"DocumentURL" gorm:"column:document_url"`
 
 	Document []Document `json:"Document,omitempty" gorm:"-"`
 }

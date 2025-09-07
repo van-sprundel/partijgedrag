@@ -25,13 +25,27 @@ func NewClient(config config.APIConfig) *Client {
 }
 
 // fetch a specific document by identifier
-func (c *Client) FetchDocument(ctx context.Context, kamerstukdossier models.Kamerstukdossier, volgnummer int) ([]byte, error) {
+// DocumentResponse contains the XML data and the URL it was fetched from
+type DocumentResponse struct {
+	XMLData []byte
+	URL     string
+}
+
+func (c *Client) FetchDocument(ctx context.Context, kamerstukdossier models.Kamerstukdossier, volgnummer int) (*DocumentResponse, error) {
 	if volgnummer == 0 {
 		volgnummer = 1
 	}
 
 	docURL := c.buildDocumentURL(kamerstukdossier, volgnummer)
-	return c.makeRequest(ctx, docURL)
+	xmlData, err := c.makeRequest(ctx, docURL)
+	if err != nil {
+		return nil, err
+	}
+
+	return &DocumentResponse{
+		XMLData: xmlData,
+		URL:     docURL,
+	}, nil
 }
 
 func (c *Client) makeRequest(ctx context.Context, url string) ([]byte, error) {
