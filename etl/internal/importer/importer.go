@@ -368,10 +368,10 @@ func (imp *SimpleImporter) processDossierDocument(ctx context.Context, dossier m
 
 		log.Printf("Confirmed motion document: '%s' for dossier %s with volgnummer %d", result.Title, imp.formatDossierNumber(dossier), volgnummer)
 
-		if len(result.BulletPoints) == 0 {
-			log.Printf("No bullet points found for motion '%s' (dossier %s, volgnummer %d), but considering it processed.", result.Title, imp.formatDossierNumber(dossier), volgnummer)
-			return nil // Successfully processed, even with no bullet points
-		}
+                if len(result.BulletPoints) == 0 {
+                        log.Printf("Motion '%s' (dossier %s, volgnummer %d) has no bullet points, trying next document.", result.Title, imp.formatDossierNumber(dossier), volgnummer)
+                        continue // Try next volgnummer to find a motion with bullet points
+                }
 
 		// Convert to JSON bytes for proper JSONB storage
 		bulletPointsJSON, err := json.Marshal(result.BulletPoints)
