@@ -49,7 +49,6 @@ model Party {
 
 model ParliamentaryDocument {
   id                    String    @id @map("id")
-  caseId                String?   @map("zaak_id")
   number                String?   @map("nummer")
   title                 String?   @map("titel")
   citationTitle         String?   @map("citeertitel")
@@ -65,9 +64,20 @@ model ParliamentaryDocument {
   bulletPoints          Json?     @map("bullet_points")
   documentURL           String?   @map("document_url")
 
-  case Case? @relation("CaseParliamentaryDocuments", fields: [caseId], references: [id])
+  cases CaseParliamentaryDocument[]
 
   @@map("kamerstukdossiers")
+}
+
+model CaseParliamentaryDocument {
+  caseId                  String @map("zaak_id")
+  parliamentaryDocumentId String @map("kamerstukdossier_id")
+
+  case                  Case                  @relation(fields: [caseId], references: [id])
+  parliamentaryDocument ParliamentaryDocument @relation(fields: [parliamentaryDocumentId], references: [id])
+
+  @@id([caseId, parliamentaryDocumentId])
+  @@map("zaak_kamerstukdossiers")
 }
 
 model Politician {
@@ -169,8 +179,8 @@ model Case {
   completedAt            DateTime? @map("datum_afgedaan") @db.Timestamptz(6)
   chamber                String?   @map("kamer")
 
-  decisions              Decision[]              @relation("CaseDecisions")
-  parliamentaryDocuments ParliamentaryDocument[] @relation("CaseParliamentaryDocuments")
+  decisions              Decision[]                  @relation("CaseDecisions")
+  parliamentaryDocuments CaseParliamentaryDocument[]
   caseActors             CaseActor[]
   caseCategories         CaseCategories[]
 
