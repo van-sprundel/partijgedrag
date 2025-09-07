@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"log"
+	"regexp"
 	"strings"
 	"time"
 
@@ -335,20 +336,27 @@ func (imp *SimpleImporter) processDossierDocument(ctx context.Context, dossier m
 	// Get all potential volgnummers from the Document data we already have
 	volgnummers := imp.getMotieVolgnummers(dossier)
 	if len(volgnummers) == 0 {
-		log.Printf("No suitable documents found for dossier %s", imp.formatDossierNumber(dossier))
+		log.Printf("No motion documents found for dossier %s (checked %d documents)",
+			imp.formatDossierNumber(dossier), len(dossier.Document))
 		return nil
 	}
+
+	log.Printf("Found %d potential motion documents for dossier %s: %v",
+		len(volgnummers), imp.formatDossierNumber(dossier), volgnummers)
 
 	// Try each volgnummer in descending order until one works
 	var docResponse *api.DocumentResponse
 	var lastErr error
 
 	for _, volgnummer := range volgnummers {
+		// log.Printf("Trying volgnummer %d for dossier %s", volgnummer, imp.formatDossierNumber(dossier))
 		var err error
 		docResponse, err = imp.apiClient.FetchDocument(ctx, dossier, volgnummer)
 		if err == nil {
+			log.Printf("Successfully fetched document with volgnummer %d", volgnummer)
 			break
 		}
+		// log.Printf("Failed to fetch volgnummer %d: %v", volgnummer, err)
 		lastErr = err
 	}
 
@@ -360,6 +368,15 @@ func (imp *SimpleImporter) processDossierDocument(ctx context.Context, dossier m
 	if err != nil {
 		return fmt.Errorf("parsing document: %w", err)
 	}
+
+	// If result is nil, this document is not a motion (motie)
+	if result == nil {
+		log.Printf("Document at %s is not a motion (title doesn't contain 'motie'), skipping for dossier %s",
+			docResponse.URL, imp.formatDossierNumber(dossier))
+		return nil
+	}
+
+	log.Printf("Confirmed motion document: '%s' for dossier %s", result.Title, imp.formatDossierNumber(dossier))
 
 	if len(result.BulletPoints) == 0 {
 		return nil
@@ -375,14 +392,18 @@ func (imp *SimpleImporter) processDossierDocument(ctx context.Context, dossier m
 		return fmt.Errorf("updating bullet points: %w", err)
 	}
 
+	log.Printf("Successfully stored %d bullet points for motion '%s' (dossier %s)",
+		len(result.BulletPoints), result.Title, imp.formatDossierNumber(dossier))
 	return nil
 }
 
 func (imp *SimpleImporter) getMotieVolgnummers(dossier models.Kamerstukdossier) []int {
-	// Get all volgnummers for documents that have Onderwerp starting with 'Motie'
+	// Get all volgnummers for documents that have Onderwerp starting with 'Motie' (case-insensitive)
 	var volgnummers []int
 	for _, doc := range dossier.Document {
-		if strings.HasPrefix(doc.Onderwerp, "Motie") {
+		onderwerp := strings.ToLower(doc.Onderwerp)
+		if parser.MotionRegex.MatchString(onderwerp) {
+			log.Printf("Found motion document: '%s' (volgnummer: %d)", doc.Onderwerp, doc.Volgnummer)
 			volgnummers = append(volgnummers, doc.Volgnummer)
 		}
 	}
