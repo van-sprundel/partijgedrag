@@ -73,6 +73,9 @@ export const motionRouter = {
 			id: {
 				notIn: excludeIds,
 			},
+			parliamentaryDocuments: {
+				some: {},
+			},
 		};
 
 		if (after) {
