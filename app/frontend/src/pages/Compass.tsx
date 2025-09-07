@@ -414,7 +414,7 @@ export function CompassPage() {
 										{currentMotion.bulletPoints.map((point, index) => (
 											<li
 												key={`bullet-${currentMotion.id}-${index}`}
-												className="text-sm text-gray-700 flex items-start"
+												className={`text-sm text-gray-700 flex items-start ${point.toLowerCase().trimStart().startsWith("verzoekt") ? "font-bold" : ""}`}
 											>
 												<span className="text-primary-500 mr-2 mt-0.5">•</span>
 												{point}
