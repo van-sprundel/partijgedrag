@@ -4,7 +4,9 @@ import (
 	"context"
 	"fmt"
 	"log"
+	"regexp"
 	"strings"
+	"time"
 
 	"etl/internal/models"
 	"etl/pkg/storage"
@@ -38,39 +40,55 @@ func (s *Service) EnrichZaken(ctx context.Context) error {
 
 	log.Printf("Found %d zaken to analyze and %d categories", len(zaken), len(categories))
 
-	enriched := 0
+	var assignments []models.ZaakCategory
+	now := time.Now()
 	for _, zaak := range zaken {
 		matches := s.findCategoryMatches(zaak, categories)
-
-		if len(matches) > 0 {
-			for _, categoryID := range matches {
-				if err := s.store.AssignCategoryToZaak(ctx, zaak.ID, categoryID); err != nil {
-					log.Printf("Warning: failed to assign category to zaak %s: %v", zaak.ID, err)
-				} else {
-					enriched++
-				}
-			}
+		for _, categoryID := range matches {
+			assignments = append(assignments, models.ZaakCategory{
+				ZaakID:     zaak.ID,
+				CategoryID: categoryID,
+				CreatedAt:  now,
+			})
 		}
 	}
 
-	log.Printf("Enrichment complete: assigned %d category relationships", enriched)
+	if len(assignments) > 0 {
+		if err := s.store.SaveZaakCategories(ctx, assignments); err != nil {
+			log.Printf("Warning: failed to assign some categories in bulk: %v", err)
+		}
+	}
+
+	log.Printf("Enrichment complete: assigned %d category relationships", len(assignments))
 	return nil
 }
 
 func (s *Service) findCategoryMatches(zaak models.Zaak, categories []models.MotionCategory) []string {
 	var matches []string
 
-	searchText := ""
+	var sb strings.Builder
 	if zaak.Titel != nil {
-		searchText += strings.ToLower(*zaak.Titel) + " "
+		sb.WriteString(strings.ToLower(*zaak.Titel))
+		sb.WriteString(" ")
 	}
 	if zaak.Onderwerp != nil {
-		searchText += strings.ToLower(*zaak.Onderwerp) + " "
+		sb.WriteString(strings.ToLower(*zaak.Onderwerp))
+		sb.WriteString(" ")
+	}
+	searchText := sb.String()
+
+	if searchText == "" {
+		return nil
 	}
 
 	for _, category := range categories {
-		for _, keyword := range []string(category.Keywords) {
-			if strings.Contains(searchText, keyword) {
+		for _, keyword := range category.Keywords {
+			re, err := regexp.Compile(`\b` + regexp.QuoteMeta(strings.ToLower(keyword)) + `\b`)
+			if err != nil {
+				log.Printf("Warning: could not compile regex for keyword '%s': %v", keyword, err)
+				continue
+			}
+			if re.MatchString(searchText) {
 				matches = append(matches, category.ID)
 				break
 			}
