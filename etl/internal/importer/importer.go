@@ -340,38 +340,38 @@ func (imp *SimpleImporter) processDossierDocument(ctx context.Context, dossier m
 	}
 
 	// Try each volgnummer in descending order until one works
-	var xmlData []byte
+	var docResponse *api.DocumentResponse
 	var lastErr error
 
 	for _, volgnummer := range volgnummers {
 		var err error
-		xmlData, err = imp.apiClient.FetchDocument(ctx, dossier, volgnummer)
+		docResponse, err = imp.apiClient.FetchDocument(ctx, dossier, volgnummer)
 		if err == nil {
 			break
 		}
 		lastErr = err
 	}
 
-	if xmlData == nil {
+	if docResponse == nil {
 		return fmt.Errorf("all volgnummers failed for dossier %s, last error: %w", imp.formatDossierNumber(dossier), lastErr)
 	}
 
-	bulletPoints, err := imp.parser.ExtractBulletPoints(xmlData)
+	result, err := imp.parser.ExtractBulletPoints(docResponse.XMLData, docResponse.URL)
 	if err != nil {
 		return fmt.Errorf("parsing document: %w", err)
 	}
 
-	if len(bulletPoints) == 0 {
+	if len(result.BulletPoints) == 0 {
 		return nil
 	}
 
 	// Convert to JSON bytes for proper JSONB storage
-	bulletPointsJSON, err := json.Marshal(bulletPoints)
+	bulletPointsJSON, err := json.Marshal(result.BulletPoints)
 	if err != nil {
 		return fmt.Errorf("marshaling bullet points: %w", err)
 	}
 
-	if err := imp.storage.UpdateKamerstukdossierBulletPoints(ctx, dossier.ID, string(bulletPointsJSON)); err != nil {
+	if err := imp.storage.UpdateKamerstukdossierBulletPoints(ctx, dossier.ID, string(bulletPointsJSON), result.URL); err != nil {
 		return fmt.Errorf("updating bullet points: %w", err)
 	}
 
