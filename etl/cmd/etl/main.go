@@ -15,6 +15,7 @@ import (
 	"time"
 
 	"etl/internal/api"
+	"etl/internal/categorisation"
 	"etl/internal/config"
 	"etl/internal/importer"
 	"etl/internal/models"
@@ -82,6 +83,12 @@ func main() {
 	} else {
 		if err := imp.ImportMotiesWithVotes(ctx, afterTime); err != nil {
 			log.Fatalf("Import failed: %v", err)
+		}
+
+		log.Println("Starting category enrichment...")
+		categorisationService := categorisation.NewService(store)
+		if err := categorisationService.EnrichZaken(ctx); err != nil {
+			log.Printf("Warning: enrichment failed: %v", err)
 		}
 	}
 

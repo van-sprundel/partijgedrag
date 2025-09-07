@@ -9,6 +9,7 @@ import (
 	"strings"
 	"time"
 
+	"etl/internal/categorisation"
 	"etl/internal/config"
 	"etl/internal/models"
 	"etl/pkg/storage"
@@ -62,7 +63,8 @@ func main() {
 			log.Fatalf("Failed to add category: %v", err)
 		}
 	case "enrich":
-		if err := enrichZaken(ctx, store); err != nil {
+		categorisationService := categorisation.NewService(store)
+		if err := categorisationService.EnrichZaken(ctx); err != nil {
 			log.Fatalf("Failed to enrich zaken: %v", err)
 		}
 	default:
