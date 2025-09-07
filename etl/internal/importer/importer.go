@@ -5,7 +5,6 @@ import (
 	"encoding/json"
 	"fmt"
 	"log"
-	"regexp"
 	"strings"
 	"time"
 
@@ -344,56 +343,55 @@ func (imp *SimpleImporter) processDossierDocument(ctx context.Context, dossier m
 	log.Printf("Found %d potential motion documents for dossier %s: %v",
 		len(volgnummers), imp.formatDossierNumber(dossier), volgnummers)
 
-	// Try each volgnummer in descending order until one works
-	var docResponse *api.DocumentResponse
-	var lastErr error
-
+	// The list from getMotieVolgnummers is sorted descendingly.
+	// Iterate through all potential volgnummers until we find a valid motion document.
 	for _, volgnummer := range volgnummers {
-		// log.Printf("Trying volgnummer %d for dossier %s", volgnummer, imp.formatDossierNumber(dossier))
-		var err error
-		docResponse, err = imp.apiClient.FetchDocument(ctx, dossier, volgnummer)
-		if err == nil {
-			log.Printf("Successfully fetched document with volgnummer %d", volgnummer)
-			break
+		log.Printf("Attempting to process document with volgnummer %d for dossier %s", volgnummer, imp.formatDossierNumber(dossier))
+
+		docResponse, err := imp.apiClient.FetchDocument(ctx, dossier, volgnummer)
+		if err != nil {
+			log.Printf("Failed to fetch document with volgnummer %d for dossier %s: %v. Trying next one.", volgnummer, imp.formatDossierNumber(dossier), err)
+			continue // Try the next volgnummer
 		}
-		// log.Printf("Failed to fetch volgnummer %d: %v", volgnummer, err)
-		lastErr = err
-	}
 
-	if docResponse == nil {
-		return fmt.Errorf("all volgnummers failed for dossier %s, last error: %w", imp.formatDossierNumber(dossier), lastErr)
-	}
+		result, err := imp.parser.ExtractBulletPoints(docResponse.XMLData, docResponse.URL)
+		if err != nil {
+			log.Printf("Failed to parse document with volgnummer %d for dossier %s: %v. Trying next one.", volgnummer, imp.formatDossierNumber(dossier), err)
+			continue // Try the next volgnummer
+		}
 
-	result, err := imp.parser.ExtractBulletPoints(docResponse.XMLData, docResponse.URL)
-	if err != nil {
-		return fmt.Errorf("parsing document: %w", err)
-	}
+		// If result is nil, this document is not a motion (motie)
+		if result == nil {
+			log.Printf("Document with volgnummer %d at %s is not a motion, trying next one for dossier %s",
+				volgnummer, docResponse.URL, imp.formatDossierNumber(dossier))
+			continue // Try the next volgnummer
+		}
 
-	// If result is nil, this document is not a motion (motie)
-	if result == nil {
-		log.Printf("Document at %s is not a motion (title doesn't contain 'motie'), skipping for dossier %s",
-			docResponse.URL, imp.formatDossierNumber(dossier))
+		log.Printf("Confirmed motion document: '%s' for dossier %s with volgnummer %d", result.Title, imp.formatDossierNumber(dossier), volgnummer)
+
+		if len(result.BulletPoints) == 0 {
+			log.Printf("No bullet points found for motion '%s' (dossier %s, volgnummer %d), but considering it processed.", result.Title, imp.formatDossierNumber(dossier), volgnummer)
+			return nil // Successfully processed, even with no bullet points
+		}
+
+		// Convert to JSON bytes for proper JSONB storage
+		bulletPointsJSON, err := json.Marshal(result.BulletPoints)
+		if err != nil {
+			return fmt.Errorf("marshaling bullet points for dossier %s, volgnummer %d: %w", imp.formatDossierNumber(dossier), volgnummer, err)
+		}
+
+		if err := imp.storage.UpdateKamerstukdossierBulletPoints(ctx, dossier.ID, string(bulletPointsJSON), result.URL); err != nil {
+			return fmt.Errorf("updating bullet points for dossier %s, volgnummer %d: %w", imp.formatDossierNumber(dossier), volgnummer, err)
+		}
+
+		log.Printf("Successfully stored %d bullet points for motion '%s' (dossier %s, volgnummer %d)",
+			len(result.BulletPoints), result.Title, imp.formatDossierNumber(dossier), volgnummer)
+
+		// If we successfully process a document, we can stop.
 		return nil
 	}
 
-	log.Printf("Confirmed motion document: '%s' for dossier %s", result.Title, imp.formatDossierNumber(dossier))
-
-	if len(result.BulletPoints) == 0 {
-		return nil
-	}
-
-	// Convert to JSON bytes for proper JSONB storage
-	bulletPointsJSON, err := json.Marshal(result.BulletPoints)
-	if err != nil {
-		return fmt.Errorf("marshaling bullet points: %w", err)
-	}
-
-	if err := imp.storage.UpdateKamerstukdossierBulletPoints(ctx, dossier.ID, string(bulletPointsJSON), result.URL); err != nil {
-		return fmt.Errorf("updating bullet points: %w", err)
-	}
-
-	log.Printf("Successfully stored %d bullet points for motion '%s' (dossier %s)",
-		len(result.BulletPoints), result.Title, imp.formatDossierNumber(dossier))
+	log.Printf("No valid motion document found for dossier %s after trying all potential volgnummers.", imp.formatDossierNumber(dossier))
 	return nil
 }
 
