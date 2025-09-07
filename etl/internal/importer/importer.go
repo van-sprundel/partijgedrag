@@ -348,14 +348,14 @@ func (imp *SimpleImporter) processDossierDocument(ctx context.Context, dossier m
 	var lastErr error
 
 	for _, volgnummer := range volgnummers {
-		log.Printf("Trying volgnummer %d for dossier %s", volgnummer, imp.formatDossierNumber(dossier))
+		// log.Printf("Trying volgnummer %d for dossier %s", volgnummer, imp.formatDossierNumber(dossier))
 		var err error
 		docResponse, err = imp.apiClient.FetchDocument(ctx, dossier, volgnummer)
 		if err == nil {
 			log.Printf("Successfully fetched document with volgnummer %d", volgnummer)
 			break
 		}
-		log.Printf("Failed to fetch volgnummer %d: %v", volgnummer, err)
+		// log.Printf("Failed to fetch volgnummer %d: %v", volgnummer, err)
 		lastErr = err
 	}
 
