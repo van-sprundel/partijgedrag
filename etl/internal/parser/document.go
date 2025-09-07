@@ -34,6 +34,7 @@ type Algemeen struct {
 }
 
 type Stuk struct {
+	Titel    string   `xml:"titel"`
 	Algemeen Algemeen `xml:"algemeen"`
 }
 
@@ -49,6 +50,7 @@ type OfficielePublicatie struct {
 type DocumentResult struct {
 	BulletPoints []string
 	URL          string
+	Title        string
 }
 
 func (p *DocumentParser) ExtractBulletPoints(xmlData []byte, documentURL string) (*DocumentResult, error) {
@@ -72,6 +74,13 @@ func (p *DocumentParser) ExtractBulletPoints(xmlData []byte, documentURL string)
 		return nil, fmt.Errorf("parsing XML: %w", err)
 	}
 
+	// Check if this document is a motie (motion)
+	title := strings.TrimSpace(doc.Kamerstuk.Stuk.Titel)
+	if title == "" || !strings.Contains(strings.ToLower(title), "motie") {
+		// Not a motion, return nil to indicate this should be skipped
+		return nil, nil
+	}
+
 	var bulletPoints []string
 
 	// skip common meaningless starting points
@@ -92,5 +101,6 @@ func (p *DocumentParser) ExtractBulletPoints(xmlData []byte, documentURL string)
 	return &DocumentResult{
 		BulletPoints: bulletPoints,
 		URL:          documentURL,
+		Title:        title,
 	}, nil
 }
