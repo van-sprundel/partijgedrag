@@ -45,7 +45,13 @@ type OfficielePublicatie struct {
 	Kamerstuk Kamerstuk `xml:"kamerstuk"`
 }
 
-func (p *DocumentParser) ExtractBulletPoints(xmlData []byte) ([]string, error) {
+// DocumentResult contains the parsed bullet points and document URL
+type DocumentResult struct {
+	BulletPoints []string
+	URL          string
+}
+
+func (p *DocumentParser) ExtractBulletPoints(xmlData []byte, documentURL string) (*DocumentResult, error) {
 	var doc OfficielePublicatie
 
 	decoder := xml.NewDecoder(bytes.NewReader(xmlData))
@@ -68,12 +74,23 @@ func (p *DocumentParser) ExtractBulletPoints(xmlData []byte) ([]string, error) {
 
 	var bulletPoints []string
 
+	// skip common meaningless starting points
+	skipPhrases := map[string]struct{}{
+		"De Kamer,":                 {},
+		"gehoord de beraadslaging,": {},
+	}
+
 	for _, al := range doc.Kamerstuk.Stuk.Algemeen.VrijeTekst.Tekst.Al {
 		content := strings.TrimSpace(al.Content)
 		if content != "" {
-			bulletPoints = append(bulletPoints, content)
+			if _, shouldSkip := skipPhrases[content]; !shouldSkip {
+				bulletPoints = append(bulletPoints, content)
+			}
 		}
 	}
 
-	return bulletPoints, nil
+	return &DocumentResult{
+		BulletPoints: bulletPoints,
+		URL:          documentURL,
+	}, nil
 }
