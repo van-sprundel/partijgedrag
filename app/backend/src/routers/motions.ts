@@ -1,5 +1,5 @@
 import { implement } from "@orpc/server";
-import type { Party as PartyModel, Prisma } from "@prisma/client";
+import { type Case, type Party as PartyModel, Prisma } from "@prisma/client";
 import { apiContract, type VoteType } from "../contracts/index.js";
 import { db } from "../lib/db.js";
 import {
@@ -90,34 +90,50 @@ export const motionRouter = {
 	getForCompass: os.motions.getForCompass.handler(async ({ input }) => {
 		const { count, excludeIds = [], categoryIds, after } = input;
 
-		const where: Prisma.CaseWhereInput = {
-			type: "Motie",
-			id: {
-				notIn: excludeIds,
-			},
-			parliamentaryDocuments: {
-				some: {},
-			},
-		};
+		const whereConditions = [
+			Prisma.sql`"soort" = 'Motie'`,
+			Prisma.sql`EXISTS (SELECT 1 FROM "zaak_kamerstukdossiers" WHERE "zaak_id" = "zaken".id)`,
+		];
+
+		if (excludeIds.length > 0) {
+			whereConditions.push(
+				Prisma.sql`id NOT IN (${Prisma.join(
+					excludeIds.map((id) => Prisma.sql`${id}`),
+					",",
+				)})`,
+			);
+		}
 
 		if (after) {
-			where.startedAt = {
-				gte: after,
-			};
+			whereConditions.push(Prisma.sql`"gestart_op" >= ${after}`);
 		}
 
 		if (categoryIds && categoryIds.length > 0) {
-			where.caseCategories = {
-				some: {
-					categoryId: {
-						in: categoryIds,
-					},
-				},
-			};
+			whereConditions.push(
+				Prisma.sql`EXISTS (
+                SELECT 1 FROM "CaseCategoryOnCase"
+                WHERE "caseId" = "zaken".id
+                AND "categoryId" IN (${Prisma.join(
+									categoryIds.map((id) => Prisma.sql`${id}`),
+									",",
+								)})
+            )`,
+			);
 		}
 
+		const randomCaseIds = await db.$queryRaw<Array<{ id: string }>>`
+        SELECT id FROM "zaken"
+        WHERE ${Prisma.join(whereConditions, " AND ")}
+        ORDER BY RANDOM()
+        LIMIT ${count}
+    `;
+
 		const cases = await db.case.findMany({
-			where,
+			where: {
+				id: {
+					in: randomCaseIds.map((c) => c.id),
+				},
+			},
 			include: {
 				parliamentaryDocuments: {
 					include: {
@@ -130,8 +146,6 @@ export const motionRouter = {
 					},
 				},
 			},
-			orderBy: { startedAt: "desc" },
-			take: count,
 		});
 
 		const motions = cases.map((c) => {
