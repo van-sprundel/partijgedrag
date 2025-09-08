@@ -87,15 +87,16 @@ func (p *DocumentParser) ExtractBulletPoints(xmlData []byte, documentURL string)
 	var bulletPoints []string
 
 	// skip common meaningless starting points
-	skipPhrases := map[string]struct{}{
-		"De Kamer,":                 {},
-		"gehoord de beraadslaging,": {},
+	whitelistedPrefixes := map[string]struct{}{
+		"constaterende": {},
+		"overwegende":   {},
+		"verzoekt":      {},
 	}
 
 	for _, al := range doc.Kamerstuk.Stuk.Algemeen.VrijeTekst.Tekst.Al {
 		content := strings.TrimSpace(al.Content)
 		if content != "" {
-			if _, shouldSkip := skipPhrases[content]; !shouldSkip {
+			if _, shouldAppend := whitelistedPrefixes[content]; shouldAppend {
 				bulletPoints = append(bulletPoints, content)
 			}
 		}

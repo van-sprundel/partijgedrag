@@ -28,7 +28,11 @@ export const motionRouter = {
 			db.case.findMany({
 				where,
 				include: {
-					parliamentaryDocuments: true,
+					parliamentaryDocuments: {
+						include: {
+							parliamentaryDocument: true,
+						},
+					},
 				},
 				orderBy: { date: "desc" },
 				take: limit,
@@ -38,7 +42,14 @@ export const motionRouter = {
 		]);
 
 		const motions = cases.map((c) => {
-			const dossier = c.parliamentaryDocuments?.[0];
+			const dossier = c.parliamentaryDocuments
+				.map((cpd) => cpd.parliamentaryDocument)
+				.find(
+					(pd) =>
+						pd.bulletPoints &&
+						Array.isArray(pd.bulletPoints) &&
+						(pd.bulletPoints as string[]).length > 0,
+				);
 			return mapCaseToMotion(c, dossier);
 		});
 
@@ -53,7 +64,11 @@ export const motionRouter = {
 		const c = await db.case.findUnique({
 			where: { id: input.id },
 			include: {
-				parliamentaryDocuments: true,
+				parliamentaryDocuments: {
+					include: {
+						parliamentaryDocument: true,
+					},
+				},
 			},
 		});
 
@@ -61,7 +76,14 @@ export const motionRouter = {
 			return null;
 		}
 
-		const dossier = c.parliamentaryDocuments?.[0];
+		const dossier = c.parliamentaryDocuments
+			.map((cpd) => cpd.parliamentaryDocument)
+			.find(
+				(pd) =>
+					pd.bulletPoints &&
+					Array.isArray(pd.bulletPoints) &&
+					(pd.bulletPoints as string[]).length > 0,
+			);
 		return mapCaseToMotion(c, dossier);
 	}),
 
@@ -97,7 +119,11 @@ export const motionRouter = {
 		const cases = await db.case.findMany({
 			where,
 			include: {
-				parliamentaryDocuments: true,
+				parliamentaryDocuments: {
+					include: {
+						parliamentaryDocument: true,
+					},
+				},
 				caseCategories: {
 					include: {
 						category: true,
@@ -109,7 +135,14 @@ export const motionRouter = {
 		});
 
 		const motions = cases.map((c) => {
-			const dossier = c.parliamentaryDocuments?.[0];
+			const dossier = c.parliamentaryDocuments
+				.map((cpd) => cpd.parliamentaryDocument)
+				.find(
+					(pd) =>
+						pd.bulletPoints &&
+						Array.isArray(pd.bulletPoints) &&
+						(pd.bulletPoints as string[]).length > 0,
+				);
 			const motion = mapCaseToMotion(c, dossier);
 
 			if (c.caseCategories) {
