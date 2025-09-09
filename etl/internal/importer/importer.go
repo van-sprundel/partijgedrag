@@ -368,10 +368,10 @@ func (imp *SimpleImporter) processDossierDocument(ctx context.Context, dossier m
 
 		log.Printf("Confirmed motion document: '%s' for dossier %s with volgnummer %d", result.Title, imp.formatDossierNumber(dossier), volgnummer)
 
-                if len(result.BulletPoints) == 0 {
-                        log.Printf("Motion '%s' (dossier %s, volgnummer %d) has no bullet points, trying next document.", result.Title, imp.formatDossierNumber(dossier), volgnummer)
-                        continue // Try next volgnummer to find a motion with bullet points
-                }
+		if len(result.BulletPoints) == 0 {
+			log.Printf("Motion '%s' (dossier %s, volgnummer %d) has no bullet points, trying next document.", result.Title, imp.formatDossierNumber(dossier), volgnummer)
+			continue // Try next volgnummer to find a motion with bullet points
+		}
 
 		// Convert to JSON bytes for proper JSONB storage
 		bulletPointsJSON, err := json.Marshal(result.BulletPoints)
@@ -405,14 +405,14 @@ func (imp *SimpleImporter) getMotieVolgnummers(dossier models.Kamerstukdossier) 
 		}
 	}
 
-	// Sort in descending order so we try highest volgnummer first
-	for i := 0; i < len(volgnummers)-1; i++ {
-		for j := i + 1; j < len(volgnummers); j++ {
-			if volgnummers[i] < volgnummers[j] {
-				volgnummers[i], volgnummers[j] = volgnummers[j], volgnummers[i]
-			}
-		}
-	}
+	// Initially we sorted descendingly, but reprints won't give us much more info plus it takes forever to find the correct doc.
+	// for i := 0; i < len(volgnummers)-1; i++ {
+	// 	for j := i + 1; j < len(volgnummers); j++ {
+	// 		if volgnummers[i] < volgnummers[j] {
+	// 			volgnummers[i], volgnummers[j] = volgnummers[j], volgnummers[i]
+	// 		}
+	// 	}
+	// }
 
 	return volgnummers
 }
