@@ -1,4 +1,10 @@
-import { Calendar, CheckCircle2, Settings, Users } from "lucide-react";
+import {
+	Calendar,
+	CheckCircle2,
+	ChevronLeft,
+	Settings,
+	Users,
+} from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 import { Link, useNavigate, useSearchParams } from "react-router-dom";
 import { Button } from "../components/ui/Button";
@@ -85,7 +91,7 @@ export function CompassSettingsPage() {
 
 	if (isLoading) {
 		return (
-			<div className="min-h-screen bg-gray-50 flex items-center justify-center">
+			<div className="min-h-screen bg-gray-50 flex items-center justify-center pt-16">
 				<div className="text-center">
 					<div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary-600 mx-auto mb-4"></div>
 					<p className="text-gray-600">Instellingen laden...</p>
@@ -96,9 +102,8 @@ export function CompassSettingsPage() {
 
 	return (
 		<div className="min-h-screen bg-gray-50">
-			{/* Header */}
-			<div className="bg-white shadow-sm">
-				<div className="container mx-auto px-4 py-6">
+			<div className="bg-white border-b border-gray-200">
+				<div className="container mx-auto px-4 py-6 max-w-4xl">
 					<div className="flex items-center justify-between">
 						<div className="flex items-center">
 							<Settings className="h-8 w-8 text-primary-600 mr-3" />
@@ -111,8 +116,12 @@ export function CompassSettingsPage() {
 								</p>
 							</div>
 						</div>
-						<Link to="/" className="text-gray-600 hover:text-gray-900">
-							← Terug naar home
+						<Link
+							to="/"
+							className="text-gray-600 hover:text-gray-900 flex items-center"
+						>
+							<ChevronLeft className="h-4 w-4 mr-1" />
+							Terug naar home
 						</Link>
 					</div>
 				</div>

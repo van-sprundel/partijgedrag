@@ -1,5 +1,11 @@
 {
   "name": "partijgedrag-app",
+  "workspaces": {
+    "packages": [
+      "backend",
+      "frontend"
+    ]
+  },
   "scripts": {
     "dev": "concurrently --names 'backend,frontend' 'npm run dev --prefix backend' 'npm run dev --prefix frontend'",
     "dev:backend": "npm run dev --prefix backend",

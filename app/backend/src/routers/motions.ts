@@ -285,4 +285,27 @@ export const motionRouter = {
 
 		return { votes, partyPositions };
 	}),
+
+	getStatistics: os.motions.getStatistics.handler(async () => {
+		const statistics = await db.case.aggregate({
+			where: {
+				type: "Motie",
+			},
+			_count: {
+				id: true,
+			},
+			_min: {
+				apiUpdatedAt: true,
+			},
+			_max: {
+				apiUpdatedAt: true,
+			},
+		});
+
+		return {
+			count: statistics._count.id,
+			lastMotionDate: statistics._max.apiUpdatedAt,
+			firstMotionDate: statistics._min.apiUpdatedAt,
+		};
+	}),
 };

@@ -1,9 +1,14 @@
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { ReactQueryDevtools } from "@tanstack/react-query-devtools";
 import { BrowserRouter, Route, Routes } from "react-router-dom";
+import { Header } from "./components/layout/Header";
+import { AboutPage } from "./pages/About";
 import { CompassPage } from "./pages/Compass";
 import { CompassSettingsPage } from "./pages/CompassSettings";
 import { HomePage } from "./pages/Home";
+import { MotionsPage } from "./pages/Motions";
+import { PartyFocusPage } from "./pages/PartyFocus";
+import { PartyLikenessPage } from "./pages/PartyLikeness";
 import { ResultsPage } from "./pages/Results";
 
 const queryClient = new QueryClient({
@@ -19,15 +24,20 @@ function App() {
 	return (
 		<QueryClientProvider client={queryClient}>
 			<BrowserRouter>
-				<div className="min-h-screen bg-gray-50">
+				<Header />
+				<main className="max-h-screen min-w-screen bg-gray-50">
 					<Routes>
 						<Route path="/" element={<HomePage />} />
 						<Route path="/compass/settings" element={<CompassSettingsPage />} />
 						<Route path="/compass" element={<CompassPage />} />
 						<Route path="/results/:sessionId" element={<ResultsPage />} />
+						<Route path="/about" element={<AboutPage />} />
+						<Route path="/party-likeness" element={<PartyLikenessPage />} />
+						<Route path="/party-focus" element={<PartyFocusPage />} />
+						<Route path="/motions" element={<MotionsPage />} />
 						<Route path="*" element={<NotFoundPage />} />
 					</Routes>
-				</div>
+				</main>
 			</BrowserRouter>
 			{import.meta.env.DEV && <ReactQueryDevtools initialIsOpen={false} />}
 		</QueryClientProvider>
