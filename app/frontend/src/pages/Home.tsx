@@ -137,9 +137,13 @@ export function HomePage() {
 							<div className="text-gray-600">Moties geanalyseerd</div>
 						</div>
 						<div>
-							<div className="text-3xl font-bold text-blue-600 mb-2">
-								2008-2025
-							</div>
+<div className="text-3xl font-bold text-blue-600 mb-2">
+	{isLoading ||
+	!motionStatisticsData?.firstMotionDate ||
+	!motionStatisticsData?.lastMotionDate
+		? "..."
+		: `${motionStatisticsData.firstMotionDate.getFullYear()}-${motionStatisticsData.lastMotionDate.getFullYear()}`}
+</div>
 							<div className="text-gray-600">Periode van data</div>
 						</div>
 						<div>
