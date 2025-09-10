@@ -104,7 +104,7 @@ export function HomePage() {
 						</div>
 					</Link>
 
-					<Link to="/partijgelijkenissen" className="group">
+<Link to="/party-likeness" className="group">
 						<div className="bg-white border-2 border-orange-100 rounded-lg p-6 hover:border-orange-200 hover:shadow-md transition-all">
 							<div className="w-12 h-12 bg-orange-100 rounded-lg flex items-center justify-center mb-4 group-hover:bg-orange-200 transition-colors">
 								<Users className="h-6 w-6 text-orange-600" />
