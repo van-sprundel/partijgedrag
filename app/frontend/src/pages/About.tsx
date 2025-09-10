@@ -1,4 +1,4 @@
-import { useGetMotionStatistics } from "@/hooks/useGetMotionsCount";
+import { useGetMotionStatistics } from "@/hooks/useGetMotionStatistics";
 
 export function AboutPage() {
 	const { data: motionStatisticsData, isLoading } = useGetMotionStatistics();
@@ -35,9 +35,13 @@ export function AboutPage() {
 					{!isLoading && (
 						<>
 							<strong>{motionStatisticsData?.count}</strong>, van{" "}
-{motionStatisticsData?.firstMotionDate?.toLocaleDateString("nl-NL")}{" "}
-tot{" "}
-{motionStatisticsData?.lastMotionDate?.toLocaleDateString("nl-NL")}
+							{motionStatisticsData?.firstMotionDate?.toLocaleDateString(
+								"nl-NL",
+							)}{" "}
+							tot{" "}
+							{motionStatisticsData?.lastMotionDate?.toLocaleDateString(
+								"nl-NL",
+							)}
 							.
 						</>
 					)}
@@ -186,7 +190,7 @@ tot{" "}
 						vullen, maar het kan zijn dat er fouten in staan. <br />
 						Tip ons op{" "}
 						<code className="bg-gray-100 px-2 py-1 rounded text-sm">
-							ln.erawev @los@tsoo@.m.e
+							e.m.oost@solveware.nl
 						</code>
 						.
 					</p>

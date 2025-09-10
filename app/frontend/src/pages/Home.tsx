@@ -1,8 +1,9 @@
 import { ArrowRight, BarChart3, Search, Users, Vote } from "lucide-react";
 import { Link } from "react-router-dom";
-import { useGetMotionStatistics } from "@/hooks/useGetMotionsCount";
+import { useGetMotionStatistics } from "@/hooks/useGetMotionStatistics";
 import logo from "../assets/tug.png";
 import { Button } from "../components/ui/Button";
+import { Card, CardContent } from "@/components/ui/Card";
 
 export function HomePage() {
 	const { data: motionStatisticsData, isLoading } = useGetMotionStatistics();
@@ -56,70 +57,78 @@ export function HomePage() {
 			{/* Main Tools Section */}
 			<div className="container mx-auto px-4 py-16">
 				<div className="grid md:grid-cols-2 lg:grid-cols-4 gap-6">
-					<Link to="/compass/settings" className="group">
-						<div className="bg-white border-2 border-blue-100 rounded-lg p-6 hover:border-blue-200 hover:shadow-md transition-all">
-							<div className="w-12 h-12 bg-blue-100 rounded-lg flex items-center justify-center mb-4 group-hover:bg-blue-200 transition-colors">
-								<Vote className="h-6 w-6 text-blue-600" />
-							</div>
-							<h3 className="font-semibold text-lg mb-2">Kieswijzer</h3>
-							<p className="text-gray-600 text-sm leading-relaxed">
-								Stem zélf op moties, voor úw onderwerpen. Zie welke partijen het
-								meest met u eens zijn.
-							</p>
-							<div className="mt-4 text-blue-600 text-sm font-medium group-hover:underline">
-								Start kieswijzer →
-							</div>
-						</div>
+					<Link to="/compass/settings" className="group block h-full">
+						<Card className="h-full transition-all group-hover:shadow-md border-2 border-blue-100 hover:border-blue-200">
+							<CardContent className="p-6 h-full flex flex-col">
+								<div className="w-12 h-12 bg-blue-100 rounded-lg flex items-center justify-center mb-4 group-hover:bg-blue-200 transition-colors">
+									<Vote className="h-6 w-6 text-blue-600" />
+								</div>
+								<h3 className="font-semibold text-lg mb-2">Kieswijzer</h3>
+								<p className="text-gray-600 text-sm leading-relaxed flex-grow">
+									Stem zélf op moties, voor úw onderwerpen. Zie welke partijen
+									het meest met u eens zijn.
+								</p>
+								<div className="mt-4 text-blue-600 text-sm font-medium group-hover:underline">
+									Start kieswijzer →
+								</div>
+							</CardContent>
+						</Card>
 					</Link>
 
-					<Link to="/moties" className="group">
-						<div className="bg-white border-2 border-green-100 rounded-lg p-6 hover:border-green-200 hover:shadow-md transition-all">
-							<div className="w-12 h-12 bg-green-100 rounded-lg flex items-center justify-center mb-4 group-hover:bg-green-200 transition-colors">
-								<Search className="h-6 w-6 text-green-600" />
-							</div>
-							<h3 className="font-semibold text-lg mb-2">Moties</h3>
-							<p className="text-gray-600 text-sm leading-relaxed">
-								Zie stemmingen per onderwerp. Zie voor úw onderwerp hoe partijen
-								hebben gestemd.
-							</p>
-							<div className="mt-4 text-green-600 text-sm font-medium group-hover:underline">
-								Bekijk moties →
-							</div>
-						</div>
+					<Link to="/moties" className="group block h-full">
+						<Card className="h-full transition-all group-hover:shadow-md border-2 border-green-100 hover:border-green-200">
+							<CardContent className="p-6 h-full flex flex-col">
+								<div className="w-12 h-12 bg-green-100 rounded-lg flex items-center justify-center mb-4 group-hover:bg-green-200 transition-colors">
+									<Search className="h-6 w-6 text-green-600" />
+								</div>
+								<h3 className="font-semibold text-lg mb-2">Moties</h3>
+								<p className="text-gray-600 text-sm leading-relaxed flex-grow">
+									Zie stemmingen per onderwerp. Zie voor úw onderwerp hoe
+									partijen hebben gestemd.
+								</p>
+								<div className="mt-4 text-green-600 text-sm font-medium group-hover:underline">
+									Bekijk moties →
+								</div>
+							</CardContent>
+						</Card>
 					</Link>
 
-					<Link to="/party-focus" className="group">
-						<div className="bg-white border-2 border-purple-100 rounded-lg p-6 hover:border-purple-200 hover:shadow-md transition-all">
-							<div className="w-12 h-12 bg-purple-100 rounded-lg flex items-center justify-center mb-4 group-hover:bg-purple-200 transition-colors">
-								<BarChart3 className="h-6 w-6 text-purple-600" />
-							</div>
-							<h3 className="font-semibold text-lg mb-2">Partijfocus</h3>
-							<p className="text-gray-600 text-sm leading-relaxed">
-								Bekijk de onderwerpen waar een partij de meeste moties over
-								indient.
-							</p>
-							<div className="mt-4 text-purple-600 text-sm font-medium group-hover:underline">
-								Bekijk focus →
-							</div>
-						</div>
+					<Link to="/party-focus" className="group block h-full">
+						<Card className="h-full transition-all group-hover:shadow-md border-2 border-purple-100 hover:border-purple-200">
+							<CardContent className="p-6 h-full flex flex-col">
+								<div className="w-12 h-12 bg-purple-100 rounded-lg flex items-center justify-center mb-4 group-hover:bg-purple-200 transition-colors">
+									<BarChart3 className="h-6 w-6 text-purple-600" />
+								</div>
+								<h3 className="font-semibold text-lg mb-2">Partijfocus</h3>
+								<p className="text-gray-600 text-sm leading-relaxed flex-grow">
+									Bekijk de onderwerpen waar een partij de meeste moties over
+									indient.
+								</p>
+								<div className="mt-4 text-purple-600 text-sm font-medium group-hover:underline">
+									Bekijk focus →
+								</div>
+							</CardContent>
+						</Card>
 					</Link>
 
-<Link to="/party-likeness" className="group">
-						<div className="bg-white border-2 border-orange-100 rounded-lg p-6 hover:border-orange-200 hover:shadow-md transition-all">
-							<div className="w-12 h-12 bg-orange-100 rounded-lg flex items-center justify-center mb-4 group-hover:bg-orange-200 transition-colors">
-								<Users className="h-6 w-6 text-orange-600" />
-							</div>
-							<h3 className="font-semibold text-lg mb-2">
-								Partijgelijkenissen
-							</h3>
-							<p className="text-gray-600 text-sm leading-relaxed">
-								Zie welke partijen qua stemgedrag op elkaar lijken, totaal en
-								per onderwerp.
-							</p>
-							<div className="mt-4 text-orange-600 text-sm font-medium group-hover:underline">
-								Bekijk gelijkenissen →
-							</div>
-						</div>
+					<Link to="/party-likeness" className="group block h-full">
+						<Card className="h-full transition-all group-hover:shadow-md border-2 border-orange-100 hover:border-orange-200">
+							<CardContent className="p-6 h-full flex flex-col">
+								<div className="w-12 h-12 bg-orange-100 rounded-lg flex items-center justify-center mb-4 group-hover:bg-orange-200 transition-colors">
+									<Users className="h-6 w-6 text-orange-600" />
+								</div>
+								<h3 className="font-semibold text-lg mb-2">
+									Partijgelijkenissen
+								</h3>
+								<p className="text-gray-600 text-sm leading-relaxed flex-grow">
+									Zie welke partijen qua stemgedrag op elkaar lijken, totaal en
+									per onderwerp.
+								</p>
+								<div className="mt-4 text-orange-600 text-sm font-medium group-hover:underline">
+									Bekijk gelijkenissen →
+								</div>
+							</CardContent>
+						</Card>
 					</Link>
 				</div>
 			</div>
@@ -137,13 +146,13 @@ export function HomePage() {
 							<div className="text-gray-600">Moties geanalyseerd</div>
 						</div>
 						<div>
-<div className="text-3xl font-bold text-blue-600 mb-2">
-	{isLoading ||
-	!motionStatisticsData?.firstMotionDate ||
-	!motionStatisticsData?.lastMotionDate
-		? "..."
-		: `${motionStatisticsData.firstMotionDate.getFullYear()}-${motionStatisticsData.lastMotionDate.getFullYear()}`}
-</div>
+							<div className="text-3xl font-bold text-blue-600 mb-2">
+								{isLoading ||
+								!motionStatisticsData?.firstMotionDate ||
+								!motionStatisticsData?.lastMotionDate
+									? "..."
+									: `${motionStatisticsData.firstMotionDate.getFullYear()}-${motionStatisticsData.lastMotionDate.getFullYear()}`}
+							</div>
 							<div className="text-gray-600">Periode van data</div>
 						</div>
 						<div>

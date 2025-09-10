@@ -213,8 +213,8 @@ const compassGetMotionDetailsContract = oc
 const motionGetStatisticsContract = oc.output(
 	z.object({
 		count: z.number(),
-firstMotionDate: z.coerce.date().nullable(),
-lastMotionDate: z.coerce.date().nullable(),
+		firstMotionDate: z.coerce.date().nullable(),
+		lastMotionDate: z.coerce.date().nullable(),
 	}),
 );
 
