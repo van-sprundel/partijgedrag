@@ -1,11 +1,13 @@
 import { ArrowRight, BarChart3, Search, Users, Vote } from "lucide-react";
 import { Link } from "react-router-dom";
+import { useGetMotionStatistics } from "@/hooks/useGetMotionsCount";
 import logo from "../assets/tug.png";
 import { Button } from "../components/ui/Button";
 
 export function HomePage() {
+	const { data: motionStatisticsData, isLoading } = useGetMotionStatistics();
 	return (
-		<div className="pb-16 bg-gray-50">
+		<div className="min-h-screen pb-16 bg-white">
 			{/* Hero Section */}
 			<div className="bg-gradient-to-b from-blue-50 to-white py-16 ">
 				<div className="container mx-auto px-4 text-center">
@@ -123,12 +125,14 @@ export function HomePage() {
 			</div>
 
 			{/* Key Stats */}
-			<div className="bg-white py-12">
+			<div className="bg-gray-50 py-12">
 				<div className="container mx-auto px-4 text-center">
 					<div className="grid md:grid-cols-3 gap-8">
 						<div>
 							<div className="text-3xl font-bold text-blue-600 mb-2">
-								40.984
+								{isLoading || !motionStatisticsData
+									? "..."
+									: motionStatisticsData.count.toLocaleString("nl-NL")}
 							</div>
 							<div className="text-gray-600">Moties geanalyseerd</div>
 						</div>

@@ -285,4 +285,40 @@ export const motionRouter = {
 
 		return { votes, partyPositions };
 	}),
+
+	getStatistics: os.motions.getStatistics.handler(async () => {
+		const count = await db.case.count({
+			where: {
+				type: "Motie",
+			},
+		});
+		const firstMotionDate = await db.case.findFirst({
+			where: {
+				type: "Motie",
+			},
+			select: {
+				apiUpdatedAt: true,
+			},
+			orderBy: {
+				apiUpdatedAt: "asc",
+			},
+		});
+		const lastMotionDate = await db.case.findFirst({
+			where: {
+				type: "Motie",
+			},
+			select: {
+				apiUpdatedAt: true,
+			},
+			orderBy: {
+				apiUpdatedAt: "desc",
+			},
+		});
+
+		return {
+			count,
+			lastMotionDate: lastMotionDate?.apiUpdatedAt,
+			firstMotionDate: firstMotionDate?.apiUpdatedAt,
+		};
+	}),
 };

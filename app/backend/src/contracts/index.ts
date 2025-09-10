@@ -210,13 +210,21 @@ const compassGetMotionDetailsContract = oc
 		}),
 	);
 
-// Contract router
+const motionGetStatisticsContract = oc.output(
+	z.object({
+		count: z.number(),
+		firstMotionDate: z.coerce.date(),
+		lastMotionDate: z.coerce.date(),
+	}),
+);
+
 export const apiContract = {
 	motions: {
 		getAll: motionGetAllContract,
 		getById: motionGetByIdContract,
 		getForCompass: motionGetForCompassContract,
 		getCategories: motionGetCategoriesContract,
+		getStatistics: motionGetStatisticsContract,
 		getVotes: motionGetVotesContract,
 	},
 	parties: {
