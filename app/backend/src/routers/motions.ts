@@ -118,9 +118,9 @@ export const motionRouter = {
 		if (categoryIds && categoryIds.length > 0) {
 			whereConditions.push(
 				Prisma.sql`EXISTS (
-                SELECT 1 FROM "CaseCategoryOnCase"
-                WHERE "caseId" = "zaken".id
-                AND "categoryId" IN (${Prisma.join(
+                SELECT 1 FROM "zaak_categories"
+                WHERE "zaak_id" = "zaken".id
+                AND "category_id" IN (${Prisma.join(
 									categoryIds.map((id) => Prisma.sql`${id}`),
 									",",
 								)})
