@@ -287,38 +287,25 @@ export const motionRouter = {
 	}),
 
 	getStatistics: os.motions.getStatistics.handler(async () => {
-		const count = await db.case.count({
+		const statistics = await db.case.aggregate({
 			where: {
 				type: "Motie",
 			},
-		});
-		const firstMotionDate = await db.case.findFirst({
-			where: {
-				type: "Motie",
+			_count: {
+				id: true,
 			},
-			select: {
+			_min: {
 				apiUpdatedAt: true,
 			},
-			orderBy: {
-				apiUpdatedAt: "asc",
-			},
-		});
-		const lastMotionDate = await db.case.findFirst({
-			where: {
-				type: "Motie",
-			},
-			select: {
+			_max: {
 				apiUpdatedAt: true,
-			},
-			orderBy: {
-				apiUpdatedAt: "desc",
 			},
 		});
 
 		return {
-			count,
-			lastMotionDate: lastMotionDate?.apiUpdatedAt,
-			firstMotionDate: firstMotionDate?.apiUpdatedAt,
+			count: statistics._count.id,
+			lastMotionDate: statistics._max.apiUpdatedAt,
+			firstMotionDate: statistics._min.apiUpdatedAt,
 		};
 	}),
 };
