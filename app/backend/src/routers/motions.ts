@@ -92,7 +92,14 @@ export const motionRouter = {
 
 		const whereConditions = [
 			Prisma.sql`"soort" = 'Motie'`,
-			Prisma.sql`EXISTS (SELECT 1 FROM "zaak_kamerstukdossiers" WHERE "zaak_id" = "zaken".id)`,
+			Prisma.sql`EXISTS (
+				SELECT 1
+				FROM "zaak_kamerstukdossiers" zkd
+				JOIN "kamerstukdossiers" kd ON kd.id = zkd.kamerstukdossier_id
+				WHERE zkd.zaak_id = "zaken".id
+				AND kd.bullet_points IS NOT NULL
+				AND jsonb_array_length(kd.bullet_points) > 0
+			)`,
 		];
 
 		if (excludeIds.length > 0) {
