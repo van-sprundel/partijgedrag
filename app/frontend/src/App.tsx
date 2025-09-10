@@ -8,6 +8,7 @@ import { CompassSettingsPage } from "./pages/CompassSettings";
 import { HomePage } from "./pages/Home";
 import { MotionsPage } from "./pages/Motions";
 import { PartyFocusPage } from "./pages/PartyFocus";
+import { PartyLikenessPage } from "./pages/PartyLikeness";
 import { ResultsPage } from "./pages/Results";
 
 const queryClient = new QueryClient({
@@ -31,6 +32,7 @@ function App() {
 						<Route path="/compass" element={<CompassPage />} />
 						<Route path="/results/:sessionId" element={<ResultsPage />} />
 						<Route path="/about" element={<AboutPage />} />
+						<Route path="/party-likeness" element={<PartyLikenessPage />} />
 						<Route path="/party-focus" element={<PartyFocusPage />} />
 						<Route path="/motions" element={<MotionsPage />} />
 						<Route path="*" element={<NotFoundPage />} />

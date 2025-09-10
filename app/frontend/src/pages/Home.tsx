@@ -5,8 +5,8 @@ import { Button } from "../components/ui/Button";
 
 export function HomePage() {
 	return (
-		<div className="pb-16 bg-white">
-			{/* Hero Section - Clean and Direct */}
+		<div className="pb-16 bg-gray-50">
+			{/* Hero Section */}
 			<div className="bg-gradient-to-b from-blue-50 to-white py-16 ">
 				<div className="container mx-auto px-4 text-center">
 					<div className="flex justify-center mb-6">
@@ -86,7 +86,7 @@ export function HomePage() {
 						</div>
 					</Link>
 
-					<Link to="/partijfocus" className="group">
+					<Link to="/party-focus" className="group">
 						<div className="bg-white border-2 border-purple-100 rounded-lg p-6 hover:border-purple-200 hover:shadow-md transition-all">
 							<div className="w-12 h-12 bg-purple-100 rounded-lg flex items-center justify-center mb-4 group-hover:bg-purple-200 transition-colors">
 								<BarChart3 className="h-6 w-6 text-purple-600" />
@@ -123,7 +123,7 @@ export function HomePage() {
 			</div>
 
 			{/* Key Stats */}
-			<div className="bg-gray-50 py-12">
+			<div className="bg-white py-12">
 				<div className="container mx-auto px-4 text-center">
 					<div className="grid md:grid-cols-3 gap-8">
 						<div>
