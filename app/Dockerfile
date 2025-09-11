@@ -2,10 +2,22 @@ FROM node:24-slim AS builder
 WORKDIR /app
 
 COPY package.json package-lock.json ./
-RUN npm install --omit=dev
+RUN npm install
 
+COPY backend/package.json backend/package-lock.json* ./backend/
+WORKDIR /app/backend
+RUN npm install
+
+WORKDIR /app
+COPY frontend/package.json frontend/package-lock.json* ./frontend/
+
+WORKDIR /app/frontend
+RUN npm install
+
+WORKDIR /app
 COPY . .
 
+RUN npm run db:generate --prefix backend
 RUN npm run build
 
 FROM node:24-slim
