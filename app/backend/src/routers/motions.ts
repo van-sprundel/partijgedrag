@@ -1,5 +1,5 @@
 import { implement } from "@orpc/server";
-import { type Case, type Party as PartyModel, Prisma } from "@prisma/client";
+import { type Party as PartyModel, Prisma } from "@prisma/client";
 import { apiContract, type VoteType } from "../contracts/index.js";
 import { db } from "../lib/db.js";
 import {
