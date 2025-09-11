@@ -2,13 +2,14 @@ import { onError, os } from "@orpc/server";
 import { RPCHandler } from "@orpc/server/node";
 import cors from "cors";
 import express from "express";
+import path from "path";
 import { db } from "./lib/db.js";
 import { compassRouter } from "./routers/compass.js";
 import { motionRouter } from "./routers/motions.js";
 import { partyRouter } from "./routers/parties.js";
 
 const app = express();
-const port = process.env.PORT || 3001;
+const port = process.env.PORT || 3000;
 
 // CORS configuration
 app.use(
@@ -47,7 +48,9 @@ app.use("/api*", async (req, res, next) => {
 
 app.use(express.json());
 
-// Create the main API router
+// Serve frontend
+const __dirname = path.dirname(new URL(import.meta.url).pathname);
+app.use(express.static(path.join(__dirname, "../public")));
 
 // Health check endpoint
 app.get("/health", (_req, res) => {
@@ -64,6 +67,11 @@ app.get("/", (_req, res) => {
 			health: "/health",
 		},
 	});
+});
+
+// Catch-all to serve index.html
+app.get("*", (_req, res) => {
+    res.sendFile(path.join(__dirname, "../public", "index.html"));
 });
 
 // Error handling middleware
