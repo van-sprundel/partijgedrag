@@ -135,14 +135,7 @@ export function ResultsPage() {
 			{/* Header */}
 			<div className="bg-white shadow-sm">
 				<div className="container mx-auto px-4 py-4">
-					<div className="flex items-center justify-between">
-						<Link
-							to="/"
-							className="flex items-center text-gray-600 hover:text-gray-900"
-						>
-							<ArrowLeft className="h-5 w-5 mr-2" />
-							Terug naar home
-						</Link>
+					<div className="flex items-center justify-end">
 						<div className="flex items-center gap-2">
 							<Button
 								variant="ghost"

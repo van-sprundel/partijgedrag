@@ -53,14 +53,14 @@ export const compassRouter = {
 		});
 
 		// Get detailed motion breakdown if requested
-		// const answers = session.answers as UserAnswer[];
-		// const motionDetails = await getMotionVoteDetails(answers);
+		const answers = session.answers as UserAnswer[];
+		const motionDetails = await getMotionVoteDetails(answers);
 
 		return {
 			id: session.id,
 			totalAnswers: results.totalAnswers,
 			partyResults: results.partyResults,
-			motionDetails: [],
+			motionDetails,
 			createdAt: session.createdAt,
 		};
 	}),
@@ -288,96 +288,96 @@ async function calculatePartyAlignment(answers: UserAnswer[]) {
 	}));
 }
 
-// async function getMotionVoteDetails(answers: UserAnswer[]) {
-// 	const motionIds = answers.map((a) => a.motionId);
+async function getMotionVoteDetails(answers: UserAnswer[]) {
+	const motionIds = answers.map((a) => a.motionId);
 
-// 	const motions = await db.case.findMany({
-// 		where: { id: { in: motionIds } },
-// 		include: {
-// 			parliamentaryDocuments: {
-// 				include: {
-// 					parliamentaryDocument: true,
-// 				},
-// 			},
-// 		},
-// 	});
+	const motions = await db.case.findMany({
+		where: { id: { in: motionIds } },
+		include: {
+			parliamentaryDocuments: {
+				include: {
+					parliamentaryDocument: true,
+				},
+			},
+		},
+	});
 
-// 	const votes = await db.vote.findMany({
-// 		where: {
-// 			decision: {
-// 				caseId: { in: motionIds },
-// 			},
-// 		},
-// 		include: {
-// 			party: true,
-// 			politician: true,
-// 			decision: true,
-// 		},
-// 	});
+	const votes = await db.vote.findMany({
+		where: {
+			decision: {
+				caseId: { in: motionIds },
+			},
+		},
+		include: {
+			party: true,
+			politician: true,
+			decision: true,
+		},
+	});
 
-// 	return answers.map((answer) => {
-// 		const motion = motions.find((m) => m.id === answer.motionId);
-// 		const motionVotes = votes.filter(
-// 			(v) => v.decision?.caseId === answer.motionId,
-// 		);
+	return answers.map((answer) => {
+		const motion = motions.find((m) => m.id === answer.motionId);
+		const motionVotes = votes.filter(
+			(v) => v.decision?.caseId === answer.motionId,
+		);
 
-// 		const partyVotes = new Map<
-// 			string,
-// 			{ party: PartyModel; votes: VoteType[]; majorityVote: VoteType }
-// 		>();
+		const partyVotes = new Map<
+			string,
+			{ party: PartyModel; votes: VoteType[]; majorityVote: VoteType }
+		>();
 
-// 		motionVotes.forEach((vote) => {
-// 			if (vote.partyId && vote.party && vote.type) {
-// 				if (!partyVotes.has(vote.partyId)) {
-// 					partyVotes.set(vote.partyId, {
-// 						party: vote.party,
-// 						votes: [],
-// 						majorityVote: "NEUTRAL",
-// 					});
-// 				}
-// 				partyVotes.get(vote.partyId)?.votes.push(vote.type);
-// 			}
-// 		});
+		motionVotes.forEach((vote) => {
+			if (vote.partyId && vote.party && vote.type) {
+				if (!partyVotes.has(vote.partyId)) {
+					partyVotes.set(vote.partyId, {
+						party: vote.party,
+						votes: [],
+						majorityVote: "NEUTRAL",
+					});
+				}
+				partyVotes.get(vote.partyId)?.votes.push(vote.type);
+			}
+		});
 
-// 		partyVotes.forEach((partyData, _partyId) => {
-// 			const voteCounts = partyData.votes.reduce(
-// 				(acc, vote) => {
-// 					acc[vote as VoteType] = (acc[vote as VoteType] || 0) + 1;
-// 					return acc;
-// 				},
-// 				{} as Record<VoteType, number>,
-// 			);
+		partyVotes.forEach((partyData, _partyId) => {
+			const voteCounts = partyData.votes.reduce(
+				(acc, vote) => {
+					acc[vote as VoteType] = (acc[vote as VoteType] || 0) + 1;
+					return acc;
+				},
+				{} as Record<VoteType, number>,
+			);
 
-// 			const majorityVote =
-// 				Object.keys(voteCounts).length > 0
-// 					? Object.entries(voteCounts).reduce((a, b) =>
-// 							a[1] > b[1] ? a : b,
-// 						)[0]
-// 					: null;
+			const majorityVote =
+				Object.keys(voteCounts).length > 0
+					? Object.entries(voteCounts).reduce((a, b) =>
+							a[1] > b[1] ? a : b,
+						)[0]
+					: null;
 
-// 			partyData.majorityVote = (majorityVote ?? "NEUTRAL") as VoteType;
-// 		});
+			partyData.majorityVote = (majorityVote ?? "NEUTRAL") as VoteType;
+		});
 
-// 		const partyPositions = Array.from(partyVotes.values()).map(
-// 			({ party, votes, majorityVote }) => ({
-// 				party: mapPartyToContract(party),
-// 				position: majorityVote,
-// 				voteCount: votes.length,
-// 				agreesWithUser:
-// 					majorityVote !== "NEUTRAL" &&
-// 					((answer.answer === "agree" && majorityVote === "FOR") ||
-// 						(answer.answer === "disagree" && majorityVote === "AGAINST") ||
-// 						answer.answer === "neutral"),
-// 			}),
-// 		);
+		const partyPositions = Array.from(partyVotes.values()).map(
+			({ party, votes, majorityVote }) => ({
+				party: mapPartyToContract(party),
+				position: majorityVote,
+				voteCount: votes.length,
+				agreesWithUser:
+					majorityVote !== "NEUTRAL" &&
+					((answer.answer === "agree" && majorityVote === "FOR") ||
+						(answer.answer === "disagree" && majorityVote === "AGAINST") ||
+						answer.answer === "neutral"),
+			}),
+		);
 
-// 		const dossier = motion?.parliamentaryDocuments[0]?.parliamentaryDocument;
+		const dossier = motion?.parliamentaryDocuments[0]?.parliamentaryDocument;
 
-// 		return {
-// 			motionId: answer.motionId,
-// 			userAnswer: answer.answer,
-// 			motion: motion ? mapCaseToMotion(motion, dossier) : null,
-// 			partyPositions,
-// 		};
-// 	});
-// }
+		return {
+			motionId: answer.motionId,
+			userAnswer: answer.answer,
+			motion: motion ? mapCaseToMotion(motion, dossier) : null,
+			partyPositions,
+		};
+	});
+}
