@@ -20,9 +20,8 @@ FROM node:24-slim
 WORKDIR /app
 
 ARG DATABASE_URL
-ARG NODE_ENV=production
 ENV DATABASE_URL=${DATABASE_URL}
-ENV NODE_ENV=${NODE_ENV}
+ENV NODE_ENV=production
 
 COPY --from=base /app/ .
 RUN npm ci --production
@@ -30,6 +29,7 @@ RUN npm ci --production
 COPY --from=build /app/backend/dist ./dist
 COPY --from=build /app/frontend/dist ./public
 COPY --from=build /app/backend/prisma ./prisma
+COPY --from=build /app/node_modules/@prisma/client ./node_modules/@prisma/client
 
 EXPOSE 3000
 CMD ["node", "dist/index.js"]

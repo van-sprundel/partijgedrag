@@ -1,6 +1,8 @@
 FROM golang:alpine AS builder
-
 WORKDIR /app
+
+ARG DATABASE_URL
+ENV DATABASE_URL=${DATABASE_URL}
 
 COPY go.mod go.sum ./
 
