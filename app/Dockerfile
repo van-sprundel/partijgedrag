@@ -1,22 +1,18 @@
-FROM node:24-slim AS builder
+FROM node:24-slim AS base
 WORKDIR /app
 
-COPY package.json package-lock.json ./
-RUN npm install
+COPY package.json package-lock.json* ./
+COPY backend/package.json ./backend/
+COPY frontend/package.json ./frontend/
 
-COPY backend/package.json backend/package-lock.json* ./backend/
-WORKDIR /app/backend
-RUN npm install
+FROM base AS dependencies
+RUN npm ci
 
+FROM node:24-slim AS build
 WORKDIR /app
-COPY frontend/package.json frontend/package-lock.json* ./frontend/
 
-WORKDIR /app/frontend
-RUN npm install
-
-WORKDIR /app
+COPY --from=dependencies /app/node_modules ./node_modules
 COPY . .
-
 RUN npm run db:generate --prefix backend
 RUN npm run build
 
@@ -28,10 +24,12 @@ ARG NODE_ENV=production
 ENV DATABASE_URL=${DATABASE_URL}
 ENV NODE_ENV=${NODE_ENV}
 
-COPY --from=builder /app/backend/dist ./dist
-COPY --from=builder /app/node_modules ./node_modules
-COPY --from=builder /app/backend/package.json ./
-COPY --from=builder /app/frontend/dist ./public
+COPY --from=base /app/ .
+RUN npm ci --production
+
+COPY --from=build /app/backend/dist ./dist
+COPY --from=build /app/frontend/dist ./public
+COPY --from=build /app/backend/prisma ./prisma
 
 EXPOSE 3000
 CMD ["node", "dist/index.js"]
