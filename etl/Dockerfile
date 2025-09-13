@@ -19,7 +19,7 @@ WORKDIR /app
 RUN apk add --no-cache busybox-suid
 
 COPY --from=builder /app/etl .
-COPY configs/config.yaml ./configs/config.yaml
+COPY configs ./configs
 COPY crontab /etc/crontabs/root
 
 # Give execution rights on the cron job

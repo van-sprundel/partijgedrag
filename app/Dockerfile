@@ -30,9 +30,11 @@ ARG NODE_ENV=production
 ENV DATABASE_URL=${DATABASE_URL}
 ENV NODE_ENV=${NODE_ENV}
 
+RUN apt-get update && apt-get install -y openssl && rm -rf /var/lib/apt/lists/*
+
 COPY package.json package-lock.json* ./
 COPY backend/package.json ./backend/
-RUN npm ci --production --ignore-scripts
+RUN npm ci --omit=dev --ignore-scripts
 
 COPY --from=backend-build /app/backend/dist ./dist
 COPY --from=frontend-build /app/frontend/dist ./public
