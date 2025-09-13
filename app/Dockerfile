@@ -17,7 +17,9 @@ RUN npm run build --prefix backend
 FROM node:24-slim AS frontend-build
 WORKDIR /app
 COPY --from=dependencies /app/node_modules ./node_modules
+COPY backend/ ./backend/
 COPY frontend/ ./frontend/
+RUN npm run db:generate --prefix backend
 RUN npm run build --prefix frontend
 
 FROM node:24-slim
