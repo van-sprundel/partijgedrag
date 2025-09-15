@@ -1,15 +1,16 @@
+import path from "node:path";
 import { onError, os } from "@orpc/server";
 import { RPCHandler } from "@orpc/server/node";
 import cors from "cors";
 import express from "express";
-import path from "path";
 import { db } from "./lib/db.js";
 import { compassRouter } from "./routers/compass.js";
 import { motionRouter } from "./routers/motions.js";
 import { partyRouter } from "./routers/parties.js";
 
 const app = express();
-const port = process.env.PORT || 3000;
+const host = process.env.HOST || "0.0.0.0";
+const port = Number(process.env.PORT ?? 3000);
 
 // CORS configuration
 app.use(
@@ -71,7 +72,7 @@ app.get("/", (_req, res) => {
 
 // Catch-all to serve index.html
 app.get("*", (_req, res) => {
-    res.sendFile(path.join(__dirname, "../public", "index.html"));
+	res.sendFile(path.join(__dirname, "../public", "index.html"));
 });
 
 // Error handling middleware
@@ -94,10 +95,10 @@ app.use(
 );
 
 // Start server
-app.listen(port, () => {
-	console.log(`🚀 Server running on http://localhost:${port}`);
-	console.log(`📡 API available at http://localhost:${port}/api`);
-	console.log(`🔍 Health check at http://localhost:${port}/health`);
+app.listen(port, host, () => {
+	console.log(`🚀 Server running on http://0.0.0.0:${port}`);
+	console.log(`📡 API available at http://0.0.0.0:${port}/api`);
+	console.log(`🔍 Health check at http://0.0.0.0:${port}/health`);
 });
 
 // Graceful shutdown

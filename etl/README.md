@@ -1,11 +1,40 @@
-## Schema
+# Install
 
-![](https://opendata.tweedekamer.nl/sites/default/files/styles/wide/public/images/OpenDataPortaal_InformatiemodelAlgemeen_3.png?itok=QTedYNs1)
+## ETL
 
-## Info
-etl can be ran using a crontab
-```bash
-0 2 * * * [path]/etl >> /var/log/etl.log 2>&1
+### Sync
+
+This will also setup the GORM DB schema
+
+```sh
+# Use any period you want
+go run cmd/etl/main.go -after this-week
 ```
 
-make sure a postgres db exists and `DATABASE_URL` is set in env
+### Seed Categories
+
+```sh
+go run cmd/manage_categories/main.go --action=seed
+```
+
+### Enrich motions with categories
+
+```sh
+go run cmd/manage_categories/main.go --action=enrich
+```
+
+## Web App
+
+Setup .env both in Frontend and Backend
+
+### Backend
+
+```sh
+npm run dev
+```
+
+### Frontend
+
+```sh
+npm run dev
+```
