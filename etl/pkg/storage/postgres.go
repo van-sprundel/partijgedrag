@@ -30,21 +30,6 @@ func NewPostgresStorage(config config.StorageConfig) (*PostgresStorage, error) {
 		return nil, fmt.Errorf("failed to connect to database: %w", err)
 	}
 
-	// Auto-migrate all models
-	if err := db.AutoMigrate(
-		&models.Zaak{},
-		&models.Besluit{},
-		&models.Stemming{},
-		&models.Persoon{},
-		&models.Fractie{},
-		&models.ZaakActor{},
-		&models.Kamerstukdossier{},
-		&models.MotionCategory{},
-		&models.ZaakCategory{},
-	); err != nil {
-		return nil, fmt.Errorf("failed to migrate schema: %w", err)
-	}
-
 	return &PostgresStorage{db: db}, nil
 }
 
@@ -224,6 +209,20 @@ func (s *PostgresStorage) GetZakenForEnrichment(ctx context.Context) ([]models.Z
 	return zaken, err
 }
 
+func (s *PostgresStorage) Migrate(ctx context.Context) error {
+	return s.db.WithContext(ctx).AutoMigrate(
+		&models.Zaak{},
+		&models.Besluit{},
+		&models.Stemming{},
+		&models.Persoon{},
+		&models.Fractie{},
+		&models.ZaakActor{},
+		&models.Kamerstukdossier{},
+		&models.MotionCategory{},
+		&models.ZaakCategory{},
+	)
+}
+
 func (s *PostgresStorage) ResetDatabase(ctx context.Context) error {
 	// This is a destructive operation.
 	// It will drop all tables defined in the models.
@@ -244,9 +243,5 @@ func (s *PostgresStorage) ResetDatabase(ctx context.Context) error {
 	}
 
 	// Now, re-create the tables using AutoMigrate.
-	if err := s.db.WithContext(ctx).AutoMigrate(allModels...); err != nil {
-		return fmt.Errorf("failed to migrate schema: %w", err)
-	}
-
-	return nil
+	return s.Migrate(ctx)
 }
