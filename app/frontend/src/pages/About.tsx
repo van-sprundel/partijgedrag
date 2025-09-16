@@ -35,14 +35,8 @@ export function AboutPage() {
 					{!isLoading && (
 						<>
 							<strong>{motionStatisticsData?.count}</strong>, van{" "}
-							{motionStatisticsData?.firstMotionDate?.toLocaleDateString(
-								"nl-NL",
-							)}{" "}
-							tot{" "}
-							{motionStatisticsData?.lastMotionDate?.toLocaleDateString(
-								"nl-NL",
-							)}
-							.
+							{motionStatisticsData?.firstMotionDate?.toLocaleDateString()} tot{" "}
+							{motionStatisticsData?.lastMotionDate?.toLocaleDateString()}.
 						</>
 					)}
 				</p>
