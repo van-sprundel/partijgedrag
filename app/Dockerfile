@@ -22,14 +22,13 @@ FROM node-with-ssl AS build
 WORKDIR /app
 
 COPY --from=dependencies /app/node_modules ./node_modules
-COPY backend/package.json ./backend/
+COPY --from=dependencies /app/backend/package.json ./backend/
 COPY backend/prisma/ ./backend/prisma/
 
 RUN npm run db:generate --prefix backend
 
 # ---
 FROM build AS backend-build
-WORKDIR /app
 
 COPY backend/src/ ./backend/src/
 COPY backend/tsconfig.json ./backend/
@@ -38,7 +37,6 @@ RUN npm run build --prefix backend
 
 # ---
 FROM build AS frontend-build
-WORKDIR /app
 
 COPY frontend/ ./frontend/
 COPY backend/src/contracts/ ./backend/src/contracts/
