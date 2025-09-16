@@ -42,8 +42,9 @@ COPY backend/src/ ./backend/src/
 RUN npm run build --prefix backend
 
 # ---
-FROM build-base AS frontend-build
+FROM prisma-gen AS frontend-build
 
+COPY backend/tsconfig.json ./backend/
 COPY backend/src/ ./backend/src/
 COPY frontend/ ./frontend/
 RUN npm run build --prefix frontend
