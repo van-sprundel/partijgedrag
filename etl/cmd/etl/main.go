@@ -54,6 +54,12 @@ func main() {
 		log.Println("Database cleaning complete.")
 	}
 
+	log.Println("Migrating database...")
+	if err := store.Migrate(context.Background()); err != nil {
+		log.Fatalf("Failed to migrate database: %v", err)
+	}
+	log.Println("Database migration complete.")
+
 	var afterTime *time.Time
 
 

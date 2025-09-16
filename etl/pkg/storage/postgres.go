@@ -30,21 +30,6 @@ func NewPostgresStorage(config config.StorageConfig) (*PostgresStorage, error) {
 		return nil, fmt.Errorf("failed to connect to database: %w", err)
 	}
 
-	// Auto-migrate all models
-	if err := db.AutoMigrate(
-		&models.Zaak{},
-		&models.Besluit{},
-		&models.Stemming{},
-		&models.Persoon{},
-		&models.Fractie{},
-		&models.ZaakActor{},
-		&models.Kamerstukdossier{},
-		&models.MotionCategory{},
-		&models.ZaakCategory{},
-	); err != nil {
-		return nil, fmt.Errorf("failed to migrate schema: %w", err)
-	}
-
 	return &PostgresStorage{db: db}, nil
 }
 
@@ -244,4 +229,18 @@ func (s *PostgresStorage) CleanDatabase(ctx context.Context) error {
 
 	log.Println("Finished cleaning orphaned rows.")
 	return nil
+}
+
+func (s *PostgresStorage) Migrate(ctx context.Context) error {
+	return s.db.WithContext(ctx).AutoMigrate(
+		&models.Zaak{},
+		&models.Besluit{},
+		&models.Stemming{},
+		&models.Persoon{},
+		&models.Fractie{},
+		&models.ZaakActor{},
+		&models.Kamerstukdossier{},
+		&models.MotionCategory{},
+		&models.ZaakCategory{},
+	)
 }
