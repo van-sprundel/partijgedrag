@@ -17,7 +17,7 @@ export function Header() {
 					<Link to="/compass/settings">
 						<Button variant="ghost">Stemwijzer</Button>
 					</Link>
-					<Link to="/party-focus">
+					{/*<Link to="/party-focus">
 						<Button variant="ghost">Partijfocus</Button>
 					</Link>
 					<Link to="/party-likeness">
@@ -25,7 +25,7 @@ export function Header() {
 					</Link>
 					<Link to="/motions">
 						<Button variant="ghost">Moties</Button>
-					</Link>
+					</Link>*/}
 					<Link to="/about">
 						<Button variant="ghost">Over ons</Button>
 					</Link>
