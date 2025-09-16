@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"log"
+	"strings"
 	"time"
 
 	"etl/internal/config"
@@ -210,24 +211,28 @@ func (s *PostgresStorage) GetZakenForEnrichment(ctx context.Context) ([]models.Z
 }
 
 func (s *PostgresStorage) CleanDatabase(ctx context.Context) error {
-	log.Println("Cleaning orphaned rows from zaak_kamerstukdossiers...")
-	query1 := `
-		DELETE FROM zaak_kamerstukdossiers
-		WHERE kamerstukdossier_id NOT IN (SELECT id FROM kamerstukdossiers);
-	`
-	if err := s.db.WithContext(ctx).Exec(query1).Error; err != nil {
-		return fmt.Errorf("failed to delete orphaned rows by kamerstukdossier_id: %w", err)
+	log.Println("Cleaning all data from database tables...")
+
+	tables := []string{
+		"zaken",
+		"besluiten",
+		"stemmingen",
+		"personen",
+		"fracties",
+		"zaak_actors",
+		"kamerstukdossiers",
+		"motion_categories",
+		"zaak_categories",
+		"zaak_kamerstukdossiers",
 	}
 
-	query2 := `
-		DELETE FROM zaak_kamerstukdossiers
-		WHERE zaak_id NOT IN (SELECT id FROM zaken);
-	`
-	if err := s.db.WithContext(ctx).Exec(query2).Error; err != nil {
-		return fmt.Errorf("failed to delete orphaned rows by zaak_id: %w", err)
+	query := fmt.Sprintf("TRUNCATE TABLE %s RESTART IDENTITY CASCADE", strings.Join(tables, ", "))
+
+	if err := s.db.WithContext(ctx).Exec(query).Error; err != nil {
+		return fmt.Errorf("failed to truncate tables: %w", err)
 	}
 
-	log.Println("Finished cleaning orphaned rows.")
+	log.Println("Finished cleaning database.")
 	return nil
 }
 
