@@ -1,4 +1,14 @@
-import { ArrowLeft, ArrowRight, CheckCircle, RotateCcw } from "lucide-react";
+import {
+	ArrowLeft,
+	ArrowRight,
+	CheckCircle,
+	ChevronDown,
+	ChevronUp,
+	Meh,
+	RotateCcw,
+	ThumbsDown,
+	ThumbsUp,
+} from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 import { Link, useNavigate, useSearchParams } from "react-router-dom";
 import { Button } from "../components/ui/Button";
@@ -15,8 +25,8 @@ import {
 	useCompassResults,
 	useSubmitAnswers,
 } from "../hooks/api";
-import type { UserAnswer } from "../lib/api";
-import { calculateProgress, truncateText } from "../lib/utils";
+import type { Motion, UserAnswer } from "../lib/api";
+import { calculateProgress } from "../lib/utils";
 
 type Answer = "agree" | "disagree" | "neutral";
 
@@ -36,6 +46,10 @@ export function CompassPage() {
 		showExplanation: false,
 	});
 
+	const [motions, setMotions] = useState<Motion[]>([]);
+	const [hasMore, setHasMore] = useState(true);
+	const [showAllBulletPoints, setShowAllBulletPoints] = useState(false);
+
 	// Get existing results if continuing a session
 	const { data: existingResults } = useCompassResults(sessionId || "");
 
@@ -54,14 +68,32 @@ export function CompassPage() {
 		};
 	}, [searchParams]);
 
-	const {
-		data: motions = [],
-		isLoading,
-		isError,
-		error,
-	} = useCompassMotions(20, [], filterParams.categoryIds, filterParams.after);
-
 	const submitAnswers = useSubmitAnswers();
+
+	const {
+		data: newMotions,
+		isLoading,
+		isFetching,
+		isError,
+	} = useCompassMotions(
+		20,
+		motions.map((m) => m.id),
+		filterParams.categoryIds,
+		filterParams.after,
+	);
+
+	useEffect(() => {
+		if (newMotions) {
+			if (newMotions.length < 20) {
+				setHasMore(false);
+			}
+			setMotions((prev) => {
+				const existingIds = new Set(prev.map((m) => m.id));
+				const uniqueNew = newMotions.filter((m) => !existingIds.has(m.id));
+				return [...prev, ...uniqueNew];
+			});
+		}
+	}, [newMotions]);
 
 	// Load existing answers when continuing a session
 	useEffect(() => {
@@ -92,7 +124,18 @@ export function CompassPage() {
 		: motions[state.currentIndex];
 	const totalMotions = sessionId ? unansweredMotions.length : motions.length;
 	const progress = calculateProgress(state.currentIndex + 1, totalMotions);
-	const isLastQuestion = state.currentIndex === totalMotions - 1;
+	const isLastQuestion = !hasMore && state.currentIndex === totalMotions - 1;
+
+	const displayedBulletPoints = useMemo(() => {
+		const allPoints = currentMotion?.bulletPoints || [];
+		if (showAllBulletPoints) {
+			return allPoints;
+		}
+		const verzoektPoints = allPoints.filter((p) =>
+			p.toLowerCase().trimStart().startsWith("verzoekt"),
+		);
+		return verzoektPoints.length > 0 ? verzoektPoints : allPoints;
+	}, [currentMotion, showAllBulletPoints]);
 
 	const handleAnswer = (answer: Answer) => {
 		if (!currentMotion) return;
@@ -117,13 +160,13 @@ export function CompassPage() {
 
 		// Auto-advance to next question after a short delay
 		setTimeout(() => {
-			if (!isLastQuestion) {
+			setShowAllBulletPoints(false); // Reset bullet points view for next question
+			if (state.currentIndex < motions.length - 1) {
 				setState((prev) => ({
 					...prev,
 					currentIndex: prev.currentIndex + 1,
 				}));
 			}
-			// Don't auto-submit on last question - let user control when to submit
 		}, 300);
 	};
 
@@ -142,8 +185,9 @@ export function CompassPage() {
 			answers: sessionId ? [] : [],
 			showExplanation: false,
 		});
+		setMotions([]); // Clear motions for a fresh start
+		setHasMore(true);
 		if (sessionId) {
-			// Navigate to new compass session
 			navigate("/compass");
 		}
 	};
@@ -153,35 +197,10 @@ export function CompassPage() {
 	};
 
 	if (isError) {
-		console.log(error);
-		return (
-			<div className="min-h-screen bg-gray-50 flex items-center justify-center">
-				<Card className="max-w-md mx-auto">
-					<CardHeader>
-						<CardTitle>Fout bij laden</CardTitle>
-						<CardDescription>
-							Er is een fout opgetreden bij het laden van de stellingen.
-						</CardDescription>
-					</CardHeader>
-					<CardContent>
-						<div className="flex gap-2">
-							<Button
-								onClick={() => window.location.reload()}
-								variant="primary"
-							>
-								Probeer opnieuw
-							</Button>
-							<Link to="/">
-								<Button variant="secondary">Terug naar home</Button>
-							</Link>
-						</div>
-					</CardContent>
-				</Card>
-			</div>
-		);
+		return <div>Error loading questions...</div>; // Simplified error display
 	}
 
-	if (isLoading) {
+	if ((isLoading && motions.length === 0) || (isFetching && !currentMotion)) {
 		return (
 			<div className="min-h-screen bg-gray-50 flex items-center justify-center">
 				<div className="text-center">
@@ -192,266 +211,113 @@ export function CompassPage() {
 		);
 	}
 
-	if (motions.length === 0) {
-		return (
-			<div className="min-h-screen bg-gray-50 flex items-center justify-center">
-				<Card className="max-w-md mx-auto">
-					<CardHeader>
-						<CardTitle>Geen stellingen gevonden</CardTitle>
-						<CardDescription>
-							Er zijn geen stellingen gevonden die overeenkomen met de
-							geselecteerde filters.
-						</CardDescription>
-					</CardHeader>
-					<CardContent>
-						<Link to={`/compass/settings?${searchParams.toString()}`}>
-							<Button variant="primary">Pas filters aan</Button>
-						</Link>
-					</CardContent>
-				</Card>
-			</div>
-		);
-	}
-
-	// Show completion message if continuing session and no more unanswered motions
-	if (sessionId && unansweredMotions.length === 0 && state.answers.length > 0) {
-		return (
-			<div className="min-h-screen bg-gray-50 flex items-center justify-center">
-				<Card className="max-w-md mx-auto">
-					<CardHeader>
-						<CardTitle>🎉 Alle stellingen beantwoord!</CardTitle>
-						<CardDescription>
-							Je hebt alle beschikbare stellingen beantwoord. Bekijk je
-							resultaten of start een nieuwe stemwijzer.
-						</CardDescription>
-					</CardHeader>
-					<CardContent>
-						<div className="flex gap-2">
-							<Link to={`/results/${sessionId}`}>
-								<Button variant="primary">Bekijk resultaten</Button>
-							</Link>
-							<Link to="/compass">
-								<Button variant="secondary">Nieuwe stemwijzer</Button>
-							</Link>
-						</div>
-					</CardContent>
-				</Card>
-			</div>
-		);
+	if (motions.length === 0 && !isLoading && !isFetching) {
+		return <div>No motions found for the selected filters.</div>; // Simplified display
 	}
 
 	return (
-		<div className="min-h-screen bg-gray-50 pb-32">
-			{/* Header */}
-			<div className="bg-white shadow-sm">
-				<div className="container mx-auto px-4 py-4">
+		<div className="min-h-screen bg-gray-50 pb-48">
+			{/* --- Sticky Header --- */}
+			<div className="sticky top-0 bg-white shadow-sm z-20">
+				<div className="container mx-auto px-4 py-3">
 					<div className="flex items-center justify-between">
 						<Link
 							to="/compass/settings"
-							className="flex items-center text-gray-600 hover:text-gray-900"
+							className="flex items-center text-sm text-gray-600 hover:text-gray-900 whitespace-nowrap"
 						>
-							<ArrowLeft className="h-5 w-5 mr-2" />
-							Terug naar instellingen
+							<ArrowLeft className="h-4 w-4 mr-2" />
+							Instellingen
 						</Link>
-						<div className="flex items-center gap-4">
-							{sessionId && (
-								<Link to={`/results/${sessionId}`}>
-									<Button variant="ghost" size="sm">
-										Huidige resultaten
-									</Button>
-								</Link>
-							)}
-							<span className="text-sm text-gray-600">
-								{sessionId
-									? `${state.currentIndex + 1} van ${unansweredMotions.length} nieuwe stellingen`
-									: `Vraag ${state.currentIndex + 1} van ${motions.length}`}
+						<div className="max-w-lg flex-grow">
+							<Progress value={progress} />
+						</div>
+						<div className="flex items-center gap-2 whitespace-nowrap">
+							<span className="text-sm font-medium text-gray-700">
+								Vraag {state.currentIndex + 1}
 							</span>
 							<Button
 								variant="ghost"
-								size="sm"
+								size="icon"
 								onClick={handleReset}
 								className="text-gray-500 hover:text-gray-700"
+								aria-label="Reset compass"
 							>
-								<RotateCcw className="h-4 w-4 mr-1" />
-								{sessionId ? "Nieuwe sessie" : "Opnieuw"}
+								<RotateCcw className="h-4 w-4" />
 							</Button>
 						</div>
 					</div>
 				</div>
 			</div>
 
-			{/* Progress */}
+			{/* --- Main Content --- */}
 			<div className="container mx-auto px-4 py-6">
-				{/* Filter info */}
-				{(filterParams.categoryIds || filterParams.after) && (
-					<div className="max-w-4xl mx-auto mb-6 p-4 bg-green-50 border border-green-200 rounded-lg">
-						<div className="flex items-start justify-between">
-							<div>
-								<p className="text-green-800 font-medium mb-1">
-									🎯 Actieve filters:
-								</p>
-								<ul className="text-green-700 text-sm space-y-1">
-									{filterParams.categoryIds && (
-										<li>
-											• <strong>Onderwerpen:</strong>{" "}
-											{filterParams.categoryIds.length} categorie(ën)
-											geselecteerd
-										</li>
-									)}
-									{filterParams.after && (
-										<li>
-											• <strong>Periode:</strong> Vanaf{" "}
-											{filterParams.after.toLocaleDateString("nl-NL")} (huidige
-											coalitie)
-										</li>
-									)}
-								</ul>
-							</div>
-							<Link
-								to={`/compass/settings?${new URLSearchParams(
-									Object.entries(filterParams)
-										.filter(([, value]) => value !== undefined)
-										.map(([key, value]) => [key, String(value)]),
-								).toString()}`}
-							>
-								<Button
-									variant="ghost"
-									size="sm"
-									className="text-green-700 hover:text-green-800"
-								>
-									Wijzig filters
-								</Button>
-							</Link>
-						</div>
-					</div>
-				)}
-
-				{sessionId && state.answers.length > 0 && (
-					<div className="max-w-4xl mx-auto mb-6 p-4 bg-blue-50 border border-blue-200 rounded-lg">
-						<p className="text-blue-800">
-							Je zet een bestaande sessie voort met {state.answers.length}{" "}
-							eerder beantwoorde stellingen.
-							{unansweredMotions.length > 0 &&
-								` We tonen je nu ${unansweredMotions.length} nieuwe stellingen.`}
-						</p>
-					</div>
-				)}
-				<Progress value={progress} showValue className="mb-8" />
-
-				{/* Question Card */}
-				<div className="max-w-4xl mx-auto mb-8">
+				<div className="max-w-4xl mx-auto">
 					<Card
-						className={`mb-6 ${getCurrentAnswer() ? "ring-2 ring-green-200 bg-green-50" : ""}`}
+						className={`mb-6 transition-all ${getCurrentAnswer() ? "ring-2 ring-green-200 bg-green-50/50" : ""}`}
 					>
 						<CardHeader>
-							<div className="flex items-start justify-between">
-								<div className="flex-1">
-									<div className="flex items-center gap-3 mb-3">
-										<CardTitle className="text-2xl">
-											{currentMotion?.title}
-										</CardTitle>
-										{getCurrentAnswer() && (
-											<span className="text-green-600 text-xl">
-												{getCurrentAnswer() === "agree"
-													? "👍"
-													: getCurrentAnswer() === "neutral"
-														? "🤷"
-														: "👎"}
-											</span>
-										)}
-									</div>
-									{getCurrentAnswer() && (
-										<div className="inline-flex items-center gap-2 mb-2 text-sm font-medium text-green-700">
-											<span>✓</span>
-											<span>
-												Beantwoord:{" "}
-												{getCurrentAnswer() === "agree"
-													? "Eens"
-													: getCurrentAnswer() === "neutral"
-														? "Neutraal"
-														: "Oneens"}
-											</span>
-										</div>
-									)}
-									{currentMotion?.description && (
-										<CardDescription className="text-base leading-relaxed">
-											{state.showExplanation
-												? currentMotion.description
-												: truncateText(currentMotion.description, 150)}
-											{currentMotion.description.length > 150 && (
-												<button
-													type="button"
-													onClick={() =>
-														setState((prev) => ({
-															...prev,
-															showExplanation: !prev.showExplanation,
-														}))
-													}
-													className="ml-2 text-primary-600 hover:text-primary-700 font-medium"
-												>
-													{state.showExplanation ? "Minder" : "Meer"}
-												</button>
-											)}
-										</CardDescription>
-									)}
-								</div>
-								{currentMotion?.category && (
-									<span className="bg-primary-100 text-primary-800 text-xs font-medium px-2.5 py-0.5 rounded-full ml-4">
-										{currentMotion.category}
-									</span>
-								)}
-							</div>
+							<CardTitle className="text-2xl leading-tight">
+								{currentMotion?.title}
+							</CardTitle>
+							{currentMotion?.description && (
+								<CardDescription className="text-sm text-gray-600 leading-relaxed pt-2">
+									{currentMotion.description}
+								</CardDescription>
+							)}
 						</CardHeader>
 
-						{/* Bullet Points */}
-						{currentMotion?.bulletPoints?.length > 0 && (
-							<CardContent className="pt-0">
-								<div className="bg-gray-50 rounded-lg p-4">
-									<h4 className="font-medium text-gray-900 mb-2">
-										Kernpunten:
-									</h4>
-									<ul className="space-y-1">
-										{currentMotion.bulletPoints.map((point, index) => (
-											<li
-												key={`bullet-${currentMotion.id}-${index}`}
-												className={`text-sm text-gray-700 flex items-start ${point.toLowerCase().trimStart().startsWith("verzoekt") ? "font-bold" : ""}`}
+						{currentMotion?.bulletPoints &&
+							currentMotion.bulletPoints.length > 0 && (
+								<CardContent className="pt-0">
+									<div className="bg-gray-50/80 rounded-lg p-4">
+										<ul className="space-y-1.5">
+											{displayedBulletPoints.map((point, index) => (
+												<li
+													key={`bullet-${currentMotion.id}-${index}`}
+													className={`text-sm text-gray-800 flex items-start ${point.toLowerCase().trimStart().startsWith("verzoekt") ? "font-semibold" : ""}`}
+												>
+													<span className="text-primary-500 mr-2.5 mt-0.5">
+														•
+													</span>
+													{point}
+												</li>
+											))}
+										</ul>
+										{currentMotion.bulletPoints.length >
+											displayedBulletPoints.length && (
+											<Button
+												variant="link"
+												onClick={() =>
+													setShowAllBulletPoints(!showAllBulletPoints)
+												}
+												className="p-0 h-auto mt-3 text-sm"
 											>
-												<span className="text-primary-500 mr-2 mt-0.5">•</span>
-												{point}
-											</li>
-										))}
-									</ul>
-								</div>
-							</CardContent>
-						)}
-					</Card>
-
-					{/* Navigation */}
-					<div className="flex justify-between items-center">
-						<span className="text-sm text-gray-500">
-							{sessionId ? (
-								<>
-									{state.currentIndex + 1} van {unansweredMotions.length} nieuwe
-									<span className="ml-2 text-xs text-blue-600">
-										({state.answers.length} eerder beantwoord)
-									</span>
-								</>
-							) : (
-								<>
-									{state.answers.length} van {motions.length} beantwoord
-								</>
+												{showAllBulletPoints ? (
+													<>
+														<ChevronUp className="h-4 w-4 mr-1" />
+														Toon alleen kernpunten
+													</>
+												) : (
+													<>
+														<ChevronDown className="h-4 w-4 mr-1" />
+														Toon alle punten (
+														{currentMotion.bulletPoints.length})
+													</>
+												)}
+											</Button>
+										)}
+									</div>
+								</CardContent>
 							)}
-						</span>
-					</div>
+					</Card>
 				</div>
 			</div>
 
-			{/* Sticky Answer Buttons */}
-			<div className="fixed bottom-0 left-0 right-0 bg-white border-t border-gray-200 shadow-lg z-10">
+			{/* --- Sticky Footer --- */}
+			<div className="fixed bottom-0 left-0 right-0 bg-white/80 backdrop-blur-sm border-t border-gray-200 z-10">
 				<div className="container mx-auto px-4 py-4">
 					<div className="max-w-4xl mx-auto">
-						{/* Answer Buttons */}
-						<div className="grid grid-cols-3 gap-4 mb-4">
+						<div className="grid grid-cols-3 gap-3 mb-4">
 							<Button
 								variant={
 									getCurrentAnswer() === "agree" ? "primary" : "secondary"
@@ -462,10 +328,10 @@ export function CompassPage() {
 								disabled={submitAnswers.isPending}
 							>
 								{getCurrentAnswer() === "agree" && (
-									<CheckCircle className="absolute top-3 right-3 h-5 w-5" />
+									<CheckCircle className="absolute top-2 right-2 h-5 w-5" />
 								)}
 								<div className="flex flex-col items-center">
-									<span className="text-2xl mb-1">👍</span>
+									<ThumbsUp className="h-8 w-8 mb-1" />
 									<span>Eens</span>
 								</div>
 							</Button>
@@ -480,10 +346,10 @@ export function CompassPage() {
 								disabled={submitAnswers.isPending}
 							>
 								{getCurrentAnswer() === "neutral" && (
-									<CheckCircle className="absolute top-3 right-3 h-5 w-5" />
+									<CheckCircle className="absolute top-2 right-2 h-5 w-5" />
 								)}
 								<div className="flex flex-col items-center">
-									<span className="text-2xl mb-1">🤷</span>
+									<Meh className="h-8 w-8 mb-1" />
 									<span>Neutraal</span>
 								</div>
 							</Button>
@@ -498,36 +364,32 @@ export function CompassPage() {
 								disabled={submitAnswers.isPending}
 							>
 								{getCurrentAnswer() === "disagree" && (
-									<CheckCircle className="absolute top-3 right-3 h-5 w-5" />
+									<CheckCircle className="absolute top-2 right-2 h-5 w-5" />
 								)}
 								<div className="flex flex-col items-center">
-									<span className="text-2xl mb-1">👎</span>
+									<ThumbsDown className="h-8 w-8 mb-1" />
 									<span>Oneens</span>
 								</div>
 							</Button>
 						</div>
 
-						{/* Submit Button */}
-						{state.answers.length >= 5 && (
-							<div className="text-center">
+						{state.answers.length >= 20 && (
+							<div className="text-center mt-4">
 								<Button
 									onClick={() => handleSubmit(state.answers)}
 									loading={submitAnswers.isPending}
-									className="flex items-center mx-auto"
+									className="w-full md:w-auto"
 									size="lg"
 									variant={isLastQuestion ? "primary" : "secondary"}
 								>
 									{isLastQuestion
-										? `🎉 Bekijk je resultaten (${state.answers.length} antwoorden)`
-										: `Bekijk resultaten (${state.answers.length} antwoorden)`}
+										? "🎉 Bekijk je eindresultaten"
+										: "Bekijk je resultaten"}
+									<span className="ml-2 font-normal opacity-80">
+										({state.answers.length} antwoorden)
+									</span>
 									<ArrowRight className="h-4 w-4 ml-2" />
 								</Button>
-								{isLastQuestion && (
-									<p className="text-sm text-gray-600 mt-2">
-										Je hebt alle stellingen beantwoord! Klik om je resultaten te
-										bekijken.
-									</p>
-								)}
 							</div>
 						)}
 					</div>

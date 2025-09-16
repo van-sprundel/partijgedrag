@@ -25,7 +25,7 @@ function App() {
 		<QueryClientProvider client={queryClient}>
 			<BrowserRouter>
 				<Header />
-				<main className="max-h-screen min-w-screen bg-gray-50">
+				<main className="min-w-screen bg-gray-50">
 					<Routes>
 						<Route path="/" element={<HomePage />} />
 						<Route path="/compass/settings" element={<CompassSettingsPage />} />

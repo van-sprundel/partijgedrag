@@ -2,6 +2,10 @@ import {
 	Calendar,
 	CheckCircle2,
 	ChevronLeft,
+	ClipboardList,
+	Compass,
+	Flame,
+	Save,
 	Settings,
 	Users,
 } from "lucide-react";
@@ -255,7 +259,7 @@ export function CompassSettingsPage() {
 									.length > 0 && (
 									<div className="mb-6">
 										<h3 className="text-lg font-semibold text-gray-900 mb-3 flex items-center">
-											🔥 Hot Topics
+											<Flame className="h-5 w-5 mr-2 text-red-500" /> Hot Topics
 											<span className="ml-2 text-sm font-normal text-gray-600">
 												- actuele onderwerpen
 											</span>
@@ -291,7 +295,7 @@ export function CompassSettingsPage() {
 								{/* Regular Categories */}
 								<div>
 									<h3 className="text-lg font-semibold text-gray-900 mb-3 flex items-center">
-										📋 Algemene onderwerpen
+										<ClipboardList className="h-5 w-5 mr-2 text-blue-500" /> Algemene onderwerpen
 									</h3>
 
 									<div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
@@ -328,11 +332,19 @@ export function CompassSettingsPage() {
 							<Button
 								onClick={handleStartCompass}
 								size="lg"
-								className="px-12 py-4 text-lg"
+								className="flex items-center px-12 py-4 text-lg"
 							>
-								{isEditingExistingFilters
-									? "💾 Filters toepassen"
-									: "🧭 Start Stemwijzer"}
+								{isEditingExistingFilters ? (
+									<>
+										<Save className="h-5 w-5 mr-2" />
+										Filters toepassen
+									</>
+								) : (
+									<>
+										<Compass className="h-5 w-5 mr-2" />
+										Start Stemwijzer
+									</>
+								)}
 							</Button>
 						</div>
 					</div>

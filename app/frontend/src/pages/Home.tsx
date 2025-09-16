@@ -75,7 +75,7 @@ export function HomePage() {
 						</Card>
 					</Link>
 
-					<Link to="/moties" className="group block h-full">
+					<Link to="/motions" className="group block h-full">
 						<Card className="h-full transition-all group-hover:shadow-md border-2 border-green-100 hover:border-green-200">
 							<CardContent className="p-6 h-full flex flex-col">
 								<div className="w-12 h-12 bg-green-100 rounded-lg flex items-center justify-center mb-4 group-hover:bg-green-200 transition-colors">
