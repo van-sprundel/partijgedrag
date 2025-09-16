@@ -18,17 +18,22 @@ FROM base AS prod-dependencies
 RUN npm ci --omit=dev --ignore-scripts
 
 # ---
-FROM node-with-ssl AS build
+FROM node-with-ssl AS build-base
 WORKDIR /app
 
 COPY --from=dependencies /app/node_modules ./node_modules
+COPY --from=dependencies /app/package.json ./
 COPY --from=dependencies /app/backend/package.json ./backend/
+COPY --from=dependencies /app/frontend/package.json ./frontend/
+
+# ---
+FROM build-base AS prisma-gen
 COPY backend/prisma/ ./backend/prisma/
 
 RUN npm run db:generate --prefix backend
 
 # ---
-FROM build AS backend-build
+FROM prisma-gen AS backend-build
 
 COPY backend/src/ ./backend/src/
 COPY backend/tsconfig.json ./backend/
@@ -36,7 +41,7 @@ COPY backend/tsconfig.json ./backend/
 RUN npm run build --prefix backend
 
 # ---
-FROM build AS frontend-build
+FROM build-base AS frontend-build
 
 COPY frontend/ ./frontend/
 COPY backend/src/contracts/ ./backend/src/contracts/
@@ -55,8 +60,8 @@ COPY --from=prod-dependencies /app/node_modules ./node_modules
 COPY --from=backend-build /app/backend/dist ./dist
 COPY --from=frontend-build /app/frontend/dist ./public
 
-COPY --from=build /app/backend/prisma ./prisma
-COPY --from=build /app/node_modules/.prisma ./node_modules/.prisma
+COPY --from=prisma-gen /app/backend/prisma ./prisma
+COPY --from=prisma-gen /app/node_modules/.prisma ./node_modules/.prisma
 
 EXPOSE 3000
 CMD ["node", "dist/index.js"]
