@@ -33,8 +33,7 @@ type Storage interface {
 	// Utility operations
 	Close() error
 	Ping(ctx context.Context) error
-	ResetDatabase(ctx context.Context) error
-	Migrate(ctx context.Context) error
+	CleanDatabase(ctx context.Context) error
 }
 
 func NewStorage(config config.StorageConfig) (Storage, error) {

@@ -30,6 +30,21 @@ func NewPostgresStorage(config config.StorageConfig) (*PostgresStorage, error) {
 		return nil, fmt.Errorf("failed to connect to database: %w", err)
 	}
 
+	// Auto-migrate all models
+	if err := db.AutoMigrate(
+		&models.Zaak{},
+		&models.Besluit{},
+		&models.Stemming{},
+		&models.Persoon{},
+		&models.Fractie{},
+		&models.ZaakActor{},
+		&models.Kamerstukdossier{},
+		&models.MotionCategory{},
+		&models.ZaakCategory{},
+	); err != nil {
+		return nil, fmt.Errorf("failed to migrate schema: %w", err)
+	}
+
 	return &PostgresStorage{db: db}, nil
 }
 
@@ -209,39 +224,24 @@ func (s *PostgresStorage) GetZakenForEnrichment(ctx context.Context) ([]models.Z
 	return zaken, err
 }
 
-func (s *PostgresStorage) Migrate(ctx context.Context) error {
-	return s.db.WithContext(ctx).AutoMigrate(
-		&models.Zaak{},
-		&models.Besluit{},
-		&models.Stemming{},
-		&models.Persoon{},
-		&models.Fractie{},
-		&models.ZaakActor{},
-		&models.Kamerstukdossier{},
-		&models.MotionCategory{},
-		&models.ZaakCategory{},
-	)
-}
-
-func (s *PostgresStorage) ResetDatabase(ctx context.Context) error {
-	// This is a destructive operation.
-	// It will drop all tables defined in the models.
-	allModels := []interface{}{
-		&models.ZaakCategory{},
-		&models.MotionCategory{},
-		&models.Kamerstukdossier{},
-		&models.ZaakActor{},
-		&models.Fractie{},
-		&models.Persoon{},
-		&models.Stemming{},
-		&models.Besluit{},
-		&models.Zaak{},
+func (s *PostgresStorage) CleanDatabase(ctx context.Context) error {
+	log.Println("Cleaning orphaned rows from zaak_kamerstukdossiers...")
+	query1 := `
+		DELETE FROM zaak_kamerstukdossiers
+		WHERE kamerstukdossier_id NOT IN (SELECT id FROM kamerstukdossiers);
+	`
+	if err := s.db.WithContext(ctx).Exec(query1).Error; err != nil {
+		return fmt.Errorf("failed to delete orphaned rows by kamerstukdossier_id: %w", err)
 	}
 
-	if err := s.db.WithContext(ctx).Migrator().DropTable(allModels...); err != nil {
-		return fmt.Errorf("failed to drop tables: %w", err)
+	query2 := `
+		DELETE FROM zaak_kamerstukdossiers
+		WHERE zaak_id NOT IN (SELECT id FROM zaken);
+	`
+	if err := s.db.WithContext(ctx).Exec(query2).Error; err != nil {
+		return fmt.Errorf("failed to delete orphaned rows by zaak_id: %w", err)
 	}
 
-	// Now, re-create the tables using AutoMigrate.
-	return s.Migrate(ctx)
+	log.Println("Finished cleaning orphaned rows.")
+	return nil
 }
