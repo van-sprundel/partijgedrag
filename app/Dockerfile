@@ -1,5 +1,5 @@
 FROM node:24-slim AS node-with-ssl
-RUN apt-get update && apt-get install -y openssl && rm -rf /var/lib/apt/lists/*
+RUN apt-get update && apt-get install -y --no-install-recommends openssl && rm -rf /var/lib/apt/lists/*
 
 FROM node:24-slim AS base
 WORKDIR /app
@@ -53,8 +53,6 @@ ENV DATABASE_URL=${DATABASE_URL}
 ENV NODE_ENV=production
 
 COPY --from=prod-dependencies /app/node_modules ./node_modules
-COPY package.json package-lock.json* ./
-COPY backend/package.json ./backend/
 
 COPY --from=backend-build /app/backend/dist ./dist
 COPY --from=frontend-build /app/frontend/dist ./public
