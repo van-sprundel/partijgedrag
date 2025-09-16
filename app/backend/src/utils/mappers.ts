@@ -1,14 +1,13 @@
-import type { Case, ParliamentaryDocument, Party, Politician, Vote } from "@prisma/client";
+import type { Case, Party, Politician, Vote } from "@prisma/client";
 import type {
 	Motion as MotionContract,
 	Party as PartyContract,
 	Politician as PoliticianContract,
 	Vote as VoteContract,
+	VoteType,
 } from "../contracts/index.js";
 
 export function mapCaseToMotion(zaak: Case): MotionContract {
-	// The `zaak` object from prisma should have `bulletPoints` and `documentURL` as JsonObject.
-	// We need to cast it to the correct type.
 	const bulletPoints = (zaak.bulletPoints as string[]) || [];
 	const documentURL = (zaak.documentURL as string) || null;
 
@@ -62,6 +61,17 @@ export function mapPoliticianToContract(
 	};
 }
 
+function mapVoteTypeToContract(voteType: string | null): VoteType {
+	switch (voteType) {
+		case "FOR":
+		case "AGAINST":
+		case "NEUTRAL":
+			return voteType;
+		default:
+			return "NEUTRAL";
+	}
+}
+
 export function mapVoteToContract(
 	vote: Vote & {
 		party?: Party | null;
@@ -77,7 +87,7 @@ export function mapVoteToContract(
 		motionId: motion?.id || "",
 		partyId: vote.partyId || "",
 		politicianId: vote.politicianId || "",
-		voteType: vote.type,
+		voteType: mapVoteTypeToContract(vote.type),
 		reasoning: null, // Not available in your schema
 		createdAt: vote.updatedAt || new Date(),
 		updatedAt: vote.apiUpdatedAt || new Date(),

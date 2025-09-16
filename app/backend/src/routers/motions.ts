@@ -122,11 +122,11 @@ export const motionRouter = {
 					.map((cc) => ({
 						id: cc.category.id,
 						name: cc.category.name,
-						type: cc.category.type,
+						type: cc.category.type as "generic" | "hot_topic",
 						description: cc.category.description,
 						keywords: cc.category.keywords,
-						createdAt: cc.category.createdAt,
-						updatedAt: cc.category.updatedAt,
+						createdAt: cc.category.createdAt || new Date(),
+						updatedAt: cc.category.updatedAt || new Date(),
 					}));
 			}
 
@@ -158,26 +158,17 @@ export const motionRouter = {
 			type: cat.type as "generic" | "hot_topic",
 			description: cat.description,
 			keywords: cat.keywords,
-			createdAt: cat.createdAt,
-			updatedAt: cat.updatedAt,
+			createdAt: cat.createdAt || new Date(),
+			updatedAt: cat.updatedAt || new Date(),
 		}));
 	}),
 
 	getVotes: os.motions.getVotes.handler(async ({ input }) => {
 		const votesWithRelations = await db.vote.findMany({
 			where: {
-				decision: {
-					caseId: input.motionId,
-				},
+				decisionId: input.motionId,
 			},
-			include: {
-				party: true,
-				politician: true,
-			},
-			orderBy: [
-				{ party: { nameNl: "asc" } },
-				{ politician: { lastName: "asc" } },
-			],
+			orderBy: [{ partyId: "asc" }, { politicianId: "asc" }],
 		});
 
 		const votes = votesWithRelations.map((v) => mapVoteToContract(v));
@@ -187,16 +178,29 @@ export const motionRouter = {
 			{ party: PartyModel; votes: string[] }
 		>();
 
+		const parties = await db.party.findMany({
+			where: {
+				id: {
+					in: votesWithRelations
+						.map((v) => v.partyId)
+						.filter((p) => p !== null) as string[],
+				},
+			},
+		});
+
 		votesWithRelations.forEach((vote) => {
-			if (vote.partyId && vote.party) {
-				if (!partyVoteMap.has(vote.partyId)) {
-					partyVoteMap.set(vote.partyId, {
-						party: vote.party,
-						votes: [],
-					});
-				}
-				if (vote.type) {
-					partyVoteMap.get(vote.partyId)?.votes.push(vote.type);
+			if (vote.partyId) {
+				const party = parties.find((p) => p.id === vote.partyId);
+				if (party) {
+					if (!partyVoteMap.has(vote.partyId)) {
+						partyVoteMap.set(vote.partyId, {
+							party: party,
+							votes: [],
+						});
+					}
+					if (vote.type) {
+						partyVoteMap.get(vote.partyId)?.votes.push(vote.type);
+					}
 				}
 			}
 		});

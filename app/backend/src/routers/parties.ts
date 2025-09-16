@@ -52,25 +52,11 @@ export const partyRouter = {
 		};
 
 		if (motionIds && motionIds.length > 0) {
-			where.decision = {
-				caseId: { in: motionIds },
-			};
+			where.decisionId = { in: motionIds };
 		}
 
 		const votesWithRelations = await db.vote.findMany({
 			where,
-			include: {
-				politician: true,
-				decision: {
-					include: {
-						case: {
-							include: {
-								parliamentaryDocuments: true,
-							},
-						},
-					},
-				},
-			},
 			orderBy: { updatedAt: "desc" },
 		});
 
