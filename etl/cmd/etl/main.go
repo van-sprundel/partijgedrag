@@ -6,23 +6,19 @@ import (
 	"flag"
 	"fmt"
 	"log"
-	"net/url"
 	"os"
 	"os/signal"
-	"strconv"
 	"strings"
 	"syscall"
 	"time"
 
 	"etl/internal/api"
 	"etl/internal/categorisation"
-	"etl/internal/config"
+	"etl/internal/cmdutils"
 	"etl/internal/importer"
 	"etl/internal/models"
 	"etl/pkg/odata"
 	"etl/pkg/storage"
-
-	"gopkg.in/yaml.v3"
 )
 
 func main() {
@@ -32,13 +28,13 @@ func main() {
 	)
 	flag.Parse()
 
-	cfg, err := loadConfig(*configPath)
+	cfg, err := cmdutils.LoadConfig(*configPath)
 	if err != nil {
 		log.Fatalf("Failed to load config: %v", err)
 	}
 
 	// parse DATABASE_URL if provided, otherwise use config values
-	storageConfig, err := parseStorageConfig(cfg)
+	storageConfig, err := cmdutils.ParseStorageConfig(cfg)
 	if err != nil {
 		log.Fatalf("Failed to parse storage config: %v", err)
 	}
@@ -95,59 +91,6 @@ func main() {
 	if cfg.Import.ShowStats {
 		printStats(imp.GetStats())
 	}
-}
-
-func loadConfig(path string) (*config.Config, error) {
-	data, err := os.ReadFile(path)
-	if err != nil {
-		return nil, fmt.Errorf("reading config file: %w", err)
-	}
-
-	var cfg config.Config
-	if err := yaml.Unmarshal(data, &cfg); err != nil {
-		return nil, fmt.Errorf("parsing config file: %w", err)
-	}
-
-	return &cfg, nil
-}
-
-func parseStorageConfig(cfg *config.Config) (*config.StorageConfig, error) {
-	databaseURL := os.Getenv("DATABASE_URL")
-	if databaseURL == "" {
-		return &cfg.Storage, nil
-	}
-
-	parsedURL, err := url.Parse(databaseURL)
-	if err != nil {
-		return nil, fmt.Errorf("parsing DATABASE_URL: %w", err)
-	}
-
-	storageConfig := &config.StorageConfig{
-		Type:     "postgres",
-		Host:     parsedURL.Hostname(),
-		Database: strings.TrimPrefix(parsedURL.Path, "/"),
-		Username: parsedURL.User.Username(),
-	}
-
-	if port := parsedURL.Port(); port != "" {
-		storageConfig.Port = parsePort(port)
-	} else {
-		storageConfig.Port = 5432
-	}
-
-	if password, ok := parsedURL.User.Password(); ok {
-		storageConfig.Password = password
-	}
-
-	return storageConfig, nil
-}
-
-func parsePort(port string) int {
-	i, err := strconv.Atoi(port)
-	if err != nil {
-		return 5432
-	}
-	return i
 }
 
 func testMotionsQuery(ctx context.Context, client *odata.Client) error {

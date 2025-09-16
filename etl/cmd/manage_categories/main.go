@@ -5,18 +5,16 @@ import (
 	"flag"
 	"fmt"
 	"log"
-	"os"
 	"strings"
 	"time"
 
 	"etl/internal/categorisation"
-	"etl/internal/config"
+	"etl/internal/cmdutils"
 	"etl/internal/models"
 	"etl/pkg/storage"
 
 	"github.com/google/uuid"
 	"github.com/lib/pq"
-	"gopkg.in/yaml.v3"
 )
 
 func main() {
@@ -29,16 +27,18 @@ func main() {
 	)
 	flag.Parse()
 
-	cfg, err := loadConfig(*configPath)
+	cfg, err := cmdutils.LoadConfig(*configPath)
 	if err != nil {
 		log.Fatalf("Failed to load config: %v", err)
 	}
 
+	// parse DATABASE_URL if provided, otherwise use config values
+	storageConfig, err := cmdutils.ParseStorageConfig(cfg)
 	if err != nil {
 		log.Fatalf("Failed to parse storage config: %v", err)
 	}
 
-	store, err := storage.NewStorage(cfg.Storage)
+	store, err := storage.NewStorage(*storageConfig)
 	if err != nil {
 		log.Fatalf("Failed to initialize storage: %v", err)
 	}
@@ -288,18 +288,4 @@ func findCategoryMatches(zaak models.Zaak, categories []models.MotionCategory) [
 	}
 
 	return matches
-}
-
-func loadConfig(path string) (*config.Config, error) {
-	data, err := os.ReadFile(path)
-	if err != nil {
-		return nil, fmt.Errorf("reading config file: %w", err)
-	}
-
-	var cfg config.Config
-	if err := yaml.Unmarshal(data, &cfg); err != nil {
-		return nil, fmt.Errorf("parsing config file: %w", err)
-	}
-
-	return &cfg, nil
 }
