@@ -4,10 +4,16 @@ import { RPCLink } from "@orpc/client/fetch";
 import type { RouterClient } from "@orpc/server";
 import { createTanstackQueryUtils } from "@orpc/tanstack-query";
 
-const BASE_URL = import.meta.env.VITE_API_URL;
+const getApiUrl = () => {
+	if (import.meta.env.PROD) {
+		// needs absolute path
+		return `${window.location.origin}/api`;
+	}
+	return `${import.meta.env.VITE_API_URL}/api`;
+};
 
 export const link = new RPCLink({
-	url: `${BASE_URL}/api`,
+	url: getApiUrl(),
 });
 
 export const client: RouterClient<typeof BackendRouter> =
