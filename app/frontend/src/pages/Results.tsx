@@ -69,16 +69,44 @@ export function ResultsPage() {
 		);
 	}
 
-	const topResults = results.partyResults.slice(0, 3);
-	const otherResults = results.partyResults.slice(3);
-	const displayedResults = showAllParties ? results.partyResults : topResults;
+	const partyResultsWithRank = results.partyResults.reduce(
+		(acc, result, index) => {
+			let rank;
+			if (index === 0) {
+				rank = 1;
+			} else {
+				const prevResult = results.partyResults[index - 1];
+				const prevRankedResult = acc[index - 1];
+				if (result.agreement === prevResult.agreement) {
+					rank = prevRankedResult.rank;
+				} else {
+					rank = index + 1;
+				}
+			}
+			acc.push({ ...result, rank });
+			return acc;
+		},
+		[] as (PartyResult & { rank: number })[],
+	);
+
+	const topMatchResults = partyResultsWithRank.filter((r) => r.rank === 1);
+	const topResults = partyResultsWithRank.slice(0, 3);
+	const otherResults = partyResultsWithRank.slice(3);
+	const displayedResults = showAllParties ? partyResultsWithRank : topResults;
 
 	const handleShare = async () => {
 		if (navigator.share) {
 			try {
+				const partyNames = topMatchResults
+					.map((r) => r.party.shortName)
+					.join(" & ");
+				const agreement =
+					topMatchResults.length > 0 ? topMatchResults[0].agreement : 0;
 				await navigator.share({
 					title: "Mijn Partijgedrag resultaten",
-					text: `Ik heb ${formatPercentage(topResults[0]?.agreement || 0)} overeenkomst met ${topResults[0]?.party.shortName}!`,
+					text: `Ik heb ${formatPercentage(
+						agreement,
+					)} overeenkomst met ${partyNames}!`,
 					url: window.location.href,
 				});
 			} catch (err) {
@@ -168,21 +196,21 @@ export function ResultsPage() {
 				</div>
 
 				{/* Top Match */}
-				{topResults[0] && (
+				{topMatchResults.length > 0 && (
 					<Card className="mb-8 border-2 border-primary-200 bg-gradient-to-r from-primary-50 to-white">
 						<CardHeader>
 							<div className="flex items-center justify-between">
 								<div>
 									<CardTitle className="text-2xl mb-2">
-										🏆 Beste match
+										🏆 Beste match{topMatchResults.length > 1 ? "es" : ""}
 									</CardTitle>
 									<CardDescription className="text-lg">
-										{topResults[0].party.name}
+										{topMatchResults.map((r) => r.party.name).join(" & ")}
 									</CardDescription>
 								</div>
 								<div className="text-right">
 									<div className="text-4xl font-bold text-primary-600 mb-1">
-										{formatPercentage(topResults[0].agreement)}
+										{formatPercentage(topMatchResults[0].agreement)}
 									</div>
 									<div className="text-sm text-gray-600">overeenkomst</div>
 								</div>
@@ -191,15 +219,15 @@ export function ResultsPage() {
 						<CardContent>
 							<div className="flex items-center justify-between text-sm text-gray-600 mb-4">
 								<span>
-									{topResults[0].matchingVotes} van {topResults[0].totalVotes}{" "}
-									stellingen overeenkomen
+									{topMatchResults[0].matchingVotes} van{" "}
+									{topMatchResults[0].totalVotes} stellingen overeenkomen
 								</span>
 								<span className="font-medium">
-									Score: {topResults[0].score.toFixed(1)}
+									Score: {topMatchResults[0].score.toFixed(1)}
 								</span>
 							</div>
 							<Progress
-								value={topResults[0].agreement}
+								value={topMatchResults[0].agreement}
 								variant="success"
 								size="md"
 							/>
@@ -221,44 +249,44 @@ export function ResultsPage() {
 							{displayedResults.map((result: PartyResult, index: number) => (
 								<div
 									key={result.party.id}
-									className="flex items-center p-4 bg-gray-50 rounded-lg hover:bg-gray-100 transition-colors"
+									className="grid grid-cols-12 gap-4 items-center p-4 bg-gray-50 rounded-lg hover:bg-gray-100 transition-colors"
 								>
-									<div className="flex items-center flex-1 min-w-0">
-										<div className="flex-shrink-0 mr-4">
-											<div className="w-3 h-3 rounded-full flex items-center justify-center text-white text-xs font-bold">
-												<span
-													className={`w-8 h-8 rounded-full flex items-center justify-center text-white text-sm font-bold ${getPartyColorClass(result.party.shortName)}`}
-												>
-													{result.party.shortName}
-												</span>
-											</div>
+									{/* Party badge */}
+									<div className="col-span-1">
+										<span
+											className={`w-10 h-10 rounded-full flex items-center justify-center text-white text-xs font-bold ${getPartyColorClass(result.party.shortName)}`}
+										>
+											{result.party.shortName}
+										</span>
+									</div>
+
+									{/* Party info */}
+									<div className="col-span-6">
+										<h3 className="font-semibold text-gray-900 text-base mb-1">
+											{result.party.name}
+										</h3>
+										<p className="text-sm text-gray-600">
+											{result.matchingVotes} van {result.totalVotes} stellingen
+										</p>
+									</div>
+
+									{/* Score info */}
+									<div className="col-span-3 text-right">
+										<div className="font-bold text-xl text-gray-900">
+											{formatPercentage(result.agreement)}
 										</div>
-										<div className="flex-1 min-w-0">
-											<h3 className="font-semibold text-gray-900 truncate">
-												{result.party.name}
-											</h3>
-											<p className="text-sm text-gray-600">
-												{result.matchingVotes} van {result.totalVotes}{" "}
-												stellingen overeenkomen
-											</p>
+										<div className="text-xs text-gray-500">
+											Score: {result.score.toFixed(1)}
 										</div>
 									</div>
-									<div className="flex items-center ml-4">
-										<div className="text-right mr-4">
-											<div className="font-bold text-lg">
-												{formatPercentage(result.agreement)}
-											</div>
-											<div className="text-xs text-gray-500">
-												Score: {result.score.toFixed(1)}
-											</div>
-										</div>
-										<div className="w-24">
-											<Progress
-												value={result.agreement}
-												size="sm"
-												variant={index === 0 ? "success" : "default"}
-											/>
-										</div>
+
+									{/* Progress bar */}
+									<div className="col-span-2">
+										<Progress
+											value={result.agreement}
+											size="sm"
+											variant={index === 0 ? "success" : "default"}
+										/>
 									</div>
 								</div>
 							))}
