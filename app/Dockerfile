@@ -44,7 +44,7 @@ RUN npm run build --prefix backend
 # ---
 FROM build-base AS frontend-build
 
-COPY backend/src/contracts/ ./backend/src/contracts/
+COPY backend/src/ ./backend/src/
 COPY frontend/ ./frontend/
 RUN npm run build --prefix frontend
 
