@@ -295,17 +295,17 @@ export const motionRouter = {
 				id: true,
 			},
 			_min: {
-				apiUpdatedAt: true,
+				date: true,
 			},
 			_max: {
-				apiUpdatedAt: true,
+				date: true,
 			},
 		});
 
 		return {
 			count: statistics._count.id,
-			lastMotionDate: statistics._max.apiUpdatedAt,
-			firstMotionDate: statistics._min.apiUpdatedAt,
+			lastMotionDate: statistics._max.date,
+			firstMotionDate: statistics._min.date,
 		};
 	}),
 };

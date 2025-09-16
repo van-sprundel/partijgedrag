@@ -11,6 +11,7 @@ RUN go mod download
 COPY . .
 
 RUN CGO_ENABLED=0 GOOS=linux go build -a -installsuffix cgo -o /app/etl ./cmd/etl/main.go
+RUN CGO_ENABLED=0 GOOS=linux go build -a -installsuffix cgo -o /app/manage_categories ./cmd/manage_categories/main.go
 
 FROM alpine:latest
 WORKDIR /app
@@ -19,6 +20,7 @@ WORKDIR /app
 RUN apk add --no-cache busybox-suid
 
 COPY --from=builder /app/etl .
+COPY --from=builder /app/manage_categories .
 COPY configs ./configs
 COPY crontab /etc/crontabs/root
 
