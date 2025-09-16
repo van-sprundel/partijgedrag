@@ -1,10 +1,4 @@
-import type {
-	Case,
-	ParliamentaryDocument,
-	Party,
-	Politician,
-	Vote,
-} from "@prisma/client";
+import type { Case, Party, Politician, Vote } from "@prisma/client";
 import type {
 	Motion as MotionContract,
 	Party as PartyContract,

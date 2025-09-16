@@ -27,13 +27,6 @@ export const motionRouter = {
 		const [cases, total] = await Promise.all([
 			db.case.findMany({
 				where,
-				include: {
-					parliamentaryDocuments: {
-						include: {
-							parliamentaryDocument: true,
-						},
-					},
-				},
 				orderBy: { date: "desc" },
 				take: limit,
 				skip: offset,
@@ -42,15 +35,7 @@ export const motionRouter = {
 		]);
 
 		const motions = cases.map((c) => {
-			const dossier = c.parliamentaryDocuments
-				.map((cpd) => cpd.parliamentaryDocument)
-				.find(
-					(pd) =>
-						pd.bulletPoints &&
-						Array.isArray(pd.bulletPoints) &&
-						(pd.bulletPoints as string[]).length > 0,
-				);
-			return mapCaseToMotion(c, dossier);
+			return mapCaseToMotion(c);
 		});
 
 		return {
@@ -63,28 +48,13 @@ export const motionRouter = {
 	getById: os.motions.getById.handler(async ({ input }) => {
 		const c = await db.case.findUnique({
 			where: { id: input.id },
-			include: {
-				parliamentaryDocuments: {
-					include: {
-						parliamentaryDocument: true,
-					},
-				},
-			},
 		});
 
 		if (!c) {
 			return null;
 		}
 
-		const dossier = c.parliamentaryDocuments
-			.map((cpd) => cpd.parliamentaryDocument)
-			.find(
-				(pd) =>
-					pd.bulletPoints &&
-					Array.isArray(pd.bulletPoints) &&
-					(pd.bulletPoints as string[]).length > 0,
-			);
-		return mapCaseToMotion(c, dossier);
+		return mapCaseToMotion(c);
 	}),
 
 	getForCompass: os.motions.getForCompass.handler(async ({ input }) => {
@@ -92,14 +62,7 @@ export const motionRouter = {
 
 		const whereConditions = [
 			Prisma.sql`"soort" = 'Motie'`,
-			Prisma.sql`EXISTS (
-				SELECT 1
-				FROM "zaak_kamerstukdossiers" zkd
-				JOIN "kamerstukdossiers" kd ON kd.id = zkd.kamerstukdossier_id
-				WHERE zkd.zaak_id = "zaken".id
-				AND kd.bullet_points IS NOT NULL
-				AND jsonb_array_length(kd.bullet_points) > 0
-			)`,
+			Prisma.sql`"bullet_points" IS NOT NULL AND jsonb_array_length("bullet_points") > 0`,
 		];
 
 		if (excludeIds.length > 0) {
@@ -142,11 +105,6 @@ export const motionRouter = {
 				},
 			},
 			include: {
-				parliamentaryDocuments: {
-					include: {
-						parliamentaryDocument: true,
-					},
-				},
 				caseCategories: {
 					include: {
 						category: true,
@@ -156,15 +114,7 @@ export const motionRouter = {
 		});
 
 		const motions = cases.map((c) => {
-			const dossier = c.parliamentaryDocuments
-				.map((cpd) => cpd.parliamentaryDocument)
-				.find(
-					(pd) =>
-						pd.bulletPoints &&
-						Array.isArray(pd.bulletPoints) &&
-						(pd.bulletPoints as string[]).length > 0,
-				);
-			const motion = mapCaseToMotion(c, dossier);
+			const motion = mapCaseToMotion(c);
 
 			if (c.caseCategories) {
 				motion.categories = c.caseCategories
