@@ -1,9 +1,9 @@
 import { ArrowRight, BarChart3, Search, Users, Vote } from "lucide-react";
 import { Link } from "react-router-dom";
+import { Card, CardContent } from "@/components/ui/Card";
 import { useGetMotionStatistics } from "@/hooks/useGetMotionStatistics";
 import logo from "../assets/tug.png";
 import { Button } from "../components/ui/Button";
-import { Card, CardContent } from "@/components/ui/Card";
 
 export function HomePage() {
 	const { data: motionStatisticsData, isLoading } = useGetMotionStatistics();
@@ -40,16 +40,16 @@ export function HomePage() {
 								<ArrowRight className="ml-2 h-5 w-5" />
 							</Button>
 						</Link>
-						<Link to="/motions">
-							<Button
+						{/*<Link to="/motions">*/
+						/*<Button
 								variant="secondary"
 								size="lg"
 								className="text-lg px-8 py-4"
 							>
 								<Search className="mr-2 h-5 w-5" />
 								Bekijk Moties
-							</Button>
-						</Link>
+							</Button>*/
+						/*</Link>*/}
 					</div>
 				</div>
 			</div>
