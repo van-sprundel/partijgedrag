@@ -17,7 +17,7 @@ type Storage interface {
 	SaveKamerstukdossiers(ctx context.Context, dossiers []models.Kamerstukdossier) error
 
 	// Kamerstukdossier operations
-	UpdateKamerstukdossierBulletPoints(ctx context.Context, id string, bulletPointsJSON string, documentURL string) error
+	UpdateZaakBulletPoints(ctx context.Context, zaakID string, bulletPointsJSON string, documentURL string) error
 
 	SaveCategories(ctx context.Context, categories []models.MotionCategory) error
 	SaveZaakCategories(ctx context.Context, zaakCategories []models.ZaakCategory) error
@@ -33,6 +33,7 @@ type Storage interface {
 	// Utility operations
 	Close() error
 	Ping(ctx context.Context) error
+	ResetDatabase(ctx context.Context) error
 }
 
 func NewStorage(config config.StorageConfig) (Storage, error) {

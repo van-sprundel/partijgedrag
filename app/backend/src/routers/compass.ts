@@ -70,22 +70,13 @@ export const compassRouter = {
 
 		const zaak = await db.case.findUnique({
 			where: { id: motionId },
-			include: {
-				parliamentaryDocuments: {
-					include: {
-						parliamentaryDocument: true,
-					},
-				},
-			},
 		});
 
 		if (!zaak) {
 			throw new ORPCError("NOT_FOUND", { message: "Motion not found" });
 		}
 
-		const dossier = zaak.parliamentaryDocuments[0]?.parliamentaryDocument;
-
-		const motion = mapCaseToMotion(zaak, dossier);
+		const motion = mapCaseToMotion(zaak);
 
 		let votes: Vote[] = [];
 		let partyPositions: {
@@ -293,13 +284,6 @@ async function getMotionVoteDetails(answers: UserAnswer[]) {
 
 	const motions = await db.case.findMany({
 		where: { id: { in: motionIds } },
-		include: {
-			parliamentaryDocuments: {
-				include: {
-					parliamentaryDocument: true,
-				},
-			},
-		},
 	});
 
 	const votes = await db.vote.findMany({
@@ -371,12 +355,10 @@ async function getMotionVoteDetails(answers: UserAnswer[]) {
 			}),
 		);
 
-		const dossier = motion?.parliamentaryDocuments[0]?.parliamentaryDocument;
-
 		return {
 			motionId: answer.motionId,
 			userAnswer: answer.answer,
-			motion: motion ? mapCaseToMotion(motion, dossier) : null,
+			motion: motion ? mapCaseToMotion(motion) : null,
 			partyPositions,
 		};
 	});

@@ -180,6 +180,9 @@ model Case {
   completedAt            DateTime? @map("datum_afgedaan") @db.Timestamptz(6)
   chamber                String?   @map("kamer")
 
+  bulletPoints           Json?     @map("bullet_points")
+  documentURL            String?   @map("document_url")
+
   decisions              Decision[]                  @relation("CaseDecisions")
   parliamentaryDocuments CaseParliamentaryDocument[]
   caseActors             CaseActor[]

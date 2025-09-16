@@ -148,10 +148,10 @@ func (s *PostgresStorage) Ping(ctx context.Context) error {
 	return sqlDB.PingContext(ctx)
 }
 
-func (s *PostgresStorage) UpdateKamerstukdossierBulletPoints(ctx context.Context, id string, bulletPointsJSON string, documentURL string) error {
+func (s *PostgresStorage) UpdateZaakBulletPoints(ctx context.Context, zaakID string, bulletPointsJSON string, documentURL string) error {
 	return s.db.WithContext(ctx).
-		Model(&models.Kamerstukdossier{}).
-		Where("id = ?", id).
+		Model(&models.Zaak{}).
+		Where("id = ?", zaakID).
 		Updates(map[string]interface{}{
 			"bullet_points": bulletPointsJSON,
 			"document_url":  documentURL,
@@ -222,4 +222,31 @@ func (s *PostgresStorage) GetZakenForEnrichment(ctx context.Context) ([]models.Z
 		Find(&zaken).Error
 
 	return zaken, err
+}
+
+func (s *PostgresStorage) ResetDatabase(ctx context.Context) error {
+	// This is a destructive operation.
+	// It will drop all tables defined in the models.
+	allModels := []interface{}{
+		&models.ZaakCategory{},
+		&models.MotionCategory{},
+		&models.Kamerstukdossier{},
+		&models.ZaakActor{},
+		&models.Fractie{},
+		&models.Persoon{},
+		&models.Stemming{},
+		&models.Besluit{},
+		&models.Zaak{},
+	}
+
+	if err := s.db.WithContext(ctx).Migrator().DropTable(allModels...); err != nil {
+		return fmt.Errorf("failed to drop tables: %w", err)
+	}
+
+	// Now, re-create the tables using AutoMigrate.
+	if err := s.db.WithContext(ctx).AutoMigrate(allModels...); err != nil {
+		return fmt.Errorf("failed to migrate schema: %w", err)
+	}
+
+	return nil
 }

@@ -12,29 +12,28 @@ import type {
 	Vote as VoteContract,
 } from "../contracts/index.js";
 
-export function mapCaseToMotion(
-	zaak: Case,
-	dossier?: ParliamentaryDocument | null,
-): MotionContract {
+export function mapCaseToMotion(zaak: Case): MotionContract {
+	// The `zaak` object from prisma should have `bulletPoints` and `documentURL` as JsonObject.
+	// We need to cast it to the correct type.
+	const bulletPoints = (zaak.bulletPoints as string[]) || [];
+	const documentURL = (zaak.documentURL as string) || null;
+
 	return {
 		id: zaak.id,
-		title: zaak.title || zaak.subject || "Untitled Motion",
-		description: zaak.subject,
+		title: zaak.subject || zaak.title || "Untitled Motion",
+		description: zaak.title,
 		shortTitle: zaak.citationTitle,
 		motionNumber: zaak.number,
 		date: zaak.date,
 		status: zaak.status || "unknown",
 		category: zaak.type,
 		bulletPoints:
-			dossier &&
-			dossier.bulletPoints != null &&
-			Array.isArray(dossier.bulletPoints)
-				? dossier.bulletPoints.filter(
-						(bp): bp is string => typeof bp === "string",
-					)
+			bulletPoints && Array.isArray(bulletPoints)
+				? bulletPoints.filter((bp): bp is string => typeof bp === "string")
 				: [],
 		categories: undefined, // Will be set by the caller if needed
 		originalId: zaak.id,
+		documentURL: documentURL,
 		createdAt: zaak.startedAt || new Date(),
 		updatedAt: zaak.updatedAt || new Date(),
 	};

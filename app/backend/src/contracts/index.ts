@@ -48,6 +48,7 @@ const MotionSchema = z.object({
 	bulletPoints: z.array(z.string()),
 	categories: z.array(MotionCategorySchema).optional(),
 	originalId: z.string().nullable(),
+	documentURL: z.string().nullable(),
 	createdAt: z.coerce.date(),
 	updatedAt: z.coerce.date(),
 });

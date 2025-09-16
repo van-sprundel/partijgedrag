@@ -25,6 +25,7 @@ func main() {
 	var (
 		configPath = flag.String("config", "configs/config.yaml", "Path to configuration file")
 		afterDate  = flag.String("after", "", "Only fetch records modified after this date\n\t\tSupported formats:\n\t\t- RFC3339: 2024-01-01T00:00:00Z\n\t\t- Keywords: today, yesterday, this-week, last-week, this-month, last-month")
+		resetDb    = flag.Bool("reset-db", false, "Reset the database before importing")
 	)
 	flag.Parse()
 
@@ -45,7 +46,16 @@ func main() {
 	}
 	defer store.Close()
 
+	if *resetDb {
+		log.Println("Resetting database...")
+		if err := store.ResetDatabase(context.Background()); err != nil {
+			log.Fatalf("Failed to reset database: %v", err)
+		}
+		log.Println("Database reset complete.")
+	}
+
 	var afterTime *time.Time
+
 	if *afterDate != "" {
 		parsedTime, err := parseAfterDate(*afterDate)
 		if err != nil {
