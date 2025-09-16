@@ -1,6 +1,7 @@
 FROM node:24-slim AS node-with-ssl
 RUN apt-get update && apt-get install -y --no-install-recommends openssl && rm -rf /var/lib/apt/lists/*
 
+# ---
 FROM node:24-slim AS base
 WORKDIR /app
 
