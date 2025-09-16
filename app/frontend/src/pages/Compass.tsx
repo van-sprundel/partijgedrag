@@ -288,7 +288,7 @@ export function CompassPage() {
 												onClick={() =>
 													setShowAllBulletPoints(!showAllBulletPoints)
 												}
-												className="p-0 h-auto mt-3 text-sm"
+												className="p-0 h-auto mt-3 text-sm bg-transparent text-gray-800 hover:bg-transparent"
 											>
 												{showAllBulletPoints ? (
 													<>

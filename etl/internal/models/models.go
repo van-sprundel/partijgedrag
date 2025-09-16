@@ -189,6 +189,8 @@ type Zaak struct {
 	Kabinetsappreciatie   *string     `json:"Kabinetsappreciatie" gorm:"column:kabinetsappreciatie"`
 	DatumAfgedaan         *CustomDate `json:"DatumAfgedaan" gorm:"column:datum_afgedaan"`
 	Kamer                 *string     `json:"Kamer" gorm:"column:kamer"`
+	BulletPoints          *string     `json:"BulletPoints,omitempty" gorm:"type:jsonb;column:bullet_points"`
+	DocumentURL           *string     `json:"DocumentURL,omitempty" gorm:"column:document_url"`
 
 	Besluit          []Besluit          `json:"Besluit,omitempty" gorm:"-"`
 	ZaakActor        []ZaakActor        `json:"ZaakActor,omitempty" gorm:"-"`
