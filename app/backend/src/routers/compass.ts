@@ -11,6 +11,19 @@ import {
 
 const os = implement(apiContract);
 
+function mapVoteType(dutchVoteType: string | null): VoteType {
+    switch (dutchVoteType) {
+        case "Voor":
+            return "FOR";
+        case "Tegen":
+            return "AGAINST";
+        case "Niet deelgenomen":
+            return "NEUTRAL";
+        default:
+            return "NEUTRAL";
+    }
+}
+
 export const compassRouter = {
 	submitAnswers: os.compass.submitAnswers.handler(async ({ input }) => {
 		const { answers } = input;
@@ -86,9 +99,15 @@ export const compassRouter = {
 		}[] = [];
 
 		if (includeVotes) {
+			const decisions = await db.decision.findMany({
+				where: { caseId: { equals: motionId } },
+				select: { id: true },
+			});
+			const decisionIds = decisions.map((d) => d.id);
+
 			const votesWithRelations = await db.vote.findMany({
 				where: {
-					decisionId: motionId,
+					decisionId: { in: decisionIds },
 				},
 			});
 
@@ -122,7 +141,7 @@ export const compassRouter = {
 						if (vote.type) {
 							partyVoteMap
 								.get(vote.partyId)
-								?.votes.push(vote.type as VoteType);
+								?.votes.push(mapVoteType(vote.type));
 						}
 					}
 				}
@@ -169,9 +188,15 @@ export const compassRouter = {
 async function calculatePartyAlignment(answers: UserAnswer[]) {
 	const motionIds = answers.map((a) => a.motionId);
 
+	const decisions = await db.decision.findMany({
+		where: { caseId: { in: motionIds } },
+		select: { id: true, caseId: true },
+	});
+	const decisionIds = decisions.map((d) => d.id);
+
 	const votes = await db.vote.findMany({
 		where: {
-			decisionId: { in: motionIds },
+			decisionId: { in: decisionIds },
 		},
 	});
 
@@ -179,6 +204,11 @@ async function calculatePartyAlignment(answers: UserAnswer[]) {
 		where: {
 			OR: [{ activeTo: null }, { activeTo: { gte: new Date() } }],
 		},
+	});
+
+	const partyNameMap = new Map<string, PartyModel>();
+	parties.forEach((p) => {
+		if (p.nameNl) partyNameMap.set(p.nameNl, p);
 	});
 
 	const partyScores = new Map<
@@ -203,20 +233,26 @@ async function calculatePartyAlignment(answers: UserAnswer[]) {
 	});
 
 	answers.forEach((answer) => {
-		const motionVotes = votes.filter(
-			(v) => v.decisionId === answer.motionId,
-		);
+		const decision = decisions.find((d) => d.caseId === answer.motionId);
+		if (!decision) return;
+
+		const motionVotes = votes.filter((v) => v.decisionId === decision.id);
 
 		const partyPositions = new Map<string, VoteType[]>();
 
 		motionVotes.forEach((vote) => {
-			if (vote.partyId && vote.type) {
-				if (!partyPositions.has(vote.partyId)) {
-					partyPositions.set(vote.partyId, []);
+			const party = vote.partyId
+				? parties.find((p) => p.id === vote.partyId)
+				: vote.actorParty
+				? partyNameMap.get(vote.actorParty)
+				: undefined;
+
+			if (party && party.id && vote.type) {
+				const partyId = party.id;
+				if (!partyPositions.has(partyId)) {
+					partyPositions.set(partyId, []);
 				}
-				partyPositions
-					.get(vote.partyId)
-					?.push(vote.type as VoteType);
+				partyPositions.get(partyId)?.push(mapVoteType(vote.type));
 			}
 		});
 
@@ -291,25 +327,46 @@ async function getMotionVoteDetails(answers: UserAnswer[]) {
 		where: { id: { in: motionIds } },
 	});
 
+	const decisions = await db.decision.findMany({
+		where: { caseId: { in: motionIds } },
+		select: { id: true, caseId: true },
+	});
+	const decisionIds = decisions.map((d) => d.id);
+
 	const votes = await db.vote.findMany({
 		where: {
-			decisionId: { in: motionIds },
+			decisionId: { in: decisionIds },
 		},
 	});
 
+	const partyIdsFromVotes = votes
+		.map((v) => v.partyId)
+		.filter((p) => p !== null) as string[];
+	const partyNamesFromVotes = votes
+		.map((v) => v.actorParty)
+		.filter((p) => p !== null) as string[];
+
 	const parties = await db.party.findMany({
 		where: {
-			id: {
-				in: votes.map((v) => v.partyId).filter((p) => p !== null) as string[],
-			},
+			OR: [
+				{ id: { in: partyIdsFromVotes } },
+				{ nameNl: { in: partyNamesFromVotes } },
+			],
 		},
+	});
+
+	const partyNameMap = new Map<string, PartyModel>();
+	parties.forEach((p) => {
+		if (p.nameNl) partyNameMap.set(p.nameNl, p);
 	});
 
 	return answers.map((answer) => {
 		const motion = motions.find((m) => m.id === answer.motionId);
-		const motionVotes = votes.filter(
-			(v) => v.decisionId === answer.motionId,
-		);
+		const decision = decisions.find((d) => d.caseId === answer.motionId);
+
+		const motionVotes = decision
+			? votes.filter((v) => v.decisionId === decision.id)
+			: [];
 
 		const partyVotes = new Map<
 			string,
@@ -317,20 +374,22 @@ async function getMotionVoteDetails(answers: UserAnswer[]) {
 		>();
 
 		motionVotes.forEach((vote) => {
-			if (vote.partyId && vote.type) {
-				const party = parties.find((p) => p.id === vote.partyId);
-				if (party) {
-					if (!partyVotes.has(vote.partyId)) {
-						partyVotes.set(vote.partyId, {
-							party: party,
-							votes: [],
-							majorityVote: "NEUTRAL",
-						});
-					}
-					partyVotes
-						.get(vote.partyId)
-						?.votes.push(vote.type as VoteType);
+			const party = vote.partyId
+				? parties.find((p) => p.id === vote.partyId)
+				: vote.actorParty
+				? partyNameMap.get(vote.actorParty)
+				: undefined;
+
+			if (party && party.id && vote.type) {
+				const partyId = party.id;
+				if (!partyVotes.has(partyId)) {
+					partyVotes.set(partyId, {
+						party: party,
+						votes: [],
+						majorityVote: "NEUTRAL",
+					});
 				}
+				partyVotes.get(partyId)?.votes.push(mapVoteType(vote.type));
 			}
 		});
 
