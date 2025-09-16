@@ -9,26 +9,23 @@ import type {
 
 export function mapCaseToMotion(zaak: Case): MotionContract {
 	const bulletPoints = (zaak.bulletPoints as string[]) || [];
-	const documentURL = (zaak.documentURL as string) || null;
 
 	return {
-		id: zaak.id,
+		...zaak,
 		title: zaak.subject || zaak.title || "Untitled Motion",
 		description: zaak.title,
 		shortTitle: zaak.citationTitle,
 		motionNumber: zaak.number,
-		date: zaak.date,
-		status: zaak.status || "unknown",
+		status: zaak.status ?? "unknown",
 		category: zaak.type,
 		bulletPoints:
 			bulletPoints && Array.isArray(bulletPoints)
 				? bulletPoints.filter((bp): bp is string => typeof bp === "string")
 				: [],
-		categories: undefined, // Will be set by the caller if needed
+		categories: undefined, // will be set by the caller if needed
 		originalId: zaak.id,
-		documentURL: documentURL,
-		createdAt: zaak.startedAt || new Date(),
-		updatedAt: zaak.updatedAt || new Date(),
+		createdAt: zaak.startedAt ?? new Date(),
+		updatedAt: zaak.updatedAt ?? new Date(),
 	};
 }
 

@@ -188,7 +188,8 @@ func (imp *SimpleImporter) extractEntities(zaken []models.Zaak) ExtractedEntitie
 	fractieMap := make(map[string]models.Fractie)
 	kamerstukdossierMap := make(map[string]models.Kamerstukdossier)
 
-	for _, zaak := range zaken {
+	for i := range zaken {
+		zaak := &zaken[i]
 		for _, besluit := range zaak.Besluit {
 			besluit.ZaakID = &zaak.ID
 			entities.Besluiten = append(entities.Besluiten, besluit)
@@ -228,6 +229,24 @@ func (imp *SimpleImporter) extractEntities(zaken []models.Zaak) ExtractedEntitie
 			}
 
 			entities.ZaakActors = append(entities.ZaakActors, zaakActor)
+		}
+
+		// Find and set DID from Document
+		var targetDoc *models.Document
+		for _, dossier := range zaak.Kamerstukdossier {
+			for _, doc := range dossier.Document {
+				if strings.EqualFold(strings.TrimSpace(doc.Onderwerp), strings.TrimSpace(*zaak.Onderwerp)) {
+					targetDoc = &doc
+					break
+				}
+			}
+			if targetDoc != nil {
+				break
+			}
+		}
+
+		if targetDoc != nil {
+			zaak.DID = &targetDoc.DocumentNummer
 		}
 
 		for _, dossier := range zaak.Kamerstukdossier {

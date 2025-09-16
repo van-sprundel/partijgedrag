@@ -191,6 +191,7 @@ type Zaak struct {
 	Kamer                 *string     `json:"Kamer" gorm:"column:kamer"`
 	BulletPoints          *string     `json:"BulletPoints,omitempty" gorm:"type:jsonb;column:bullet_points"`
 	DocumentURL           *string     `json:"DocumentURL,omitempty" gorm:"column:document_url"`
+	DID                   *string     `gorm:"column:did"`
 
 	Besluit          []Besluit          `json:"Besluit,omitempty" gorm:"-"`
 	ZaakActor        []ZaakActor        `json:"ZaakActor,omitempty" gorm:"-"`

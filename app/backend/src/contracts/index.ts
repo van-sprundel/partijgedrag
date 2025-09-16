@@ -49,6 +49,7 @@ const MotionSchema = z.object({
 	categories: z.array(MotionCategorySchema).optional(),
 	originalId: z.string().nullable(),
 	documentURL: z.string().nullable(),
+	did: z.string().nullable(),
 	createdAt: z.coerce.date(),
 	updatedAt: z.coerce.date(),
 });

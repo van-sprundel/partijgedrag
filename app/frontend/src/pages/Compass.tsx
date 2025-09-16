@@ -4,6 +4,7 @@ import {
 	CheckCircle,
 	ChevronDown,
 	ChevronUp,
+	ExternalLink,
 	Meh,
 	RotateCcw,
 	ThumbsDown,
@@ -255,9 +256,22 @@ export function CompassPage() {
 						className={`mb-6 transition-all ${getCurrentAnswer() ? "ring-2 ring-green-200 bg-green-50/50" : ""}`}
 					>
 						<CardHeader>
-							<CardTitle className="text-2xl leading-tight">
-								{currentMotion?.title}
-							</CardTitle>
+							<div className="flex items-start justify-between">
+								<CardTitle className="text-2xl leading-tight">
+									{currentMotion?.title}
+								</CardTitle>
+								{currentMotion?.motionNumber && currentMotion.did && (
+									<a
+										href={`https://www.tweedekamer.nl/kamerstukken/moties/detail?id=${currentMotion.motionNumber}&did=${currentMotion.did}`}
+										target="_blank"
+										rel="noopener noreferrer"
+										className="btn focus-ring btn-secondary btn-sm ml-4 flex-shrink-0 inline-flex items-center"
+									>
+										<ExternalLink className="h-4 w-4 mr-2" />
+										Bron
+									</a>
+								)}
+							</div>
 							{currentMotion?.description && (
 								<CardDescription className="text-sm text-gray-600 leading-relaxed pt-2">
 									{currentMotion.description}

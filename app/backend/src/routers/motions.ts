@@ -110,6 +110,11 @@ export const motionRouter = {
 						category: true,
 					},
 				},
+				parliamentaryDocuments: {
+					include: {
+						parliamentaryDocument: true,
+					},
+				},
 			},
 		});
 
