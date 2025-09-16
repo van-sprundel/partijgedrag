@@ -38,7 +38,7 @@ jobs:
         uses: docker/build-push-action@v5
         with:
           context: ./etl
-          platforms: linux/amd64,linux/arm64
+          platforms: linux/amd64
           push: true
           tags: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}-etl:latest
           cache-from: type=gha
@@ -68,7 +68,7 @@ jobs:
         uses: docker/build-push-action@v5
         with:
           context: ./app
-          platforms: linux/amd64,linux/arm64
+          platforms: linux/amd64
           push: true
           tags: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}-web:latest
           cache-from: type=gha
