@@ -36,16 +36,16 @@ RUN npm run db:generate --prefix backend
 # ---
 FROM prisma-gen AS backend-build
 
-COPY backend/src/ ./backend/src/
 COPY backend/tsconfig.json ./backend/
+COPY backend/src/ ./backend/src/
 
 RUN npm run build --prefix backend
 
 # ---
 FROM build-base AS frontend-build
 
-COPY frontend/ ./frontend/
 COPY backend/src/contracts/ ./backend/src/contracts/
+COPY frontend/ ./frontend/
 RUN npm run build --prefix frontend
 
 # ---
