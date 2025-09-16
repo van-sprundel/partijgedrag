@@ -341,9 +341,10 @@ func (Kamerstukdossier) TableName() string {
 }
 
 type Document struct {
-	ID         string `json:"Id"`
-	Onderwerp  string `json:"Onderwerp"`
-	Volgnummer int    `json:"Volgnummer"`
+	ID             string `json:"Id"`
+	Onderwerp      string `json:"Onderwerp"`
+	DocumentNummer string `json:"DocumentNummer"`
+	Volgnummer     int    `json:"Volgnummer"`
 }
 
 type ImportStats struct {
