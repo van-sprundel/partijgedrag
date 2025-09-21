@@ -120,3 +120,36 @@ export const useMotionDetails = (
 		}),
 	);
 };
+
+export const usePartyLikenessMatrix = (filters?: {
+	dateFrom?: Date;
+	dateTo?: Date;
+}) => {
+	return useQuery(
+		orpc.statistics.getPartyLikenessMatrix.queryOptions({ input: filters }),
+	);
+};
+
+export const usePartyFocus = (partyId: string, filters?: {
+	dateFrom?: Date;
+	dateTo?: Date;
+}) => {
+	return useQuery(
+		orpc.statistics.getPartyFocus.queryOptions({
+			input: { partyId, ...filters },
+			enabled: !!partyId,
+		}),
+	);
+};
+
+export const usePartyCategoryLikeness = (partyId: string, filters?: {
+	dateFrom?: Date;
+	dateTo?: Date;
+}) => {
+	return useQuery(
+		orpc.statistics.getPartyCategoryLikeness.queryOptions({
+			input: { partyId, ...filters },
+			enabled: !!partyId,
+		}),
+	);
+};

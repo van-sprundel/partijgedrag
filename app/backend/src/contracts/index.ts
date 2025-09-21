@@ -221,6 +221,57 @@ const motionGetStatisticsContract = oc.output(
 	}),
 );
 
+const dateFilterSchema = z.object({
+	dateFrom: z.coerce.date().optional(),
+	dateTo: z.coerce.date().optional(),
+});
+
+// For Party Likeness Matrix
+export const PartyLikenessSchema = z.object({
+	party1Id: z.string(),
+	party1Name: z.string(),
+	party2Id: z.string(),
+	party2Name: z.string(),
+	commonMotions: z.number(),
+	sameVotes: z.number(),
+	likenessPercentage: z.number(),
+});
+
+// For Party Focus
+export const PartyFocusCategorySchema = z.object({
+	categoryId: z.string(),
+	categoryName: z.string(),
+	categoryType: z.string().nullable(),
+	motionCount: z.coerce.number(),
+});
+
+export const PartyFocusSchema = z.object({
+	party: PartySchema,
+	categories: z.array(PartyFocusCategorySchema),
+});
+
+// For Party-Category Likeness
+export const PartyCategoryLikenessSchema = z.object({
+	categoryId: z.string(),
+	categoryName: z.string(),
+	party2Id: z.string(),
+	party2Name: z.string(),
+	likenessPercentage: z.number(),
+});
+
+// New statistics contracts
+const statisticsGetPartyLikenessMatrixContract = oc
+	.input(dateFilterSchema.optional())
+	.output(z.array(PartyLikenessSchema));
+
+const statisticsGetPartyFocusContract = oc
+	.input(z.object({ partyId: z.string() }).merge(dateFilterSchema))
+	.output(PartyFocusSchema.nullable());
+
+const statisticsGetPartyCategoryLikenessContract = oc
+	.input(z.object({ partyId: z.string() }).merge(dateFilterSchema))
+	.output(z.array(PartyCategoryLikenessSchema));
+
 export const apiContract = {
 	motions: {
 		getAll: motionGetAllContract,
@@ -240,6 +291,11 @@ export const apiContract = {
 		getResults: compassGetResultsContract,
 		getMotionDetails: compassGetMotionDetailsContract,
 	},
+	statistics: {
+		getPartyLikenessMatrix: statisticsGetPartyLikenessMatrixContract,
+		getPartyFocus: statisticsGetPartyFocusContract,
+		getPartyCategoryLikeness: statisticsGetPartyCategoryLikenessContract,
+	},
 };
 
 // Type exports
@@ -254,3 +310,7 @@ export type UserAnswer = z.infer<typeof UserAnswerSchema>;
 export type PartyResult = z.infer<typeof PartyResultSchema>;
 export type MotionDetail = z.infer<typeof MotionDetailSchema>;
 export type CompassResult = z.infer<typeof CompassResultSchema>;
+export type PartyLikeness = z.infer<typeof PartyLikenessSchema>;
+export type PartyFocus = z.infer<typeof PartyFocusSchema>;
+export type PartyFocusCategory = z.infer<typeof PartyFocusCategorySchema>;
+export type PartyCategoryLikeness = z.infer<typeof PartyCategoryLikenessSchema>;
