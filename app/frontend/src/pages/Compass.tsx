@@ -124,7 +124,7 @@ export function CompassPage() {
 		? unansweredMotions[state.currentIndex]
 		: motions[state.currentIndex];
 	const totalMotions = sessionId ? unansweredMotions.length : motions.length;
-	const progress = calculateProgress(state.currentIndex + 1, totalMotions);
+	const progress = calculateProgress(state.currentIndex + 1, 20);
 	const isLastQuestion = !hasMore && state.currentIndex === totalMotions - 1;
 
 	const displayedBulletPoints = useMemo(() => {
