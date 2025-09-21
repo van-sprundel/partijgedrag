@@ -16,34 +16,72 @@ export const statisticsRouter = {
 		async ({ input }) => {
 			const { dateFrom, dateTo } = input || {};
 
-			const partyFilter = Prisma.sql`
-				p1.datum_inactief IS NULL
-				AND p2.datum_inactief IS NULL
-			`;
-
 			const dateFilter =
 				dateFrom && dateTo
-					? Prisma.sql`AND pl.gestart_op BETWEEN ${dateFrom} AND ${dateTo}`
+					? Prisma.sql`AND z.gestart_op BETWEEN ${dateFrom} AND ${dateTo}`
 					: Prisma.empty;
 
+			// Simplified approach: directly compare votes between parties
+			// Based on the PHP implementation which looks at all stemmingen
 			const results: PartyLikeness[] = await db.$queryRaw`
-        SELECT
-            p1.id AS "party1Id",
-            p1.afkorting AS "party1Name",
-            p2.id AS "party2Id",
-            p2.afkorting AS "party2Name",
-            COUNT(*) AS "commonMotions",
-            SUM(CASE WHEN pl.same_vote THEN 1 ELSE 0 END) AS "sameVotes",
-            (SUM(CASE WHEN pl.same_vote THEN 1 ELSE 0 END)::float / NULLIF(COUNT(*), 0)::float) * 100 AS "likenessPercentage"
-        FROM party_likeness_per_motion pl
-        JOIN fracties p1 ON pl.fractie1_id = p1.id
-        JOIN fracties p2 ON pl.fractie2_id = p2.id
-        WHERE ${partyFilter} ${dateFilter}
-        GROUP BY p1.id, p1.afkorting, p2.id, p2.afkorting
-        ORDER BY p1.afkorting, "likenessPercentage" DESC;
-      `;
+				WITH PartyVotes AS (
+					SELECT DISTINCT
+						b.zaak_id,
+						f.id as fractie_id,
+						f.afkorting as fractie_name,
+						s.soort as vote_type
+					FROM stemmingen s
+					JOIN besluiten b ON s.besluit_id = b.id
+					JOIN zaken z ON b.zaak_id = z.id
+					JOIN fracties f ON (s.actor_fractie = f.naam_nl OR s.actor_fractie = f.afkorting)
+					WHERE s.actor_fractie IS NOT NULL
+						AND s.soort IN ('Voor', 'Tegen')
+						AND z.soort = 'Motie'
+						AND f.datum_inactief IS NULL
+						${dateFilter}
+				),
+				PartyComparisons AS (
+					SELECT
+						p1.fractie_id as party1_id,
+						p1.fractie_name as party1_name,
+						p2.fractie_id as party2_id,
+						p2.fractie_name as party2_name,
+						COUNT(*) as common_motions,
+						SUM(CASE WHEN p1.vote_type = p2.vote_type THEN 1 ELSE 0 END) as same_votes
+					FROM PartyVotes p1
+					JOIN PartyVotes p2 ON p1.zaak_id = p2.zaak_id AND p1.fractie_id < p2.fractie_id
+					GROUP BY p1.fractie_id, p1.fractie_name, p2.fractie_id, p2.fractie_name
+				)
+				SELECT
+					party1_id AS "party1Id",
+					party1_name AS "party1Name",
+					party2_id AS "party2Id",
+					party2_name AS "party2Name",
+					common_motions AS "commonMotions",
+					same_votes AS "sameVotes",
+					CASE
+						WHEN common_motions > 0
+						THEN (same_votes::float / common_motions::float) * 100
+						ELSE 0
+					END AS "likenessPercentage"
+				FROM PartyComparisons
+				ORDER BY party1_name, "likenessPercentage" DESC;
+			`;
 
-			return results.map((r) => ({
+			// Also get the reverse relationships (party2 to party1)
+			const reverseResults: PartyLikeness[] = results.map((r) => ({
+				party1Id: r.party2Id,
+				party1Name: r.party2Name,
+				party2Id: r.party1Id,
+				party2Name: r.party1Name,
+				commonMotions: r.commonMotions,
+				sameVotes: r.sameVotes,
+				likenessPercentage: r.likenessPercentage,
+			}));
+
+			const allResults = [...results, ...reverseResults];
+
+			return allResults.map((r) => ({
 				...r,
 				commonMotions: Number(r.commonMotions),
 				sameVotes: Number(r.sameVotes),
@@ -71,31 +109,31 @@ export const statisticsRouter = {
 				: Prisma.empty;
 
 		const results: PartyFocusCategory[] = await db.$queryRaw`
-        SELECT
-            mc.id AS "categoryId",
-            mc.name AS "categoryName",
-            mc.type AS "categoryType",
-            COUNT(z.id) AS "motionCount"
-        FROM
-            zaak_actors za
-        JOIN
-            zaken z ON za.zaak_id = z.id
-        JOIN
-            fracties f ON za.actor_fractie = f.naam_nl OR za.actor_fractie = f.afkorting
-        JOIN
-            zaak_categories zc ON z.id = zc.zaak_id
-        JOIN
-            motion_categories mc ON zc.category_id = mc.id
-        WHERE
-            f.id = ${partyId}
-            AND za.relatie = 'Indiener'
-            AND z.soort = 'Motie'
-            ${dateFilter}
-        GROUP BY
-            mc.id, mc.name, mc.type
-        ORDER BY
-            "motionCount" DESC;
-    `;
+			SELECT
+				mc.id AS "categoryId",
+				mc.name AS "categoryName",
+				mc.type AS "categoryType",
+				COUNT(z.id) AS "motionCount"
+			FROM
+				zaak_actors za
+			JOIN
+				zaken z ON za.zaak_id = z.id
+			JOIN
+				fracties f ON za.actor_fractie = f.naam_nl OR za.actor_fractie = f.afkorting
+			JOIN
+				zaak_categories zc ON z.id = zc.zaak_id
+			JOIN
+				motion_categories mc ON zc.category_id = mc.id
+			WHERE
+				f.id = ${partyId}
+				AND za.relatie = 'Indiener'
+				AND z.soort = 'Motie'
+				${dateFilter}
+			GROUP BY
+				mc.id, mc.name, mc.type
+			ORDER BY
+				"motionCount" DESC;
+		`;
 
 		return {
 			party: mapPartyToContract(party),
@@ -112,45 +150,57 @@ export const statisticsRouter = {
 
 			const dateFilter =
 				dateFrom && dateTo
-					? Prisma.sql`WHERE gestart_op BETWEEN ${dateFrom} AND ${dateTo}`
+					? Prisma.sql`AND z.gestart_op BETWEEN ${dateFrom} AND ${dateTo}`
 					: Prisma.empty;
 
+			// Simplified approach: directly analyze votes by category
 			const results: PartyCategoryLikeness[] = await db.$queryRaw`
-      WITH MotionMajorityVotes AS (
-        SELECT * FROM majority_party_votes ${dateFilter}
-      ),
-      MotionCategoryVotes AS (
-          SELECT
-              mmv.zaak_id,
-              mmv.fractie_id,
-              mmv.vote_type,
-              zc.category_id
-          FROM MotionMajorityVotes mmv
-          JOIN zaak_categories zc ON mmv.zaak_id = zc.zaak_id
-      )
-      SELECT
-          mc.id AS "categoryId",
-          mc.name AS "categoryName",
-          p2.id AS "party2Id",
-          p2.afkorting AS "party2Name",
-          (SUM(CASE WHEN mcv1.vote_type = mcv2.vote_type THEN 1 ELSE 0 END)::float / NULLIF(COUNT(mcv2.zaak_id), 0)::float) * 100 AS "likenessPercentage"
-      FROM
-          (SELECT * FROM MotionCategoryVotes WHERE fractie_id = ${partyId}) mcv1
-      JOIN
-          MotionCategoryVotes mcv2 ON mcv1.zaak_id = mcv2.zaak_id AND mcv1.category_id = mcv2.category_id
-      JOIN
-          fracties p2 ON mcv2.fractie_id = p2.id
-      JOIN
-          motion_categories mc ON mcv1.category_id = mc.id
-      WHERE
-          mcv1.fractie_id != mcv2.fractie_id
-          AND p2.datum_inactief IS NULL
-          AND p2.naam_nl NOT IN ('Groep Van Haga', 'Fractie Den Haan', 'Lid Omtzigt', 'Lid Gündoğan')
-      GROUP BY
-          mc.id, mc.name, p2.id, p2.afkorting
-      ORDER BY
-          mc.name, p2.afkorting;
-    `;
+				WITH PartyVotesByCategory AS (
+					SELECT DISTINCT
+						b.zaak_id,
+						f.id as fractie_id,
+						s.soort as vote_type,
+						zc.category_id
+					FROM stemmingen s
+					JOIN besluiten b ON s.besluit_id = b.id
+					JOIN zaken z ON b.zaak_id = z.id
+					JOIN fracties f ON (s.actor_fractie = f.naam_nl OR s.actor_fractie = f.afkorting)
+					JOIN zaak_categories zc ON z.id = zc.zaak_id
+					WHERE s.actor_fractie IS NOT NULL
+						AND s.soort IN ('Voor', 'Tegen')
+						AND z.soort = 'Motie'
+						AND f.datum_inactief IS NULL
+						${dateFilter}
+				),
+				CategoryComparisons AS (
+					SELECT
+						pv1.category_id,
+						pv2.fractie_id as other_party_id,
+						COUNT(*) as total_votes,
+						SUM(CASE WHEN pv1.vote_type = pv2.vote_type THEN 1 ELSE 0 END) as same_votes
+					FROM PartyVotesByCategory pv1
+					JOIN PartyVotesByCategory pv2 ON pv1.zaak_id = pv2.zaak_id
+						AND pv1.category_id = pv2.category_id
+						AND pv1.fractie_id != pv2.fractie_id
+					WHERE pv1.fractie_id = ${partyId}
+					GROUP BY pv1.category_id, pv2.fractie_id
+				)
+				SELECT
+					mc.id AS "categoryId",
+					mc.name AS "categoryName",
+					f.id AS "party2Id",
+					f.afkorting AS "party2Name",
+					CASE
+						WHEN cc.total_votes > 0
+						THEN (cc.same_votes::float / cc.total_votes::float) * 100
+						ELSE 0
+					END AS "likenessPercentage"
+				FROM CategoryComparisons cc
+				JOIN motion_categories mc ON cc.category_id = mc.id
+				JOIN fracties f ON cc.other_party_id = f.id
+				WHERE f.datum_inactief IS NULL
+				ORDER BY mc.name, f.afkorting;
+			`;
 
 			return results.map((r) => ({
 				...r,

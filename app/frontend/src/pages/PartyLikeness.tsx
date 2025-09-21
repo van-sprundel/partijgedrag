@@ -38,8 +38,10 @@ const cabinetPresets = {
 
 export function PartyLikenessPage() {
 	const [activeTab, setActiveTab] = useState("matrix");
-	const [dateFrom, setDateFrom] = useState<string>("");
-	const [dateTo, setDateTo] = useState<string>("");
+	const [dateFrom, setDateFrom] = useState<string>(
+		cabinetPresets["schoof-i"].from,
+	);
+	const [dateTo, setDateTo] = useState<string>(cabinetPresets["schoof-i"].to);
 
 	const { data: parties, isLoading: isLoadingParties } = useParties();
 
