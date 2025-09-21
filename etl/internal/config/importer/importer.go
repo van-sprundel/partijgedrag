@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"log"
 	"strings"
+	"sync"
 	"time"
 
 	"etl/internal/api"
@@ -352,7 +353,7 @@ func (imp *SimpleImporter) processMotionDocuments(ctx context.Context, zaken []m
 }
 
 func (imp *SimpleImporter) fetchFractieLogos(ctx context.Context, fracties []models.Fractie) {
-var wg sync.WaitGroup
+	var wg sync.WaitGroup
 	for i := range fracties {
 		if len(fracties[i].LogoData) == 0 {
 			wg.Add(1)

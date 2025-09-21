@@ -35,6 +35,7 @@ export function mapPartyToContract(party: Party): PartyContract {
 		name: party.nameNl ?? party.shortName ?? "",
 		shortName: party.shortName ?? "",
 		seats: Number(party.seats),
+		contentType: party.contentType ?? "image/png",
 		activeFrom: party.activeFrom,
 		activeTo: party.activeTo,
 		logoData: party.logoData

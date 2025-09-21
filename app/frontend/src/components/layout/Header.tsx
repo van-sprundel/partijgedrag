@@ -14,10 +14,10 @@ export function Header() {
 					Partijgedrag
 				</Link>
 				<nav className="hidden md:flex items-center space-x-2">
-					<Link to="/compass/settings">
+					{/*<Link to="/compass/settings">
 						<Button variant="ghost">Stemwijzer</Button>
 					</Link>
-					{/*<Link to="/party-focus">
+					<Link to="/party-focus">
 						<Button variant="ghost">Partijfocus</Button>
 					</Link>*/}
 					<Link to="/party-likeness">
@@ -30,7 +30,6 @@ export function Header() {
 						<Button variant="ghost">Over ons</Button>
 					</Link>
 				</nav>
-				{/* Mobile menu button can be added here if needed in future */}
 			</div>
 		</header>
 	);

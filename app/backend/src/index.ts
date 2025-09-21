@@ -7,6 +7,7 @@ import { db } from "./lib/db.js";
 import { compassRouter } from "./routers/compass.js";
 import { motionRouter } from "./routers/motions.js";
 import { partyRouter } from "./routers/parties.js";
+import { statisticsRouter } from "./routers/statistics.js";
 
 const app = express();
 const host = process.env.HOST || "0.0.0.0";
@@ -24,12 +25,17 @@ export const router = os.router({
 	motions: motionRouter,
 	parties: partyRouter,
 	compass: compassRouter,
+	statistics: statisticsRouter,
 });
 
 const handler = new RPCHandler(router, {
 	interceptors: [
 		onError((error) => {
-			console.error(error);
+			if (error instanceof Error) {
+				console.error(JSON.stringify(error.cause, null, 2));
+			} else {
+				console.error(error);
+			}
 		}),
 	],
 });

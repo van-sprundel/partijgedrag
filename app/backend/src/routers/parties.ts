@@ -10,10 +10,11 @@ export const partyRouter = {
 	getAll: os.parties.getAll.handler(async ({ input }) => {
 		const { activeOnly } = input;
 
-		const where: Prisma.PartyWhereInput = {};
+		const where: Prisma.PartyWhereInput = {
+			removed: { not: true },
+		};
 		if (activeOnly) {
 			where.OR = [{ activeTo: null }, { activeTo: { gte: new Date() } }];
-			// where.removed = { not: true };
 		}
 
 		const parties = await db.party.findMany({

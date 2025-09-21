@@ -40,6 +40,7 @@ model Party {
   updatedAt     DateTime? @map("gewijzigd_op") @db.Timestamptz(6)
   apiUpdatedAt  DateTime? @map("api_gewijzigd_op") @db.Timestamptz(6)
   logoData      Bytes?    @map("logo_data")
+  removed       Boolean?  @map("verwijderd")
 
   @@map("fracties")
 }

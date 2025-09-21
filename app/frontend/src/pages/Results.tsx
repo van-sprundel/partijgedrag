@@ -72,7 +72,7 @@ export function ResultsPage() {
 
 	const partyResultsWithRank = results.partyResults.reduce(
 		(acc, result, index) => {
-			let rank;
+			let rank: number;
 			if (index === 0) {
 				rank = 1;
 			} else {

@@ -291,6 +291,7 @@ type Fractie struct {
 	GewijzigdOp    *time.Time  `json:"GewijzigdOp" gorm:"column:gewijzigd_op"`
 	ApiGewijzigdOp *time.Time  `json:"ApiGewijzigdOp" gorm:"column:api_gewijzigd_op"`
 	LogoData       []byte      `json:"LogoData,omitempty" gorm:"column:logo_data"`
+	Verwijderd     *bool       `json:"Verwijderd" gorm:"column:verwijderd"`
 }
 
 func (Fractie) TableName() string {

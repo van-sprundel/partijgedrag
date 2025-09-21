@@ -15,7 +15,7 @@ import (
 	"etl/internal/api"
 	"etl/internal/categorisation"
 	"etl/internal/cmdutils"
-	"etl/internal/importer"
+	"etl/internal/config/importer"
 	"etl/internal/models"
 	"etl/pkg/odata"
 	"etl/pkg/storage"
