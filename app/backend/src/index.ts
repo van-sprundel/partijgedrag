@@ -31,11 +31,7 @@ export const router = os.router({
 const handler = new RPCHandler(router, {
 	interceptors: [
 		onError((error) => {
-			if (error instanceof Error) {
-				console.error(JSON.stringify(error.cause, null, 2));
-			} else {
-				console.error(error);
-			}
+			console.error(error);
 		}),
 	],
 });

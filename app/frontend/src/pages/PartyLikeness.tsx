@@ -1,4 +1,5 @@
 import { useId, useMemo, useState } from "react";
+import { z } from "zod";
 import {
 	Card,
 	CardContent,
@@ -13,8 +14,14 @@ import {
 	usePartyFocus,
 	usePartyLikenessMatrix,
 } from "../hooks/api";
-import type { MotionCategory, Party } from "../lib/api";
-import { formatPercentage, getPartyColorClass } from "../lib/utils";
+import type { Party } from "../lib/api";
+import { formatPercentage } from "../lib/utils";
+
+const FilterSchema = z.object({
+	dateFrom: z.date().optional(),
+	dateTo: z.date().optional(),
+});
+type Filter = z.infer<typeof FilterSchema>;
 
 const cabinetPresets = {
 	"schoof-i": {
@@ -175,7 +182,7 @@ function LikenessMatrix({
 	filters,
 }: {
 	parties: Party[];
-	filters: { dateFrom?: Date; dateTo?: Date };
+	filters: Filter;
 }) {
 	const { data: likenessData, isLoading } = usePartyLikenessMatrix(filters);
 
@@ -276,7 +283,7 @@ function PartyFocusTab({
 }: {
 	partyId: string;
 	parties: Party[];
-	filters: any;
+	filters: Filter;
 }) {
 	const { data: focusData, isLoading: isLoadingFocus } = usePartyFocus(
 		partyId,
