@@ -221,11 +221,11 @@ function LikenessMatrix({
 								{parties.map((party) => (
 									<th key={party.id} className="border p-2">
 										<div className="flex items-center justify-center">
-											<span
-												className={`w-6 h-6 rounded-full flex items-center justify-center text-white text-xs font-bold ${getPartyColorClass(party.shortName)}`}
-											>
-												{party.shortName}
-											</span>
+											<img
+												src={`data:${party.contentType};base64,${party.logoData}`}
+												alt={` `}
+												className="w-6 h-6 object-contain"
+											/>
 										</div>
 									</th>
 								))}
@@ -236,11 +236,11 @@ function LikenessMatrix({
 								<tr key={p1.id}>
 									<td className="border p-2 font-bold">
 										<div className="flex items-center gap-2">
-											<span
-												className={`w-6 h-6 rounded-full flex items-center justify-center text-white text-xs font-bold ${getPartyColorClass(p1.shortName)}`}
-											>
-												{p1.shortName}
-											</span>
+											<img
+												src={`data:${p1.contentType};base64,${p1.logoData}`}
+												alt={` `}
+												className="w-6 h-6 object-contain"
+											/>
 											<span>{p1.name}</span>
 										</div>
 									</td>
@@ -397,11 +397,11 @@ function PartyCategoryLikenessMatrix({
 								{otherParties.map((party) => (
 									<th key={party.id} className="border p-2">
 										<div className="flex items-center justify-center">
-											<span
-												className={`w-6 h-6 rounded-full flex items-center justify-center text-white text-xs font-bold ${getPartyColorClass(party.shortName)}`}
-											>
-												{party.shortName}
-											</span>
+											<img
+												src={`data:${party.contentType};base64,${party.logoData}`}
+												alt={` `}
+												className="w-6 h-6 object-contain"
+											/>
 										</div>
 									</th>
 								))}
