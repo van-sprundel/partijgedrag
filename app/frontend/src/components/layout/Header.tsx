@@ -14,9 +14,9 @@ export function Header() {
 					Partijgedrag
 				</Link>
 				<nav className="hidden md:flex items-center space-x-2">
-					{/*<Link to="/compass/settings">
+					<Link to="/compass/settings">
 						<Button variant="ghost">Stemwijzer</Button>
-					</Link>*/}
+					</Link>
 					<Link to="/party-likeness">
 						<Button variant="ghost">Partijgelijkenis</Button>
 					</Link>
