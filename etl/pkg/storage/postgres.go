@@ -3,7 +3,9 @@ package storage
 import (
 	"context"
 	"fmt"
+	"io"
 	"log"
+	"net/http"
 	"strings"
 	"time"
 
@@ -89,9 +91,52 @@ func (s *PostgresStorage) SaveFracties(ctx context.Context, fracties []models.Fr
 
 	log.Printf("Saving %d fracties...", len(fracties))
 
+	// Fetch logos for fracties that don't have one yet
+	for i := range fracties {
+		if len(fracties[i].LogoData) == 0 {
+			if logoData := s.fetchFractieLogo(ctx, fracties[i].ID); logoData != nil {
+				fracties[i].LogoData = logoData
+			}
+		}
+	}
+
 	return s.db.WithContext(ctx).Clauses(clause.OnConflict{
 		UpdateAll: true,
 	}).CreateInBatches(fracties, 1000).Error
+}
+
+func (s *PostgresStorage) fetchFractieLogo(ctx context.Context, fractieID string) []byte {
+	logoURL := fmt.Sprintf("https://gegevensmagazijn.tweedekamer.nl/OData/v4/2.0/fractie/%s/resource", fractieID)
+
+	client := &http.Client{Timeout: 10 * time.Second}
+	req, err := http.NewRequestWithContext(ctx, "GET", logoURL, nil)
+	if err != nil {
+		log.Printf("Failed to create request for fractie %s logo: %v", fractieID, err)
+		return nil
+	}
+
+	req.Header.Set("User-Agent", "partijgedrag-etl/1.0")
+
+	resp, err := client.Do(req)
+	if err != nil {
+		log.Printf("Failed to fetch logo for fractie %s: %v", fractieID, err)
+		return nil
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		log.Printf("Logo not found for fractie %s (status: %d)", fractieID, resp.StatusCode)
+		return nil
+	}
+
+	data, err := io.ReadAll(resp.Body)
+	if err != nil {
+		log.Printf("Failed to read logo data for fractie %s: %v", fractieID, err)
+		return nil
+	}
+
+	log.Printf("Successfully fetched logo for fractie %s (%d bytes)", fractieID, len(data))
+	return data
 }
 
 func (s *PostgresStorage) SaveZaakActors(ctx context.Context, zaakActors []models.ZaakActor) error {
