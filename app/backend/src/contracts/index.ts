@@ -10,6 +10,8 @@ const PartySchema = z.object({
 	seats: z.number(),
 	activeFrom: z.coerce.date().nullable(),
 	activeTo: z.coerce.date().nullable(),
+	contentType: z.string().nullable(),
+	logoData: z.string().nullable(), //base64
 	createdAt: z.coerce.date(),
 	updatedAt: z.coerce.date(),
 });

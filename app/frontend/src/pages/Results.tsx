@@ -252,13 +252,23 @@ export function ResultsPage() {
 									key={result.party.id}
 									className="grid grid-cols-12 gap-4 items-center p-4 bg-gray-50 rounded-lg hover:bg-gray-100 transition-colors"
 								>
-									{/* Party badge */}
+									{/* Party logo/badge */}
 									<div className="col-span-1">
-										<span
-											className={`w-10 h-10 rounded-full flex items-center justify-center text-white text-xs font-bold ${getPartyColorClass(result.party.shortName)}`}
-										>
-											{result.party.shortName}
-										</span>
+										{result.party.logoData ? (
+											<div className="w-10 h-10 rounded-full overflow-hidden bg-white border border-gray-200 flex items-center justify-center">
+												<img
+													src={`data:${result.party.contentType};base64,${result.party.logoData}`}
+													alt={`${result.party.name} logo`}
+													className="w-8 h-8 object-contain"
+												/>
+											</div>
+										) : (
+											<span
+												className={`w-10 h-10 rounded-full flex items-center justify-center text-white text-xs font-bold ${getPartyColorClass(result.party.shortName)}`}
+											>
+												{result.party.shortName}
+											</span>
+										)}
 									</div>
 
 									{/* Party info */}
@@ -457,6 +467,15 @@ export function ResultsPage() {
 																		<span className="text-lg">
 																			{getVoteEmoji(partyPos.position)}
 																		</span>
+																		{partyPos.party.logoData ? (
+																			<div className="w-6 h-6 rounded-full overflow-hidden bg-white border border-gray-200 flex items-center justify-center flex-shrink-0">
+																				<img
+																					src={`data:image/png;base64,${partyPos.party.logoData}`}
+																					alt={`${partyPos.party.name} logo`}
+																					className="w-5 h-5 object-contain"
+																				/>
+																			</div>
+																		) : null}
 																		<div>
 																			<span className="font-medium text-gray-900">
 																				{partyPos.party.shortName}

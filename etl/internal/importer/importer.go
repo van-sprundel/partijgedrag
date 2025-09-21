@@ -88,7 +88,7 @@ func (imp *SimpleImporter) processAllMotions(ctx context.Context, after *time.Ti
 			break
 		}
 
-		entities := imp.extractEntities(zaken)
+		entities := imp.extractEntities(ctx, zaken)
 
 		if err := imp.saveEntities(ctx, entities); err != nil {
 			return fmt.Errorf("saving entities from page %d: %w", pageNum, err)
@@ -179,7 +179,7 @@ type ExtractedEntities struct {
 	Kamerstukdossiers []models.Kamerstukdossier
 }
 
-func (imp *SimpleImporter) extractEntities(zaken []models.Zaak) ExtractedEntities {
+func (imp *SimpleImporter) extractEntities(ctx context.Context, zaken []models.Zaak) ExtractedEntities {
 	entities := ExtractedEntities{
 		Zaken: zaken,
 	}
@@ -261,6 +261,9 @@ func (imp *SimpleImporter) extractEntities(zaken []models.Zaak) ExtractedEntitie
 	for _, fractie := range fractieMap {
 		entities.Fracties = append(entities.Fracties, fractie)
 	}
+
+	// Fetch logos for fracties that don't have one yet
+	imp.fetchFractieLogos(ctx, entities.Fracties)
 
 	for _, dossier := range kamerstukdossierMap {
 		entities.Kamerstukdossiers = append(entities.Kamerstukdossiers, dossier)
@@ -346,6 +349,35 @@ func (imp *SimpleImporter) processMotionDocuments(ctx context.Context, zaken []m
 
 	log.Printf("Document processing complete for batch: %d processed, %d errors", processed, errors)
 	return nil
+}
+
+func (imp *SimpleImporter) fetchFractieLogos(ctx context.Context, fracties []models.Fractie) {
+var wg sync.WaitGroup
+	for i := range fracties {
+		if len(fracties[i].LogoData) == 0 {
+			wg.Add(1)
+			go func(i int) {
+				defer wg.Done()
+				if logoData := imp.fetchFractieLogo(ctx, fracties[i].ID); logoData != nil {
+					fracties[i].LogoData = logoData
+				}
+			}(i)
+		}
+	}
+	wg.Wait()
+}
+
+func (imp *SimpleImporter) fetchFractieLogo(ctx context.Context, fractieID string) []byte {
+	logoURL := fmt.Sprintf("https://gegevensmagazijn.tweedekamer.nl/OData/v4/2.0/fractie/%s/resource", fractieID)
+
+	data, err := imp.client.MakeRequest(ctx, logoURL)
+	if err != nil {
+		log.Printf("Failed to fetch logo for fractie %s: %v", fractieID, err)
+		return nil
+	}
+
+	log.Printf("Successfully fetched logo for fractie %s (%d bytes)", fractieID, len(data))
+	return data
 }
 
 func (imp *SimpleImporter) processMotionDocument(ctx context.Context, zaak models.Zaak) error {
