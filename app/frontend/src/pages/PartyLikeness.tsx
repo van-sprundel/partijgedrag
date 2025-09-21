@@ -174,10 +174,10 @@ function LikenessMatrix({
 	parties,
 	filters,
 }: {
+}: {
 	parties: Party[];
-	filters: any;
+	filters: { dateFrom?: Date; dateTo?: Date };
 }) {
-	const { data: likenessData, isLoading } = usePartyLikenessMatrix(filters);
 
 	const matrix = useMemo(() => {
 		const m: { [key: string]: { [key: string]: number } } = {};
