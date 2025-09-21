@@ -34,7 +34,7 @@ export const statisticsRouter = {
             p2.afkorting AS "party2Name",
             COUNT(*) AS "commonMotions",
             SUM(CASE WHEN pl.same_vote THEN 1 ELSE 0 END) AS "sameVotes",
-            (SUM(CASE WHEN pl.same_vote THEN 1 ELSE 0 END)::float / COUNT(*)::float) * 100 AS "likenessPercentage"
+            (SUM(CASE WHEN pl.same_vote THEN 1 ELSE 0 END)::float / NULLIF(COUNT(*), 0)::float) * 100 AS "likenessPercentage"
         FROM party_likeness_per_motion pl
         JOIN fracties p1 ON pl.fractie1_id = p1.id
         JOIN fracties p2 ON pl.fractie2_id = p2.id

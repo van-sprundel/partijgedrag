@@ -84,7 +84,7 @@ export function PartyLikenessPage() {
 							<option value="schoof-i">Schoof I</option>
 							<option value="rutte-iv">Rutte IV</option>
 							<option value="rutte-iii">Rutte III</option>
-							<option value="rutte-ascher">Rutte-Asscher</option>
+							<option value="rutte-asscher">Rutte-Asscher</option>
 							<option value="rutte-verhagen">Rutte-Verhagen</option>
 							<option value="balkenende-iv">Balkenende IV</option>
 							<option value="balkenende-iii">Balkenende III</option>

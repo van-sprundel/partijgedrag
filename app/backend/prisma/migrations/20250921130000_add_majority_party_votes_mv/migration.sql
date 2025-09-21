@@ -27,7 +27,7 @@ FROM (
         gestart_op,
         fractie_id,
         vote_type,
-        ROW_NUMBER() OVER(PARTITION BY zaak_id, fractie_id ORDER BY vote_count DESC) as rn
+        ROW_NUMBER() OVER(PARTITION BY zaak_id, fractie_id ORDER BY vote_count DESC, vote_type ASC) as rn
     FROM PartyMotionVotes
 ) ranked_votes
 WHERE rn = 1;
