@@ -7,7 +7,6 @@ const PartySchema = z.object({
 	id: z.string(),
 	name: z.string(),
 	shortName: z.string(),
-	color: z.string().nullable(),
 	seats: z.number(),
 	activeFrom: z.coerce.date().nullable(),
 	activeTo: z.coerce.date().nullable(),

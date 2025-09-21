@@ -32,14 +32,13 @@ export function mapCaseToMotion(zaak: Case): MotionContract {
 export function mapPartyToContract(party: Party): PartyContract {
 	return {
 		id: party.id,
-		name: party.nameNl || party.shortName || "",
-		shortName: party.shortName || "",
-		color: null, // Not available in your schema
-		seats: Number(party.seats) || 0,
+		name: party.nameNl ?? party.shortName ?? "",
+		shortName: party.shortName ?? "",
+		seats: Number(party.seats),
 		activeFrom: party.activeFrom,
 		activeTo: party.activeTo,
-		createdAt: party.updatedAt || new Date(),
-		updatedAt: party.apiUpdatedAt || new Date(),
+		createdAt: party.updatedAt ?? new Date(),
+		updatedAt: party.apiUpdatedAt ?? new Date(),
 	};
 }
 
@@ -52,7 +51,7 @@ export function mapPoliticianToContract(
 		lastName: politician.lastName || "",
 		fullName:
 			`${politician.firstNames || ""} ${politician.prefix || ""} ${politician.lastName || ""}`.trim(),
-		partyId: undefined, // This needs to be handled separately
+		partyId: undefined, // this needs to be handled separately
 		createdAt: politician.updatedAt || new Date(),
 		updatedAt: politician.updatedAt || new Date(),
 	};

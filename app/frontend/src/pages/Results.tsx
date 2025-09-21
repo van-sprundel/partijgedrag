@@ -2,6 +2,7 @@ import {
 	ArrowRight,
 	ChevronDown,
 	ChevronUp,
+	ExternalLink,
 	RotateCcw,
 	Share2,
 } from "lucide-react";
@@ -389,6 +390,18 @@ export function ResultsPage() {
 														<p className="text-gray-700 mb-4">
 															{detail.motion.description}
 														</p>
+													)}
+
+													{detail.motion?.motionNumber && detail.motion.did && (
+														<a
+															href={`https://www.tweedekamer.nl/kamerstukken/moties/detail?id=${detail.motion.motionNumber}&did=${detail.motion.did}`}
+															target="_blank"
+															rel="noopener noreferrer"
+															className="btn focus-ring btn-secondary btn-sm ml-4 flex-shrink-0 inline-flex items-center"
+														>
+															<ExternalLink className="h-4 w-4 mr-2" />
+															Bron
+														</a>
 													)}
 
 													{detail.motion?.bulletPoints &&

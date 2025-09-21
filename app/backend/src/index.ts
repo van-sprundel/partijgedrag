@@ -58,7 +58,6 @@ app.get("/health", (_req, res) => {
 	res.json({ status: "ok", timestamp: new Date().toISOString() });
 });
 
-// Basic route for testing
 app.get("/", (_req, res) => {
 	res.json({
 		message: "Partijgedrag API Server",

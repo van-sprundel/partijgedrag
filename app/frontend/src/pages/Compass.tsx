@@ -129,12 +129,20 @@ export function CompassPage() {
 
 	const displayedBulletPoints = useMemo(() => {
 		const allPoints = currentMotion?.bulletPoints || [];
-		if (showAllBulletPoints) {
-			return allPoints;
-		}
 		const verzoektPoints = allPoints.filter((p) =>
 			p.toLowerCase().trimStart().startsWith("verzoekt"),
 		);
+
+		if (showAllBulletPoints) {
+			if (verzoektPoints.length > 0) {
+				const otherPoints = allPoints.filter(
+					(p) => !p.toLowerCase().trimStart().startsWith("verzoekt"),
+				);
+				return [...verzoektPoints, ...otherPoints];
+			}
+			return allPoints;
+		}
+
 		return verzoektPoints.length > 0 ? verzoektPoints : allPoints;
 	}, [currentMotion, showAllBulletPoints]);
 
@@ -198,7 +206,7 @@ export function CompassPage() {
 	};
 
 	if (isError) {
-		return <div>Error loading questions...</div>; // Simplified error display
+		return <div>Error loading questions...</div>;
 	}
 
 	if ((isLoading && motions.length === 0) || (isFetching && !currentMotion)) {
@@ -213,7 +221,7 @@ export function CompassPage() {
 	}
 
 	if (motions.length === 0 && !isLoading && !isFetching) {
-		return <div>No motions found for the selected filters.</div>; // Simplified display
+		return <div>No motions found for the selected filters.</div>;
 	}
 
 	return (

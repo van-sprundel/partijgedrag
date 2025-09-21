@@ -12,26 +12,23 @@ import {
 const os = implement(apiContract);
 
 function mapVoteType(dutchVoteType: string | null): VoteType {
-    switch (dutchVoteType) {
-        case "Voor":
-            return "FOR";
-        case "Tegen":
-            return "AGAINST";
-        case "Niet deelgenomen":
-            return "NEUTRAL";
-        default:
-            return "NEUTRAL";
-    }
+	switch (dutchVoteType) {
+		case "Voor":
+			return "FOR";
+		case "Tegen":
+			return "AGAINST";
+		case "Niet deelgenomen":
+			return "NEUTRAL";
+		default:
+			return "NEUTRAL";
+	}
 }
 
 export const compassRouter = {
 	submitAnswers: os.compass.submitAnswers.handler(async ({ input }) => {
 		const { answers } = input;
 
-		// Calculate party alignment scores
 		const partyResults = await calculatePartyAlignment(answers);
-
-		// Save session
 		const session = await db.userSession.create({
 			data: {
 				answers: answers,
@@ -65,7 +62,6 @@ export const compassRouter = {
 			id: session.id,
 		});
 
-		// Get detailed motion breakdown if requested
 		const answers = session.answers as UserAnswer[];
 		const motionDetails = await getMotionVoteDetails(answers);
 
@@ -244,8 +240,8 @@ async function calculatePartyAlignment(answers: UserAnswer[]) {
 			const party = vote.partyId
 				? parties.find((p) => p.id === vote.partyId)
 				: vote.actorParty
-				? partyNameMap.get(vote.actorParty)
-				: undefined;
+					? partyNameMap.get(vote.actorParty)
+					: undefined;
 
 			if (party && party.id && vote.type) {
 				const partyId = party.id;
@@ -377,8 +373,8 @@ async function getMotionVoteDetails(answers: UserAnswer[]) {
 			const party = vote.partyId
 				? parties.find((p) => p.id === vote.partyId)
 				: vote.actorParty
-				? partyNameMap.get(vote.actorParty)
-				: undefined;
+					? partyNameMap.get(vote.actorParty)
+					: undefined;
 
 			if (party && party.id && vote.type) {
 				const partyId = party.id;
