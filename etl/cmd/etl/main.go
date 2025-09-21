@@ -62,8 +62,6 @@ func main() {
 
 	var afterTime *time.Time
 
-
-
 	if *afterDate != "" {
 		parsedTime, err := parseAfterDate(*afterDate)
 		if err != nil {

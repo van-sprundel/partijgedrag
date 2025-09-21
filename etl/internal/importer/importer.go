@@ -262,6 +262,9 @@ func (imp *SimpleImporter) extractEntities(zaken []models.Zaak) ExtractedEntitie
 		entities.Fracties = append(entities.Fracties, fractie)
 	}
 
+	// Fetch logos for fracties that don't have one yet
+	imp.fetchFractieLogos(ctx, entities.Fracties)
+
 	for _, dossier := range kamerstukdossierMap {
 		entities.Kamerstukdossiers = append(entities.Kamerstukdossiers, dossier)
 	}
@@ -346,6 +349,29 @@ func (imp *SimpleImporter) processMotionDocuments(ctx context.Context, zaken []m
 
 	log.Printf("Document processing complete for batch: %d processed, %d errors", processed, errors)
 	return nil
+}
+
+func (imp *SimpleImporter) fetchFractieLogos(ctx context.Context, fracties []models.Fractie) {
+	for i := range fracties {
+		if len(fracties[i].LogoData) == 0 {
+			if logoData := imp.fetchFractieLogo(ctx, fracties[i].ID); logoData != nil {
+				fracties[i].LogoData = logoData
+			}
+		}
+	}
+}
+
+func (imp *SimpleImporter) fetchFractieLogo(ctx context.Context, fractieID string) []byte {
+	logoURL := fmt.Sprintf("https://gegevensmagazijn.tweedekamer.nl/OData/v4/2.0/fractie/%s/resource", fractieID)
+
+	data, err := imp.client.MakeRequest(ctx, logoURL)
+	if err != nil {
+		log.Printf("Failed to fetch logo for fractie %s: %v", fractieID, err)
+		return nil
+	}
+
+	log.Printf("Successfully fetched logo for fractie %s (%d bytes)", fractieID, len(data))
+	return data
 }
 
 func (imp *SimpleImporter) processMotionDocument(ctx context.Context, zaak models.Zaak) error {
