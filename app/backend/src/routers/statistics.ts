@@ -19,8 +19,6 @@ export const statisticsRouter = {
 			const partyFilter = Prisma.sql`
 				p1.datum_inactief IS NULL
 				AND p2.datum_inactief IS NULL
-				AND p1.naam_nl NOT IN ('Groep Van Haga', 'Fractie Den Haan', 'Lid Omtzigt', 'Lid Gündoğan')
-				AND p2.naam_nl NOT IN ('Groep Van Haga', 'Fractie Den Haan', 'Lid Omtzigt', 'Lid Gündoğan')
 			`;
 
 			const dateFilter =

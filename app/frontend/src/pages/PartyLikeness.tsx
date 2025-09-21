@@ -81,7 +81,6 @@ export function PartyLikenessPage() {
 							onChange={handlePresetChange}
 							className="input"
 						>
-							<option value="">Alles</option>
 							<option value="schoof-i">Schoof I</option>
 							<option value="rutte-iv">Rutte IV</option>
 							<option value="rutte-iii">Rutte III</option>
@@ -199,7 +198,6 @@ function LikenessMatrix({
 		if (value > 60) return "bg-green-200";
 		if (value < 40) return "bg-red-200";
 		if (value < 20) return "bg-red-300";
-		return "bg-white";
 	};
 
 	if (isLoading) {
@@ -376,7 +374,6 @@ function PartyCategoryLikenessMatrix({
 		if (value >= 40) return "bg-gray-100";
 		if (value < 20) return "bg-red-300";
 		if (value < 40) return "bg-red-200";
-		return "bg-white";
 	};
 
 	return (
