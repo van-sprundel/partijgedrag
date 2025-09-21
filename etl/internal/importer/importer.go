@@ -352,13 +352,19 @@ func (imp *SimpleImporter) processMotionDocuments(ctx context.Context, zaken []m
 }
 
 func (imp *SimpleImporter) fetchFractieLogos(ctx context.Context, fracties []models.Fractie) {
+var wg sync.WaitGroup
 	for i := range fracties {
 		if len(fracties[i].LogoData) == 0 {
-			if logoData := imp.fetchFractieLogo(ctx, fracties[i].ID); logoData != nil {
-				fracties[i].LogoData = logoData
-			}
+			wg.Add(1)
+			go func(i int) {
+				defer wg.Done()
+				if logoData := imp.fetchFractieLogo(ctx, fracties[i].ID); logoData != nil {
+					fracties[i].LogoData = logoData
+				}
+			}(i)
 		}
 	}
+	wg.Wait()
 }
 
 func (imp *SimpleImporter) fetchFractieLogo(ctx context.Context, fractieID string) []byte {
