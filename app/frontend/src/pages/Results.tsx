@@ -257,7 +257,7 @@ export function ResultsPage() {
 										{result.party.logoData ? (
 											<div className="w-10 h-10 rounded-full overflow-hidden bg-white border border-gray-200 flex items-center justify-center">
 												<img
-													src={`data:image/png;base64,${result.party.logoData}`}
+													src={`data:${result.party.contentType};base64,${result.party.logoData}`}
 													alt={`${result.party.name} logo`}
 													className="w-8 h-8 object-contain"
 												/>
