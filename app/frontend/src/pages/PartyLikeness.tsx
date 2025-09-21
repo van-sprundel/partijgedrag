@@ -174,10 +174,10 @@ function LikenessMatrix({
 	parties,
 	filters,
 }: {
-}: {
 	parties: Party[];
 	filters: { dateFrom?: Date; dateTo?: Date };
 }) {
+	const { data: likenessData, isLoading } = usePartyLikenessMatrix(filters);
 
 	const matrix = useMemo(() => {
 		const m: { [key: string]: { [key: string]: number } } = {};
@@ -189,10 +189,12 @@ function LikenessMatrix({
 			});
 		});
 		likenessData?.forEach((entry) => {
-			if (m[entry.party1Id])
+			if (m[entry.party1Id]) {
 				m[entry.party1Id][entry.party2Id] = entry.likenessPercentage;
-			if (m[entry.party2Id])
+			}
+			if (m[entry.party2Id]) {
 				m[entry.party2Id][entry.party1Id] = entry.likenessPercentage;
+			}
 		});
 		return m;
 	}, [parties, likenessData]);
@@ -200,8 +202,9 @@ function LikenessMatrix({
 	const getCellColor = (value: number) => {
 		if (value > 80) return "bg-green-300";
 		if (value > 60) return "bg-green-200";
-		if (value < 40) return "bg-red-200";
+		if (value >= 40) return "bg-gray-100";
 		if (value < 20) return "bg-red-300";
+		return "bg-red-200";
 	};
 
 	if (isLoading) {
@@ -377,7 +380,7 @@ function PartyCategoryLikenessMatrix({
 		if (value > 60) return "bg-green-200";
 		if (value >= 40) return "bg-gray-100";
 		if (value < 20) return "bg-red-300";
-		if (value < 40) return "bg-red-200";
+		return "bg-red-200";
 	};
 
 	return (
