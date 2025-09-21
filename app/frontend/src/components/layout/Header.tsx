@@ -16,9 +16,6 @@ export function Header() {
 				<nav className="hidden md:flex items-center space-x-2">
 					{/*<Link to="/compass/settings">
 						<Button variant="ghost">Stemwijzer</Button>
-					</Link>
-					<Link to="/party-focus">
-						<Button variant="ghost">Partijfocus</Button>
 					</Link>*/}
 					<Link to="/party-likeness">
 						<Button variant="ghost">Partijgelijkenis</Button>

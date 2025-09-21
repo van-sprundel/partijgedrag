@@ -93,24 +93,6 @@ export function HomePage() {
 						</Card>
 					</Link>
 
-					<Link to="/party-focus" className="group block h-full">
-						<Card className="h-full transition-all group-hover:shadow-md border-2 border-purple-100 hover:border-purple-200">
-							<CardContent className="p-6 h-full flex flex-col">
-								<div className="w-12 h-12 bg-purple-100 rounded-lg flex items-center justify-center mb-4 group-hover:bg-purple-200 transition-colors">
-									<BarChart3 className="h-6 w-6 text-purple-600" />
-								</div>
-								<h3 className="font-semibold text-lg mb-2">Partijfocus</h3>
-								<p className="text-gray-600 text-sm leading-relaxed flex-grow">
-									Bekijk de onderwerpen waar een partij de meeste moties over
-									indient.
-								</p>
-								<div className="mt-4 text-purple-600 text-sm font-medium group-hover:underline">
-									Bekijk focus →
-								</div>
-							</CardContent>
-						</Card>
-					</Link>
-
 					<Link to="/party-likeness" className="group block h-full">
 						<Card className="h-full transition-all group-hover:shadow-md border-2 border-orange-100 hover:border-orange-200">
 							<CardContent className="p-6 h-full flex flex-col">

@@ -33,7 +33,6 @@ function App() {
 						<Route path="/results/:sessionId" element={<ResultsPage />} />
 						<Route path="/about" element={<AboutPage />} />
 						<Route path="/party-likeness" element={<PartyLikenessPage />} />
-						<Route path="/party-focus" element={<PartyFocusPage />} />
 						<Route path="/motions" element={<MotionsPage />} />
 						<Route path="*" element={<NotFoundPage />} />
 					</Routes>
