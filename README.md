@@ -88,4 +88,4 @@ The `app` is split into a backend and a frontend, which must be run separately f
     ```bash
     npm run dev
     ```
-    The frontend will be accessible at `http://localhost:5173`.
+    The frontend will be accessible at `http://localhost:3000`.
