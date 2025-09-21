@@ -19,7 +19,7 @@ logging:
 storage:
   type: "postgres"
   host: "localhost"
-  port: 5433
+  port: 5432
   database: "partijgedrag"
   username: "etl_user"
   password: "etl_password"
