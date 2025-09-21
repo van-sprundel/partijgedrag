@@ -19,11 +19,11 @@ export function Header() {
 					</Link>
 					{/*<Link to="/party-focus">
 						<Button variant="ghost">Partijfocus</Button>
-					</Link>
+					</Link>*/}
 					<Link to="/party-likeness">
 						<Button variant="ghost">Partijgelijkenis</Button>
 					</Link>
-					<Link to="/motions">
+					{/*<Link to="/motions">
 						<Button variant="ghost">Moties</Button>
 					</Link>*/}
 					<Link to="/about">

@@ -37,6 +37,9 @@ export function mapPartyToContract(party: Party): PartyContract {
 		seats: Number(party.seats),
 		activeFrom: party.activeFrom,
 		activeTo: party.activeTo,
+		logoData: party.logoData
+			? Buffer.from(party.logoData).toString("base64")
+			: null,
 		createdAt: party.updatedAt ?? new Date(),
 		updatedAt: party.apiUpdatedAt ?? new Date(),
 	};

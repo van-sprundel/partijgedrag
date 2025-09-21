@@ -39,6 +39,7 @@ model Party {
   contentLength BigInt?   @map("content_length")
   updatedAt     DateTime? @map("gewijzigd_op") @db.Timestamptz(6)
   apiUpdatedAt  DateTime? @map("api_gewijzigd_op") @db.Timestamptz(6)
+  logoData      Bytes?    @map("logo_data")
 
   @@map("fracties")
 }
