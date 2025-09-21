@@ -59,6 +59,10 @@ export function PartyLikenessPage() {
 			? { dateFrom: new Date(dateFrom), dateTo: new Date(dateTo) }
 			: {};
 
+	const presetId = useId();
+	const dateFromId = useId();
+	const dateToId = useId();
+
 	return (
 		<div className="container mx-auto p-4">
 			<Card className="mb-4">
@@ -71,13 +75,13 @@ export function PartyLikenessPage() {
 				<CardContent className="flex items-center gap-4">
 					<div>
 						<label
-							htmlFor="preset"
+							htmlFor={presetId}
 							className="block text-sm font-medium text-gray-700"
 						>
 							Presets
 						</label>
 						<select
-							id={useId()}
+							id={presetId}
 							onChange={handlePresetChange}
 							className="input"
 						>
@@ -92,14 +96,14 @@ export function PartyLikenessPage() {
 					</div>
 					<div>
 						<label
-							htmlFor="dateFrom"
+							htmlFor={dateFromId}
 							className="block text-sm font-medium text-gray-700"
 						>
 							Vanaf
 						</label>
 						<input
 							type="date"
-							id={useId()}
+							id={dateFromId}
 							value={dateFrom}
 							onChange={(e) => setDateFrom(e.target.value)}
 							className="input"
@@ -107,14 +111,14 @@ export function PartyLikenessPage() {
 					</div>
 					<div>
 						<label
-							htmlFor="dateTo"
+							htmlFor={dateToId}
 							className="block text-sm font-medium text-gray-700"
 						>
 							Tot
 						</label>
 						<input
 							type="date"
-							id={useId()}
+							id={dateToId}
 							value={dateTo}
 							onChange={(e) => setDateTo(e.target.value)}
 							className="input"
