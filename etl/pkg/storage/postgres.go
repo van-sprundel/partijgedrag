@@ -3,9 +3,7 @@ package storage
 import (
 	"context"
 	"fmt"
-	"io"
 	"log"
-	"net/http"
 	"strings"
 	"time"
 

@@ -88,7 +88,7 @@ func (imp *SimpleImporter) processAllMotions(ctx context.Context, after *time.Ti
 			break
 		}
 
-		entities := imp.extractEntities(zaken)
+		entities := imp.extractEntities(ctx, zaken)
 
 		if err := imp.saveEntities(ctx, entities); err != nil {
 			return fmt.Errorf("saving entities from page %d: %w", pageNum, err)
@@ -179,7 +179,7 @@ type ExtractedEntities struct {
 	Kamerstukdossiers []models.Kamerstukdossier
 }
 
-func (imp *SimpleImporter) extractEntities(zaken []models.Zaak) ExtractedEntities {
+func (imp *SimpleImporter) extractEntities(ctx context.Context, zaken []models.Zaak) ExtractedEntities {
 	entities := ExtractedEntities{
 		Zaken: zaken,
 	}
