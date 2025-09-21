@@ -2,6 +2,10 @@
 
 Partijgedrag is a web application that provides insight into the voting behavior of political parties in the Dutch parliament. It was originally created by Elwin Oost and later rebuilt in TypeScript.
 
+## License
+
+Permission is granted to use, modify, and distribute this software for legitimate political transparency and accountability purposes only. Use for disinformation, harassment, or undermining democratic processes is explicitly prohibited.
+
 ## Project Structure
 
 This repository is a monorepo containing three main components:
