@@ -7,7 +7,6 @@ import { CompassPage } from "./pages/Compass";
 import { CompassSettingsPage } from "./pages/CompassSettings";
 import { HomePage } from "./pages/Home";
 import { MotionsPage } from "./pages/Motions";
-import { PartyFocusPage } from "./pages/PartyFocus";
 import { PartyLikenessPage } from "./pages/PartyLikeness";
 import { ResultsPage } from "./pages/Results";
 

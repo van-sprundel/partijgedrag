@@ -1,4 +1,4 @@
-import { ArrowRight, BarChart3, Search, Users, Vote } from "lucide-react";
+import { ArrowRight, Search, Users, Vote } from "lucide-react";
 import { Link } from "react-router-dom";
 import { Card, CardContent } from "@/components/ui/Card";
 import { useGetMotionStatistics } from "@/hooks/useGetMotionStatistics";
