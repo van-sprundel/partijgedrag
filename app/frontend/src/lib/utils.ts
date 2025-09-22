@@ -51,7 +51,7 @@ export function sleep(ms: number): Promise<void> {
 	return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
-export function debounce<T extends (...args: any[]) => any>(
+export function debounce<T extends (...args: unknown[]) => unknown>(
 	func: T,
 	wait: number,
 ): (...args: Parameters<T>) => void {
@@ -64,7 +64,7 @@ export function debounce<T extends (...args: any[]) => any>(
 
 export function truncateText(text: string, maxLength: number): string {
 	if (text.length <= maxLength) return text;
-	return text.slice(0, maxLength).trim() + "...";
+	return `${text.slice(0, maxLength).trim()}...`;
 }
 
 export function calculateProgress(current: number, total: number): number {

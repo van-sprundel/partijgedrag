@@ -1,3 +1,4 @@
+import { Github } from "lucide-react";
 import { Link } from "react-router-dom";
 import logo from "../../assets/tug.png";
 import { Button } from "../ui/Button";
@@ -26,6 +27,15 @@ export function Header() {
 					<Link to="/about">
 						<Button variant="ghost">Over ons</Button>
 					</Link>
+					<a
+						href="https://github.com/van-sprundel/partijgedrag"
+						target="_blank"
+						rel="noopener noreferrer"
+						className="flex items-center gap-1 text-sm text-gray-500 hover:text-primary-600 transition-colors ml-4"
+					>
+						<Github className="h-4 w-4" />
+						<span className="hidden lg:inline">Open Source</span>
+					</a>
 				</nav>
 			</div>
 		</header>

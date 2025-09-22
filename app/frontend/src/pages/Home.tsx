@@ -8,7 +8,7 @@ import { Button } from "../components/ui/Button";
 export function HomePage() {
 	const { data: motionStatisticsData, isLoading } = useGetMotionStatistics();
 	return (
-		<div className="min-h-screen pb-16 bg-white">
+		<div className="pb-16 ">
 			{/* Hero Section */}
 			<div className="bg-gradient-to-b from-blue-50 to-white py-16 ">
 				<div className="container mx-auto px-4 text-center">
@@ -56,7 +56,7 @@ export function HomePage() {
 
 			{/* Main Tools Section */}
 			<div className="container mx-auto px-4 py-16">
-				<div className="grid md:grid-cols-2 lg:grid-cols-4 gap-6">
+				<div className="grid md:grid-cols-2 lg:grid-cols-3 gap-6">
 					<Link to="/compass/settings" className="group block h-full">
 						<Card className="h-full transition-all group-hover:shadow-md border-2 border-blue-100 hover:border-blue-200">
 							<CardContent className="p-6 h-full flex flex-col">
