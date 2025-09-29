@@ -93,7 +93,7 @@ export async function getVotesByPartyAndMotionIds(
             gewijzigd_op as "createdAt",
             api_gewijzigd_op as "updatedAt"
         FROM "stemmingen"
-        WHERE "fractie_id" = ${partyId}
+        WHERE "fractie_id" = ${partyId} AND "vergissing" IS NOT TRUE
         AND (${motionIds}::text[] IS NULL OR "besluit_id" IN (SELECT unnest(${motionIds}::text[])))
         ORDER BY "gewijzigd_op" DESC
     `;

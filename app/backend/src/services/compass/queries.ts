@@ -52,7 +52,7 @@ export async function getVotesByDecisionIds(decisionIds: string[]) {
             gewijzigd_op as "createdAt",
             api_gewijzigd_op as "updatedAt"
         FROM "stemmingen"
-        WHERE "besluit_id" IN (${decisionIds})
+        WHERE "besluit_id" IN (${decisionIds}) AND "vergissing" IS NOT TRUE
     `;
 }
 
