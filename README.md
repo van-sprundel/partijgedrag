@@ -71,7 +71,9 @@ The `app` is split into a backend and a frontend, which are separately for devel
     ```bash
     cd backend; cp .env.example .env; cd ../frontend; cp .env.example .env; cd ..
     ```
-   Ensure the `DATABASE_URL` in the new `.env` file is correctly configured for your environment.
+    
+  > Ensure the `DATABASE_URL` in the new `.env` file is correctly configured for your environment.
+   
 4.  Run migration in the backend:
     ```bash
     cd backend; npx prisma migrate dev
@@ -85,4 +87,5 @@ The `app` is split into a backend and a frontend, which are separately for devel
     cd -; npm run dev
     ```
     The backend will be running on `http://localhost:3001`.
+    
     The frontend will be accessible at `http://localhost:3000`.
