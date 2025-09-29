@@ -12,6 +12,16 @@ This repository is a monorepo containing three main components:
 - `etl/`: A Go application responsible for extracting, transforming, and loading the voting data into the database.
 - `docker-compose.yml`: Defines the services for the application, which for now is only the PostgreSQL database.
 
+## Screenshots
+<details>
+
+<img width="2560" height="1330" alt="image" src="https://github.com/user-attachments/assets/acd42a7a-7705-47e3-9b50-2918aeabb3d1" />
+<img width="2545" height="1330" alt="image" src="https://github.com/user-attachments/assets/bc2f1df7-dbe0-41a8-b8c1-5f784fe1aa66" />
+<img width="2560" height="1330" alt="image" src="https://github.com/user-attachments/assets/360702fd-eaed-4c7e-aed9-51e78e547e19" />
+<img width="2545" height="1330" alt="image" src="https://github.com/user-attachments/assets/85a47ef2-f668-4652-ae36-e11560bda8af" />
+</details>
+
+
 ## Development Setup
 
 ### Prerequisites
@@ -89,3 +99,8 @@ The `app` is split into a backend and a frontend, which are separately for devel
     The backend will be running on `http://localhost:3001`.
     
     The frontend will be accessible at `http://localhost:3000`.
+
+ ## Acknowledgements
+
+This project uses open data provided by the Tweede Kamer der Staten-Generaal (Dutch House of Representatives). For more information about the data sources and API documentation, visit https://opendata.tweedekamer.nl.
+
