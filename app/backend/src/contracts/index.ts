@@ -69,6 +69,20 @@ const VoteSchema = z.object({
 	politician: PoliticianSchema.optional(),
 });
 
+const DecisionSchema = z.object({
+    id: z.string(),
+    agendaPointId: z.string().nullable(),
+    caseId: z.string().nullable(),
+    votingType: z.string().nullable(),
+    decisionType: z.string().nullable(),
+    decisionText: z.string().nullable(),
+    comment: z.string().nullable(),
+    status: z.string().nullable(),
+    agendaPointCaseDecisionOrder: z.bigint().nullable(),
+    updatedAt: z.coerce.date().nullable(),
+    apiUpdatedAt: z.coerce.date().nullable(),
+});
+
 const UserAnswerSchema = z.object({
 	motionId: z.string(),
 	answer: z.enum(["agree", "disagree", "neutral"]),
@@ -102,6 +116,14 @@ export const CompassResultSchema = z.object({
 	partyResults: z.array(PartyResultSchema),
 	motionDetails: z.array(MotionDetailSchema).optional(),
 	createdAt: z.coerce.date(),
+});
+
+export const UserSessionSchema = z.object({
+	id: z.string(),
+	answers: UserAnswerSchema,
+	results: CompassResultSchema,
+	createdAt: z.coerce.date(),
+	updatedAt: z.coerce.date(),
 });
 
 // Motion contracts
@@ -305,6 +327,7 @@ export type Party = z.infer<typeof PartySchema>;
 export type Politician = z.infer<typeof PoliticianSchema>;
 export type MotionCategory = z.infer<typeof MotionCategorySchema>;
 export type Motion = z.infer<typeof MotionSchema>;
+export type Decision = z.infer<typeof DecisionSchema>;
 export type Vote = z.infer<typeof VoteSchema>;
 export type UserAnswer = z.infer<typeof UserAnswerSchema>;
 export type PartyResult = z.infer<typeof PartyResultSchema>;
@@ -314,3 +337,4 @@ export type PartyLikeness = z.infer<typeof PartyLikenessSchema>;
 export type PartyFocus = z.infer<typeof PartyFocusSchema>;
 export type PartyFocusCategory = z.infer<typeof PartyFocusCategorySchema>;
 export type PartyCategoryLikeness = z.infer<typeof PartyCategoryLikenessSchema>;
+export type UserSession = z.infer<typeof UserSessionSchema>;
