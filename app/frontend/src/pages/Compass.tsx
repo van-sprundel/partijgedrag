@@ -3,7 +3,6 @@ import {
 	ArrowRight,
 	CheckCircle,
 	ChevronDown,
-	ChevronUp,
 	ExternalLink,
 	Meh,
 	RotateCcw,
@@ -129,22 +128,29 @@ export function CompassPage() {
 
 	const displayedBulletPoints = useMemo(() => {
 		const allPoints = currentMotion?.bulletPoints || [];
-		const verzoektPoints = allPoints.filter((p) =>
+		const advisoryPoints = allPoints.filter((p) =>
 			p.toLowerCase().trimStart().startsWith("verzoekt"),
 		);
 
 		if (showAllBulletPoints) {
-			if (verzoektPoints.length > 0) {
+			if (advisoryPoints.length > 0) {
 				const otherPoints = allPoints.filter(
 					(p) => !p.toLowerCase().trimStart().startsWith("verzoekt"),
 				);
-				return [...verzoektPoints, ...otherPoints];
+				return [...advisoryPoints, ...otherPoints];
 			}
 			return allPoints;
 		}
 
-		return verzoektPoints.length > 0 ? verzoektPoints : allPoints;
+		return advisoryPoints.length > 0 ? advisoryPoints : allPoints;
 	}, [currentMotion, showAllBulletPoints]);
+
+	const hasAdvisoryPoints = useMemo(() => {
+		const allPoints = currentMotion?.bulletPoints || [];
+		return allPoints.some((p) =>
+			p.toLowerCase().trimStart().startsWith("verzoekt"),
+		);
+	}, [currentMotion]);
 
 	const handleAnswer = (answer: Answer) => {
 		if (!currentMotion) return;
@@ -291,18 +297,42 @@ export function CompassPage() {
 							currentMotion.bulletPoints.length > 0 && (
 								<CardContent className="pt-0">
 									<div className="bg-gray-50/80 rounded-lg p-4">
+										{hasAdvisoryPoints && (
+											<div className="mb-3">
+												<h4 className="text-sm font-semibold text-primary-700 mb-2 flex items-center">
+													<span className="inline-block w-2 h-2 bg-primary-500 rounded-full mr-2"></span>
+													Kernverzoek
+												</h4>
+											</div>
+										)}
 										<ul className="space-y-1.5">
-											{displayedBulletPoints.map((point, index) => (
-												<li
-													key={`bullet-${currentMotion.id}-${index}`}
-													className={`text-sm text-gray-800 flex items-start ${point.toLowerCase().trimStart().startsWith("verzoekt") ? "font-semibold" : ""}`}
-												>
-													<span className="text-primary-500 mr-2.5 mt-0.5">
-														•
-													</span>
-													{point}
-												</li>
-											))}
+											{displayedBulletPoints.map((point, index) => {
+												const isAdvisoryPoint = point
+													.toLowerCase()
+													.trimStart()
+													.startsWith("verzoekt");
+												return (
+													<li
+														key={`bullet-${currentMotion.id}-${index}`}
+														className={`text-sm flex items-start ${
+															isAdvisoryPoint
+																? "text-primary-900 font-semibold bg-primary-50/70 rounded-md p-2 border-l-3 border-primary-400"
+																: "text-gray-800"
+														}`}
+													>
+														<span
+															className={`mr-2.5 mt-0.5 ${
+																isAdvisoryPoint
+																	? "text-primary-600"
+																	: "text-primary-500"
+															}`}
+														>
+															{isAdvisoryPoint ? "→" : "•"}
+														</span>
+														{point}
+													</li>
+												);
+											})}
 										</ul>
 										{currentMotion.bulletPoints.length >
 											displayedBulletPoints.length && (
@@ -312,16 +342,13 @@ export function CompassPage() {
 												}
 												className="p-0 h-auto mt-3 text-sm bg-transparent text-gray-800 hover:bg-transparent"
 											>
-												{showAllBulletPoints ? (
-													<>
-														<ChevronUp className="h-4 w-4 mr-1" />
-														Toon alleen kernpunten
-													</>
-												) : (
+												{!showAllBulletPoints && (
 													<>
 														<ChevronDown className="h-4 w-4 mr-1" />
-														Toon alle punten (
-														{currentMotion.bulletPoints.length})
+														Toon motivatie (
+														{currentMotion.bulletPoints.length -
+															displayedBulletPoints.length}
+														)
 													</>
 												)}
 											</Button>

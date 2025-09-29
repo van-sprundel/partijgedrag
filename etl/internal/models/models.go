@@ -344,6 +344,7 @@ func (Kamerstukdossier) TableName() string {
 
 type Document struct {
 	ID             string `json:"Id"`
+	Titel          string `json:"Titel"`
 	Onderwerp      string `json:"Onderwerp"`
 	DocumentNummer string `json:"DocumentNummer"`
 	Volgnummer     int    `json:"Volgnummer"`

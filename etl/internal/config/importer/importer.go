@@ -236,7 +236,7 @@ func (imp *SimpleImporter) extractEntities(ctx context.Context, zaken []models.Z
 		var targetDoc *models.Document
 		for _, dossier := range zaak.Kamerstukdossier {
 			for _, doc := range dossier.Document {
-				if strings.EqualFold(strings.TrimSpace(doc.Onderwerp), strings.TrimSpace(*zaak.Onderwerp)) {
+				if strings.EqualFold(strings.TrimSpace(doc.Onderwerp), strings.TrimSpace(*zaak.Onderwerp)) && strings.EqualFold(strings.TrimSpace(doc.Titel), strings.TrimSpace(*zaak.Titel)) {
 					targetDoc = &doc
 					break
 				}
@@ -390,7 +390,7 @@ func (imp *SimpleImporter) processMotionDocument(ctx context.Context, zaak model
 
 	for _, dossier := range zaak.Kamerstukdossier {
 		for _, doc := range dossier.Document {
-			if strings.EqualFold(strings.TrimSpace(doc.Onderwerp), strings.TrimSpace(*zaak.Onderwerp)) {
+			if strings.EqualFold(strings.TrimSpace(doc.Onderwerp), strings.TrimSpace(*zaak.Onderwerp)) && strings.EqualFold(strings.TrimSpace(doc.Titel), strings.TrimSpace(*zaak.Titel)) {
 				targetDoc = &doc
 				targetDossier = &dossier
 				break
