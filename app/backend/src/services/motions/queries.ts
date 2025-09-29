@@ -13,32 +13,43 @@ export async function getForCompass(
 	after: Date | undefined,
 ) {
 	return sql<Motion[]>`
+        WITH VoteCounts AS (
+            SELECT
+                b.zaak_id,
+                SUM(CASE WHEN s.soort = 'Voor' THEN 1 ELSE 0 END) as voor_votes,
+                SUM(CASE WHEN s.soort = 'Tegen' THEN 1 ELSE 0 END) as tegen_votes
+            FROM stemmingen s
+            JOIN besluiten b ON s.besluit_id = b.id
+            WHERE s.soort IN ('Voor', 'Tegen') AND s.vergissing IS NOT TRUE
+            GROUP BY b.zaak_id
+        )
         SELECT
-            id,
-            onderwerp as title,
-            citeertitel as "shortTitle",
-            nummer as "motionNumber",
-            datum as date,
-            status,
-            soort as category,
-            bullet_points as "bulletPoints",
-            document_url as "documentURL",
-            did,
-            gestart_op as "createdAt",
-            gewijzigd_op as "updatedAt"
-        FROM "zaken"
+            z.id,
+            z.onderwerp as title,
+            z.citeertitel as "shortTitle",
+            z.nummer as "motionNumber",
+            z.datum as date,
+            z.status,
+            z.soort as category,
+            z.bullet_points as "bulletPoints",
+            z.document_url as "documentURL",
+            z.did,
+            z.gestart_op as "createdAt",
+            z.gewijzigd_op as "updatedAt"
+        FROM "zaken" z
+        JOIN VoteCounts vc ON z.id = vc.zaak_id
         WHERE "soort" = 'Motie'
         AND "bullet_points" IS NOT NULL AND jsonb_array_length("bullet_points") > 0
         AND EXISTS (SELECT 1 FROM jsonb_array_elements_text("bullet_points") AS elem WHERE elem ILIKE 'verzoekt%')
-        AND EXISTS (SELECT 1 FROM besluiten b JOIN stemmingen s ON b.id = s.besluit_id WHERE b.zaak_id = zaken.id AND s.fractie_id IS NOT NULL)
-        AND (${excludeIds}::text[] IS NULL OR id NOT IN (SELECT unnest(${excludeIds}::text[])))
-        AND (${after}::timestamp IS NULL OR "gestart_op" >= ${after})
+        AND EXISTS (SELECT 1 FROM besluiten b JOIN stemmingen s ON b.id = s.besluit_id WHERE b.zaak_id = z.id AND s.fractie_id IS NOT NULL)
+        AND (${excludeIds}::text[] IS NULL OR z.id NOT IN (SELECT unnest(${excludeIds}::text[])))
+        AND (${after}::timestamp IS NULL OR z."gestart_op" >= ${after})
         AND (${categoryIds}::text[] IS NULL OR EXISTS (
             SELECT 1 FROM "zaak_categories"
-            WHERE "zaak_id" = "zaken".id
+            WHERE "zaak_id" = z.id
             AND "category_id" IN (SELECT unnest(${categoryIds}::text[]))
         ))
-        ORDER BY RANDOM()
+        ORDER BY ABS(vc.voor_votes - vc.tegen_votes) ASC, RANDOM()
         LIMIT ${count}
     `;
 }
@@ -146,7 +157,7 @@ export async function getVotesByDecisionId(decisionId: string) {
             gewijzigd_op as "createdAt",
             api_gewijzigd_op as "updatedAt"
         FROM "stemmingen"
-        WHERE "besluit_id" = ${decisionId}
+        WHERE "besluit_id" = ${decisionId} AND "vergissing" IS NOT TRUE
         ORDER BY "fractie_id" ASC, "persoon_id" ASC
     `;
 }
