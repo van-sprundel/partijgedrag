@@ -63,6 +63,12 @@ export function mapPoliticianToContract(
 
 function mapVoteTypeToContract(voteType: string | null): VoteType {
 	switch (voteType) {
+		case "Voor":
+			return "FOR";
+		case "Tegen":
+			return "AGAINST";
+		case "Niet deelgenomen":
+			return "NEUTRAL";
 		case "FOR":
 		case "AGAINST":
 		case "NEUTRAL":

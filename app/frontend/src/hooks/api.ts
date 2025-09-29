@@ -6,6 +6,7 @@ export const useMotions = (params?: {
 	offset?: number;
 	category?: string;
 	status?: string;
+	withVotes?: boolean;
 }) => {
 	return useQuery(
 		orpc.motions.getAll.queryOptions({
@@ -130,10 +131,13 @@ export const usePartyLikenessMatrix = (filters?: {
 	);
 };
 
-export const usePartyFocus = (partyId: string, filters?: {
-	dateFrom?: Date;
-	dateTo?: Date;
-}) => {
+export const usePartyFocus = (
+	partyId: string,
+	filters?: {
+		dateFrom?: Date;
+		dateTo?: Date;
+	},
+) => {
 	return useQuery(
 		orpc.statistics.getPartyFocus.queryOptions({
 			input: { partyId, ...filters },
@@ -142,10 +146,13 @@ export const usePartyFocus = (partyId: string, filters?: {
 	);
 };
 
-export const usePartyCategoryLikeness = (partyId: string, filters?: {
-	dateFrom?: Date;
-	dateTo?: Date;
-}) => {
+export const usePartyCategoryLikeness = (
+	partyId: string,
+	filters?: {
+		dateFrom?: Date;
+		dateTo?: Date;
+	},
+) => {
 	return useQuery(
 		orpc.statistics.getPartyCategoryLikeness.queryOptions({
 			input: { partyId, ...filters },

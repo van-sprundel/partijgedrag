@@ -111,7 +111,7 @@ export const compassRouter = {
 
 			const partyVoteMap = new Map<
 				string,
-				{ party: PartyModel; votes: VoteType[] }
+				{ party: PartyModel; votes: VoteType[]; partySize: number }
 			>();
 
 			const parties = await db.party.findMany({
@@ -132,6 +132,7 @@ export const compassRouter = {
 							partyVoteMap.set(vote.partyId, {
 								party: party,
 								votes: [],
+								partySize: Number(vote.partySize || 0),
 							});
 						}
 						if (vote.type) {
@@ -144,7 +145,7 @@ export const compassRouter = {
 			});
 
 			partyPositions = Array.from(partyVoteMap.values()).map(
-				({ party, votes: partyVotes }) => {
+				({ party, votes: partyVotes, partySize }) => {
 					const voteCounts = partyVotes.reduce(
 						(acc, vote) => {
 							acc[vote] = (acc[vote] || 0) + 1;
@@ -162,12 +163,11 @@ export const compassRouter = {
 
 					const majorityVote =
 						(majorityVoteEntry[0] as VoteType) ?? ("NEUTRAL" as const);
-					const count = majorityVoteEntry[1] ?? null;
 
 					return {
 						party: mapPartyToContract(party),
 						position: majorityVote,
-						count,
+						count: partySize,
 					};
 				},
 			);
@@ -243,7 +243,7 @@ async function calculatePartyAlignment(answers: UserAnswer[]) {
 					? partyNameMap.get(vote.actorParty)
 					: undefined;
 
-			if (party && party.id && vote.type) {
+			if (party?.id && vote.type) {
 				const partyId = party.id;
 				if (!partyPositions.has(partyId)) {
 					partyPositions.set(partyId, []);
@@ -366,7 +366,12 @@ async function getMotionVoteDetails(answers: UserAnswer[]) {
 
 		const partyVotes = new Map<
 			string,
-			{ party: PartyModel; votes: VoteType[]; majorityVote: VoteType }
+			{
+				party: PartyModel;
+				votes: VoteType[];
+				majorityVote: VoteType;
+				partySize: number;
+			}
 		>();
 
 		motionVotes.forEach((vote) => {
@@ -376,13 +381,14 @@ async function getMotionVoteDetails(answers: UserAnswer[]) {
 					? partyNameMap.get(vote.actorParty)
 					: undefined;
 
-			if (party && party.id && vote.type) {
+			if (party?.id && vote.type) {
 				const partyId = party.id;
 				if (!partyVotes.has(partyId)) {
 					partyVotes.set(partyId, {
 						party: party,
 						votes: [],
 						majorityVote: "NEUTRAL",
+						partySize: Number(vote.partySize || 0),
 					});
 				}
 				partyVotes.get(partyId)?.votes.push(mapVoteType(vote.type));
@@ -409,10 +415,10 @@ async function getMotionVoteDetails(answers: UserAnswer[]) {
 		});
 
 		const partyPositions = Array.from(partyVotes.values()).map(
-			({ party, votes, majorityVote }) => ({
+			({ party, majorityVote, partySize }) => ({
 				party: mapPartyToContract(party),
 				position: majorityVote,
-				voteCount: votes.length,
+				voteCount: partySize,
 				agreesWithUser:
 					majorityVote !== "NEUTRAL" &&
 					((answer.answer === "agree" && majorityVote === "FOR") ||

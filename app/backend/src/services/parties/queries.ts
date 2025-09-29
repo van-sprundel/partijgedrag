@@ -2,7 +2,7 @@ import type { Party, Vote } from "../../contracts/index.js";
 import { sql, sqlOneOrNull } from "../db/sql-tag.js";
 
 export async function getActiveParties() {
-	return sql<Party[]>`
+	return sql<Party>`
         SELECT
             id,
             naam_nl as name,
@@ -23,7 +23,7 @@ export async function getPartiesByIdsOrNames(
 	partyIds: string[],
 	partyNames: string[],
 ) {
-	return sql<Party[]>`
+	return sql<Party>`
         SELECT
             id,
             naam_nl as name,
@@ -42,7 +42,7 @@ export async function getPartiesByIdsOrNames(
 }
 
 export async function getAllParties(activeOnly: boolean) {
-	return sql<Party[]>`
+	return sql<Party>`
         SELECT
             id,
             naam_nl as name,
@@ -83,7 +83,7 @@ export async function getVotesByPartyAndMotionIds(
 	partyId: string,
 	motionIds?: string[],
 ) {
-	return sql<Vote[]>`
+	return sql<Vote>`
         SELECT
             id,
             besluit_id as "motionId",
@@ -93,7 +93,7 @@ export async function getVotesByPartyAndMotionIds(
             gewijzigd_op as "createdAt",
             api_gewijzigd_op as "updatedAt"
         FROM "stemmingen"
-        WHERE "fractie_id" = ${partyId}
+        WHERE "fractie_id" = ${partyId} AND "vergissing" IS NOT TRUE
         AND (${motionIds}::text[] IS NULL OR "besluit_id" IN (SELECT unnest(${motionIds}::text[])))
         ORDER BY "gewijzigd_op" DESC
     `;

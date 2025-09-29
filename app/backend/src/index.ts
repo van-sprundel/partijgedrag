@@ -1,5 +1,5 @@
 import path from "node:path";
-import { onError, os } from "@orpc/server";
+import { ORPCError, onError, os } from "@orpc/server";
 import { RPCHandler } from "@orpc/server/node";
 import cors from "cors";
 import express from "express";
@@ -31,6 +31,10 @@ export const router = os.router({
 const handler = new RPCHandler(router, {
 	interceptors: [
 		onError((error) => {
+			if (error instanceof ORPCError) {
+				console.error(JSON.stringify(error.cause));
+				return;
+			}
 			console.error(error);
 		}),
 	],
