@@ -32,7 +32,7 @@ export async function getUserSessionById(sessionId: string) {
 }
 
 export async function getDecisionIdsByCaseId(motionId: string) {
-	return sql<{ id: string }[]>`
+	return sql<{ id: string }>`
         SELECT id FROM "besluiten"
         WHERE "zaak_id" = ${motionId}
     `;
@@ -42,7 +42,7 @@ export async function getVotesByDecisionIds(decisionIds: string[]) {
 	if (decisionIds.length === 0) {
 		return [];
 	}
-	return sql<Vote[]>`
+	return sql<Vote>`
         SELECT
             id,
             besluit_id as "motionId",
@@ -60,7 +60,7 @@ export async function getDecisionsByCaseIds(motionIds: string[]) {
 	if (motionIds.length === 0) {
 		return [];
 	}
-	return sql<Pick<Decision, "id" | "caseId">[]>`
+	return sql<Pick<Decision, "id" | "caseId">>`
         SELECT id, zaak_id as "caseId" FROM "besluiten"
         WHERE "zaak_id" IN (${motionIds})
     `;

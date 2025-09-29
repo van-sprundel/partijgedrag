@@ -2,6 +2,7 @@ import type {
 	Motion,
 	MotionCategory,
 	Party,
+	Politician,
 	Vote,
 } from "../../contracts/index.js";
 import { sql, sqlOne, sqlOneOrNull } from "../db/sql-tag.js";
@@ -12,7 +13,7 @@ export async function getForCompass(
 	categoryIds: string[] | undefined,
 	after: Date | undefined,
 ) {
-	return sql<Motion[]>`
+	return sql<Motion>`
         WITH VoteCounts AS (
             SELECT
                 b.zaak_id,
@@ -59,30 +60,38 @@ export async function getAllMotions(
 	offset: number,
 	category?: string,
 	status?: string,
+	withVotes?: boolean,
 ) {
-	return sql<({ total: string } & Motion)[]>`
+	return sql<{ total: string } & Motion>`
         WITH subset AS (
             SELECT
-                id,
-                onderwerp as title,
-                citeertitel as "shortTitle",
-                nummer as "motionNumber",
-                datum as date,
-                status,
-                soort as category,
-                bullet_points as "bulletPoints",
-                document_url as "documentURL",
-                did,
-                gestart_op as "createdAt",
-                gewijzigd_op as "updatedAt"
-            FROM "zaken"
-            WHERE "soort" = 'Motie'
-            AND (${category}::text IS NULL OR "soort" = ${category})
-            AND (${status}::text IS NULL OR status = ${status})
+                z.id,
+                z.onderwerp as title,
+                z.citeertitel as "shortTitle",
+                z.nummer as "motionNumber",
+                z.datum as date,
+                z.status,
+                z.soort as category,
+                z.bullet_points as "bulletPoints",
+                z.document_url as "documentURL",
+                z.did,
+                z.gestart_op as "createdAt",
+                z.gewijzigd_op as "updatedAt"
+            FROM "zaken" z
+            WHERE z."soort" = 'Motie'
+            AND (${category}::text IS NULL OR z."soort" = ${category})
+            AND (${status}::text IS NULL OR z.status = ${status})
+            AND (${withVotes}::boolean IS NULL OR ${withVotes} = false OR (
+                ${withVotes} = true AND EXISTS (
+                    SELECT 1 FROM "besluiten" b
+                    JOIN "stemmingen" s ON b.id = s.besluit_id
+                    WHERE b.zaak_id = z.id AND s.vergissing IS NOT TRUE
+                )
+            ))
         )
         SELECT *, (SELECT count(*) FROM subset) as total
         FROM subset
-        ORDER BY date DESC
+        ORDER BY "createdAt" DESC
         LIMIT ${limit}
         OFFSET ${offset}
     `;
@@ -109,7 +118,7 @@ export async function getMotionById(id: string) {
 }
 
 export async function getMotionsByIds(motionIds: string[]) {
-	return sql<Motion[]>`
+	return sql<Motion>`
         SELECT
             id,
             onderwerp as title,
@@ -128,10 +137,32 @@ export async function getMotionsByIds(motionIds: string[]) {
     `;
 }
 
+export async function getRecentMotions(limit: number) {
+	return sql<Motion>`
+        SELECT
+            id,
+            onderwerp as title,
+            citeertitel as "shortTitle",
+            nummer as "motionNumber",
+            datum as date,
+            status,
+            soort as category,
+            bullet_points as "bulletPoints",
+            document_url as "documentURL",
+            did,
+            gestart_op as "createdAt",
+            gewijzigd_op as "updatedAt"
+        FROM "zaken"
+        WHERE "soort" = 'Motie'
+        ORDER BY "gestart_op" DESC
+        LIMIT ${limit}
+    `;
+}
+
 export async function getMotionCategories(
 	type: "all" | "generic" | "hot_topic",
 ) {
-	return sql<MotionCategory[]>`
+	return sql<MotionCategory>`
         SELECT
             id,
             name,
@@ -147,13 +178,14 @@ export async function getMotionCategories(
 }
 
 export async function getVotesByDecisionId(decisionId: string) {
-	return sql<Vote[]>`
+	return sql<Vote>`
         SELECT
             id,
             besluit_id as "motionId",
             fractie_id as "partyId",
             persoon_id as "politicianId",
             soort as "voteType",
+            fractie_grootte as "partySize",
             gewijzigd_op as "createdAt",
             api_gewijzigd_op as "updatedAt"
         FROM "stemmingen"
@@ -162,11 +194,33 @@ export async function getVotesByDecisionId(decisionId: string) {
     `;
 }
 
+export async function getVotesByMotionId(motionId: string) {
+	return sql<Vote>`
+        WITH decision_ids AS (
+            SELECT id FROM "besluiten"
+            WHERE "zaak_id" = ${motionId}
+        )
+        SELECT
+            s.id,
+            COALESCE(s.besluit_id, '') as "motionId",
+            COALESCE(s.fractie_id, '') as "partyId",
+            COALESCE(s.persoon_id, '') as "politicianId",
+            s.soort as "voteType",
+            s.fractie_grootte as "partySize",
+            COALESCE(s.gewijzigd_op, NOW()) as "createdAt",
+            COALESCE(s.api_gewijzigd_op, NOW()) as "updatedAt"
+        FROM "stemmingen" s
+        WHERE s.besluit_id IN (SELECT id FROM decision_ids)
+        AND s.vergissing IS NOT TRUE
+        ORDER BY s.fractie_id ASC, s.persoon_id ASC
+    `;
+}
+
 export async function getPartiesByIds(partyIds: string[]) {
 	if (partyIds.length === 0) {
 		return [];
 	}
-	return sql<Party[]>`
+	return sql<Party>`
         SELECT
             id,
             naam_nl as name,
@@ -195,5 +249,15 @@ export async function getMotionStatistics() {
             MAX("gestart_op") as "lastMotionDate"
         FROM "zaken"
         WHERE "soort" = 'Motie'
+    `;
+}
+
+export async function getSubmitterByMotionId(motionId: string) {
+	return sqlOneOrNull<Politician>`
+        SELECT p.id, p.voornamen as "firstName", p.achternaam as "lastName", CONCAT(p.voornamen, ' ', p.achternaam) as "fullName", p.bijgewerkt as "updatedAt"
+        FROM personen p
+        JOIN zaak_actors za ON p.id = za.persoon_id
+        WHERE za.zaak_id = ${motionId}
+        AND za.relatie = 'Indiener'
     `;
 }

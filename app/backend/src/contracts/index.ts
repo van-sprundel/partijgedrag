@@ -40,17 +40,19 @@ const MotionCategorySchema = z.object({
 const MotionSchema = z.object({
 	id: z.string(),
 	title: z.string(),
-	description: z.string().nullable(),
-	shortTitle: z.string().nullable(),
-	motionNumber: z.string().nullable(),
-	date: z.coerce.date().nullable(),
+	description: z.string().nullish(),
+	shortTitle: z.string().nullish(),
+	motionNumber: z.string().nullish(),
 	status: z.string(),
-	category: z.string().nullable(),
-	bulletPoints: z.array(z.string()),
+	category: z.string().nullish(),
+	bulletPoints: z
+		.array(z.string())
+		.nullish()
+		.transform((value) => value ?? []),
 	categories: z.array(MotionCategorySchema).optional(),
-	originalId: z.string().nullable(),
-	documentURL: z.string().nullable(),
-	did: z.string().nullable(),
+	originalId: z.string().nullish(),
+	documentURL: z.string().nullish(),
+	did: z.string().nullish(),
 	createdAt: z.coerce.date(),
 	updatedAt: z.coerce.date(),
 });
@@ -70,17 +72,17 @@ const VoteSchema = z.object({
 });
 
 const DecisionSchema = z.object({
-    id: z.string(),
-    agendaPointId: z.string().nullable(),
-    caseId: z.string().nullable(),
-    votingType: z.string().nullable(),
-    decisionType: z.string().nullable(),
-    decisionText: z.string().nullable(),
-    comment: z.string().nullable(),
-    status: z.string().nullable(),
-    agendaPointCaseDecisionOrder: z.bigint().nullable(),
-    updatedAt: z.coerce.date().nullable(),
-    apiUpdatedAt: z.coerce.date().nullable(),
+	id: z.string(),
+	agendaPointId: z.string().nullable(),
+	caseId: z.string().nullable(),
+	votingType: z.string().nullable(),
+	decisionType: z.string().nullable(),
+	decisionText: z.string().nullable(),
+	comment: z.string().nullable(),
+	status: z.string().nullable(),
+	agendaPointCaseDecisionOrder: z.bigint().nullable(),
+	updatedAt: z.coerce.date().nullable(),
+	apiUpdatedAt: z.coerce.date().nullable(),
 });
 
 const UserAnswerSchema = z.object({
@@ -134,6 +136,7 @@ const motionGetAllContract = oc
 			offset: z.number().min(0).default(0),
 			category: z.string().optional(),
 			status: z.string().optional(),
+			withVotes: z.boolean().optional(),
 		}),
 	)
 	.output(
@@ -179,6 +182,10 @@ const motionGetVotesContract = oc
 			),
 		}),
 	);
+
+const motionGetRecentContract = oc
+	.input(z.object({ limit: z.number().min(1).max(50).default(10) }))
+	.output(z.array(MotionSchema));
 
 // Party contracts
 const partyGetAllContract = oc
@@ -302,6 +309,7 @@ export const apiContract = {
 		getCategories: motionGetCategoriesContract,
 		getStatistics: motionGetStatisticsContract,
 		getVotes: motionGetVotesContract,
+		getRecent: motionGetRecentContract,
 	},
 	parties: {
 		getAll: partyGetAllContract,

@@ -7,6 +7,7 @@ import { AboutPage } from "./pages/About";
 import { CompassPage } from "./pages/Compass";
 import { CompassSettingsPage } from "./pages/CompassSettings";
 import { HomePage } from "./pages/Home";
+import { MotionDetailsPage } from "./pages/MotionDetails";
 import { MotionsPage } from "./pages/Motions";
 import { PartyLikenessPage } from "./pages/PartyLikeness";
 import { ResultsPage } from "./pages/Results";
@@ -37,6 +38,7 @@ function App() {
 							<Route path="/results/:sessionId" element={<ResultsPage />} />
 							<Route path="/about" element={<AboutPage />} />
 							<Route path="/party-likeness" element={<PartyLikenessPage />} />
+							<Route path="/motion/:motionId" element={<MotionDetailsPage />} />
 							<Route path="/motions" element={<MotionsPage />} />
 							<Route path="*" element={<NotFoundPage />} />
 						</Routes>
