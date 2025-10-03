@@ -79,6 +79,7 @@ export async function getAllMotions(
                 z.gewijzigd_op as "updatedAt"
             FROM "zaken" z
             WHERE z."soort" = 'Motie'
+            AND z."bullet_points" IS NOT NULL AND jsonb_array_length(z."bullet_points") > 0
             AND (${category}::text IS NULL OR z."soort" = ${category})
             AND (${status}::text IS NULL OR z.status = ${status})
             AND (${withVotes}::boolean IS NULL OR ${withVotes} = false OR (
