@@ -36,6 +36,16 @@ interface CompassState {
 	showExplanation: boolean;
 }
 
+const formatTitle = (title: string | undefined): string => {
+	if (!title) {
+		return "";
+	}
+	const cleanedTitle = title
+		.replace(/^motie van (het lid|de leden) .*? over /i, "")
+		.trim();
+	return cleanedTitle.charAt(0).toUpperCase() + cleanedTitle.slice(1);
+};
+
 export function CompassPage() {
 	const navigate = useNavigate();
 	const [searchParams] = useSearchParams();
@@ -272,7 +282,7 @@ export function CompassPage() {
 						<CardHeader>
 							<div className="flex items-start justify-between">
 								<CardTitle className="text-2xl leading-tight">
-									{currentMotion?.title}
+									{formatTitle(currentMotion?.title)}
 								</CardTitle>
 								{currentMotion?.motionNumber && currentMotion.did && (
 									<a
