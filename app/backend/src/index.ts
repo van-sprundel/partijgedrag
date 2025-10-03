@@ -4,6 +4,7 @@ import { RPCHandler } from "@orpc/server/node";
 import cors from "cors";
 import express from "express";
 import { db } from "./lib/db.js";
+import { handleUriError } from "./middleware/handleUriError.js";
 import { compassRouter } from "./routers/compass.js";
 import { motionRouter } from "./routers/motions.js";
 import { partyRouter } from "./routers/parties.js";
@@ -81,6 +82,7 @@ app.get("*", (_req, res) => {
 });
 
 // Error handling middleware
+app.use(handleUriError);
 app.use(
 	(
 		err: Error,
