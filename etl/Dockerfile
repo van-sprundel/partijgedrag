@@ -21,9 +21,23 @@ WORKDIR /app
 # Install cron
 RUN apk add --no-cache busybox-suid
 
+COPY cmd/ ./cmd/
+COPY internal/ ./internal/
+COPY pkg/ ./pkg/
+COPY configs/ ./configs/
+
+RUN CGO_ENABLED=0 GOOS=linux go build -a -installsuffix cgo -o /app/etl ./cmd/etl/main.go
+RUN CGO_ENABLED=0 GOOS=linux go build -a -installsuffix cgo -o /app/manage_categories ./cmd/manage_categories/main.go
+
+FROM alpine:latest
+WORKDIR /app
+
+# Install cron
+RUN apk add --no-cache busybox-suid
+
 COPY --from=builder /app/etl .
 COPY --from=builder /app/manage_categories .
-COPY configs ./configs
+COPY --from=builder /app/configs ./configs
 COPY crontab /etc/crontabs/root
 
 # Give execution rights on the cron job
