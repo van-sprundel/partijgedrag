@@ -241,7 +241,7 @@ export function CompassPage() {
 	}
 
 	return (
-		<div className="min-h-screen bg-gray-50 pb-48">
+		<div className="bg-gray-50 pb-48">
 			{/* --- Sticky Header --- */}
 			<div className="sticky top-0 bg-white shadow-sm z-20">
 				<div className="container mx-auto px-4 py-3">

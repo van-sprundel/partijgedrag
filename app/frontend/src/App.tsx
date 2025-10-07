@@ -3,6 +3,7 @@ import { ReactQueryDevtools } from "@tanstack/react-query-devtools";
 import { BrowserRouter, Route, Routes } from "react-router-dom";
 import { Footer } from "./components/layout/Footer";
 import { Header } from "./components/layout/Header";
+import { ScrollToTop } from "./components/layout/ScrollToTop";
 import { AboutPage } from "./pages/About";
 import { CompassPage } from "./pages/Compass";
 import { CompassSettingsPage } from "./pages/CompassSettings";
@@ -25,6 +26,7 @@ function App() {
 	return (
 		<QueryClientProvider client={queryClient}>
 			<BrowserRouter>
+				<ScrollToTop />
 				<div className="min-h-screen flex flex-col bg-gray-50">
 					<Header />
 					<main className="flex-1">

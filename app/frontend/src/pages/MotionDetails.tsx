@@ -137,7 +137,7 @@ export const MotionDetailsPage = () => {
 		totalVotes > 0 ? (neutralVotes / totalVotes) * 100 : 0;
 
 	return (
-		<div className="min-h-screen bg-gray-50">
+		<div className="bg-gray-50">
 			<div className="container mx-auto px-4 py-8 max-w-4xl">
 				{/* Navigation */}
 				<div className="mb-6">
