@@ -205,8 +205,10 @@ export function ResultsPage() {
 									<CardTitle className="text-2xl mb-2">
 										🏆 Beste match{topMatchResults.length > 1 ? "es" : ""}
 									</CardTitle>
-									<CardDescription className="text-lg">
-										{topMatchResults.map((r) => r.party.name).join(" & ")}
+									<CardDescription className="text-lg space-y-1">
+										{topMatchResults.map((r) => (
+											<div key={r.party.id}>{r.party.name}</div>
+										))}
 									</CardDescription>
 								</div>
 								<div className="text-right">
