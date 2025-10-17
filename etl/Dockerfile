@@ -30,5 +30,8 @@ COPY crontab /etc/crontabs/root
 # Give execution rights on the cron job
 RUN chmod 0644 /etc/crontabs/root
 
+# Create log file for cron jobs
+RUN touch /var/log/etl.log
+
 # Run the command on container startup
 CMD ["crond", "-f"]
