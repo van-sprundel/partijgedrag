@@ -38,6 +38,7 @@ export const statisticsRouter = {
 						AND s.soort IN ('Voor', 'Tegen')
 						AND z.soort = 'Motie'
 						AND f.datum_inactief IS NULL
+						AND f.afkorting != 'Nieuw Sociaal Contract'
 						${dateFilter}
 				),
 				PartyComparisons AS (
@@ -170,6 +171,7 @@ export const statisticsRouter = {
 						AND s.soort IN ('Voor', 'Tegen')
 						AND z.soort = 'Motie'
 						AND f.datum_inactief IS NULL
+						AND f.afkorting != 'Nieuw Sociaal Contract'
 						${dateFilter}
 				),
 				CategoryComparisons AS (
@@ -199,6 +201,7 @@ export const statisticsRouter = {
 				JOIN motion_categories mc ON cc.category_id = mc.id
 				JOIN fracties f ON cc.other_party_id = f.id
 				WHERE f.datum_inactief IS NULL
+  				AND f.afkorting != 'Nieuw Sociaal Contract'
 				ORDER BY mc.name, f.afkorting;
 			`;
 
