@@ -57,7 +57,6 @@ export function CompassPage() {
 	});
 
 	const [motions, setMotions] = useState<Motion[]>([]);
-	const [hasMore, setHasMore] = useState(true);
 	const [showAllBulletPoints, setShowAllBulletPoints] = useState(false);
 
 	// Get existing results if continuing a session
@@ -94,9 +93,6 @@ export function CompassPage() {
 
 	useEffect(() => {
 		if (newMotions) {
-			if (newMotions.length < 20) {
-				setHasMore(false);
-			}
 			setMotions((prev) => {
 				const existingIds = new Set(prev.map((m) => m.id));
 				const uniqueNew = newMotions.filter((m) => !existingIds.has(m.id));
@@ -132,9 +128,7 @@ export function CompassPage() {
 	const currentMotion = sessionId
 		? unansweredMotions[state.currentIndex]
 		: motions[state.currentIndex];
-	const totalMotions = sessionId ? unansweredMotions.length : motions.length;
 	const progress = calculateProgress(state.currentIndex + 1, 20);
-	const isLastQuestion = !hasMore && state.currentIndex === totalMotions - 1;
 
 	const displayedBulletPoints = useMemo(() => {
 		const allPoints = currentMotion?.bulletPoints || [];
@@ -211,7 +205,6 @@ export function CompassPage() {
 			showExplanation: false,
 		});
 		setMotions([]); // Clear motions for a fresh start
-		setHasMore(true);
 		if (sessionId) {
 			navigate("/compass");
 		}
@@ -374,6 +367,36 @@ export function CompassPage() {
 			<div className="fixed bottom-0 left-0 right-0 bg-white/80 backdrop-blur-sm border-t border-gray-200 z-10">
 				<div className="container mx-auto px-4 py-4">
 					<div className="max-w-4xl mx-auto">
+						{/* Results CTA - always visible, prominent when ready */}
+						{state.answers.length > 0 && (
+							<div className="mb-4 p-3 bg-gradient-to-r from-blue-50 to-indigo-50 rounded-lg border border-blue-200">
+								<div className="flex items-center justify-between gap-4">
+									<div className="text-sm font-medium text-gray-700">
+										Voortgang:{" "}
+										<span className="font-semibold text-blue-600">
+											{state.answers.length}/20
+										</span>
+									</div>
+									<Button
+										onClick={() => handleSubmit(state.answers)}
+										disabled={
+											state.answers.length < 20 || submitAnswers.isPending
+										}
+										loading={submitAnswers.isPending}
+										className={`flex-shrink-0 transition-all ${
+											state.answers.length >= 20
+												? "bg-blue-600 text-white hover:bg-blue-700 shadow-md hover:shadow-lg"
+												: "bg-gray-200 text-gray-400 cursor-not-allowed"
+										}`}
+										size="sm"
+									>
+										Bekijk resultaten
+										<ArrowRight className="h-4 w-4 ml-2" />
+									</Button>
+								</div>
+							</div>
+						)}
+
 						<div className="grid grid-cols-3 gap-3 mb-4">
 							<Button
 								variant={
@@ -429,26 +452,6 @@ export function CompassPage() {
 								</div>
 							</Button>
 						</div>
-
-						{state.answers.length >= 20 && (
-							<div className="text-center mt-4">
-								<Button
-									onClick={() => handleSubmit(state.answers)}
-									loading={submitAnswers.isPending}
-									className="w-full md:w-auto"
-									size="lg"
-									variant={isLastQuestion ? "primary" : "secondary"}
-								>
-									{isLastQuestion
-										? "🎉 Bekijk je eindresultaten"
-										: "Bekijk je resultaten"}
-									<span className="ml-2 font-normal opacity-80">
-										({state.answers.length} antwoorden)
-									</span>
-									<ArrowRight className="h-4 w-4 ml-2" />
-								</Button>
-							</div>
-						)}
 					</div>
 				</div>
 			</div>
