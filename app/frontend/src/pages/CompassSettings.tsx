@@ -295,7 +295,7 @@ export function CompassSettingsPage() {
 								{/* Regular Categories */}
 								<div>
 									<h3 className="text-lg font-semibold text-gray-900 mb-3 flex items-center">
-										<ClipboardList className="h-5 w-5 mr-2 text-blue-500" /> Algemene onderwerpen
+										<ClipboardList className="h-5 w-5 mr-2 text-blue-500" /> Beleidsagenda
 									</h3>
 
 									<div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">

@@ -419,7 +419,7 @@ export const MotionDetailsPage = () => {
 				{motion.categories && motion.categories.length > 0 && (
 					<Card className="mb-6">
 						<CardHeader>
-							<CardTitle>Categorieën</CardTitle>
+							<CardTitle>Beleidsagenda's</CardTitle>
 						</CardHeader>
 						<CardContent>
 							<div className="flex flex-wrap gap-2">

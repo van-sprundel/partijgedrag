@@ -309,7 +309,7 @@ function PartyFocusTab({
 					<CardHeader>
 						<CardTitle>Partijfocus voor {party.name}</CardTitle>
 						<CardDescription>
-							Aantal moties ingediend per categorie.
+							Aantal moties ingediend per beleidsagenda.
 						</CardDescription>
 					</CardHeader>
 					<CardContent>
@@ -395,7 +395,7 @@ function PartyCategoryLikenessMatrix({
 	return (
 		<Card>
 			<CardHeader>
-				<CardTitle>Gelijkenis per Categorie</CardTitle>
+				<CardTitle>Gelijkenis per beleidsagenda</CardTitle>
 				<CardDescription>
 					Hoe vaak stemt deze partij hetzelfde als andere partijen per
 					onderwerp?
