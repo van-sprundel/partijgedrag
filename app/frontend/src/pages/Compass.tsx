@@ -29,6 +29,7 @@ import type { Motion, UserAnswer } from "../lib/api";
 import { calculateProgress } from "../lib/utils";
 
 type Answer = "agree" | "disagree" | "neutral";
+const COMPASS_QUESTION_COUNT =20;
 
 interface CompassState {
 	currentIndex: number;
@@ -85,7 +86,7 @@ export function CompassPage() {
 		isFetching,
 		isError,
 	} = useCompassMotions(
-		20,
+		COMPASS_QUESTION_COUNT,
 		motions.map((m) => m.id),
 		filterParams.categoryIds,
 		filterParams.after,
@@ -128,7 +129,7 @@ export function CompassPage() {
 	const currentMotion = sessionId
 		? unansweredMotions[state.currentIndex]
 		: motions[state.currentIndex];
-	const progress = calculateProgress(state.currentIndex + 1, 20);
+	const progress = calculateProgress(state.currentIndex + 1,COMPASS_QUESTION_COUNT);
 
 	const displayedBulletPoints = useMemo(() => {
 		const allPoints = currentMotion?.bulletPoints || [];
@@ -374,17 +375,17 @@ export function CompassPage() {
 									<div className="text-sm font-medium text-gray-700">
 										Voortgang:{" "}
 										<span className="font-semibold text-blue-600">
-											{state.answers.length}/20
+											{state.answers.length}/${COMPASS_QUESTION_COUNT}
 										</span>
 									</div>
 									<Button
 										onClick={() => handleSubmit(state.answers)}
 										disabled={
-											state.answers.length < 20 || submitAnswers.isPending
+											state.answers.length <COMPASS_QUESTION_COUNT || submitAnswers.isPending
 										}
 										loading={submitAnswers.isPending}
 										className={`flex-shrink-0 transition-all ${
-											state.answers.length >= 20
+											state.answers.length >=COMPASS_QUESTION_COUNT
 												? "bg-blue-600 text-white hover:bg-blue-700 shadow-md hover:shadow-lg"
 												: "bg-gray-200 text-gray-400 cursor-not-allowed"
 										}`}
