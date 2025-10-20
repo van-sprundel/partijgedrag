@@ -1,9 +1,13 @@
 package storage
 
 import (
+	"bytes"
 	"context"
+	"encoding/json"
 	"fmt"
+	"io"
 	"log"
+	"net/http"
 	"strings"
 	"time"
 
@@ -248,4 +252,113 @@ func (s *PostgresStorage) Migrate(ctx context.Context) error {
 		&models.MotionCategory{},
 		&models.ZaakCategory{},
 	)
+}
+
+func (s *PostgresStorage) SimplifyCasesWithOllamaFiltered(ctx context.Context, model string, limit int) error {
+	type CaseRow struct {
+		ID           string          `gorm:"column:id"`
+		BulletPoints json.RawMessage `gorm:"column:bullet_points"`
+	}
+
+	var cases []CaseRow
+
+	query := `
+	SELECT z.id, z.bullet_points
+	FROM zaken z
+	LEFT JOIN besluiten b ON b.zaak_id = z.id
+	WHERE z.simplified_bullet_points IS NULL
+	AND z.bullet_points IS NOT NULL
+	AND b.id IS NULL
+`
+	if limit > 0 {
+		query += fmt.Sprintf(" LIMIT %d", limit)
+	}
+
+	if err := s.db.WithContext(ctx).Raw(query).Scan(&cases).Error; err != nil {
+		return fmt.Errorf("failed to load filtered cases: %w", err)
+	}
+
+	log.Printf("🧾 Found %d cases to simplify", len(cases))
+
+	for _, c := range cases {
+		var bulletPoints []string
+		if err := json.Unmarshal(c.BulletPoints, &bulletPoints); err != nil {
+			log.Printf("❌ case %s: invalid bullet_points json", c.ID)
+			continue
+		}
+
+		var simplified []string
+		for _, bp := range bulletPoints {
+			simple, err := callOllamaForSimplification(model, bp)
+			if err != nil {
+				log.Printf("ollama error for case %s: %v", c.ID, err)
+				continue
+			}
+
+			if strings.HasPrefix(strings.ToLower(strings.TrimSpace(bp)), "verzoekt") {
+				simple = "vz: " + simple
+			}
+
+			simplified = append(simplified, simple)
+			time.Sleep(2 * time.Second)
+		}
+
+		simplifiedJSON, _ := json.Marshal(simplified)
+
+		if err := s.db.WithContext(ctx).
+			Model(&models.Zaak{}).
+			Where("id = ?", c.ID).
+			Update("simplified_bullet_points", simplifiedJSON).Error; err != nil {
+			log.Printf("❌ failed to update case %s: %v", c.ID, err)
+		} else {
+			log.Printf("✅ simplified case %s", c.ID)
+		}
+	}
+
+	return nil
+}
+
+func callOllamaForSimplification(model, text string) (string, error) {
+	if strings.TrimSpace(text) == "" {
+		return "", nil
+	}
+
+	prompt := fmt.Sprintf(`Herschrijf de volgende politieke tekst in eenvoudiger Nederlands:
+Behoud de betekenis, maar maak het begrijpelijk voor iedereen.
+
+Tekst:
+%s
+
+Schrijf alleen de vereenvoudigde tekst.`, text)
+
+	req := map[string]string{
+		"model":  model,
+		"prompt": prompt,
+	}
+	body, _ := json.Marshal(req)
+
+	resp, err := http.Post("http://localhost:11434/api/generate", "application/json", bytes.NewBuffer(body))
+	if err != nil {
+		return "", err
+	}
+	defer resp.Body.Close()
+
+	var out strings.Builder
+	decoder := json.NewDecoder(resp.Body)
+	for decoder.More() {
+		var chunk struct {
+			Response string `json:"response"`
+			Done     bool   `json:"done"`
+		}
+		if err := decoder.Decode(&chunk); err != nil {
+			io.Copy(io.Discard, resp.Body)
+			return "", err
+		}
+		out.WriteString(chunk.Response)
+		if chunk.Done {
+			break
+		}
+	}
+
+	return strings.TrimSpace(out.String()), nil
 }
