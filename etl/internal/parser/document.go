@@ -93,7 +93,7 @@ func (p *DocumentParser) ExtractBulletPoints(xmlData []byte, documentURL string)
 	}
 
 	for _, al := range doc.Kamerstuk.Stuk.Algemeen.VrijeTekst.Tekst.Al {
-		content := strings.TrimSpace(al.Content)
+		content := strings.TrimSuffix(strings.TrimSpace(al.Content), ",")
 		if content != "" {
 			lowerContent := strings.ToLower(content)
 			for _, prefix := range whitelistedPrefixes {

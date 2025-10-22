@@ -221,7 +221,6 @@ func (s *PostgresStorage) CleanDatabase(ctx context.Context) error {
 		"fracties",
 		"zaak_actors",
 		"kamerstukdossiers",
-		"motion_categories",
 		"zaak_categories",
 		"zaak_kamerstukdossiers",
 	}
