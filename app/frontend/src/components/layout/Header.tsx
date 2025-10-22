@@ -7,13 +7,18 @@ export function Header() {
 	return (
 		<header className="bg-white shadow-sm border-b">
 			<div className="container mx-auto px-4 py-3 flex justify-between items-center">
-				<Link
-					to="/"
-					className="text-2xl font-bold text-gray-900 flex justify-center gap-2"
-				>
-					<img src={logo} alt="Partijgedrag Logo" className="size-8" />
-					Partijgedrag
-				</Link>
+				<div className="flex gap-2 items-center">
+					<Link
+						to="/"
+						className="text-2xl font-bold text-gray-900 flex justify-center gap-2"
+					>
+						<img src={logo} alt="Partijgedrag Logo" className="size-8" />
+						Partijgedrag
+					</Link>
+					<Button variant="ghost">
+						<Link to="https://old.partijgedrag.nl/index.php">Oude versie</Link>
+					</Button>
+				</div>
 				<nav className="hidden md:flex items-center space-x-2">
 					<Link to="/compass/settings">
 						<Button variant="ghost">Stemwijzer</Button>
