@@ -384,13 +384,19 @@ func (imp *SimpleImporter) fetchFractieLogo(ctx context.Context, fractieID strin
 func (imp *SimpleImporter) processMotionDocument(ctx context.Context, zaak models.Zaak) error {
 	log.Printf("Attempting to process document for motion '%s' (%s)", *zaak.Onderwerp, zaak.ID)
 
-	// Find the right document and dossier
+	// check if we have a DID set
+	if zaak.DID == nil {
+		log.Printf("No DID found for motion '%s' (%s), skipping", *zaak.Onderwerp, zaak.ID)
+		return nil
+	}
+
+	// find the document by DocumentNummer (DID)
 	var targetDoc *models.Document
 	var targetDossier *models.Kamerstukdossier
 
 	for _, dossier := range zaak.Kamerstukdossier {
 		for _, doc := range dossier.Document {
-			if zaak.Onderwerp != nil && zaak.Titel != nil && strings.EqualFold(strings.TrimSpace(doc.Onderwerp), strings.TrimSpace(*zaak.Onderwerp)) && strings.EqualFold(strings.TrimSpace(doc.Titel), strings.TrimSpace(*zaak.Titel)) {
+			if doc.DocumentNummer == *zaak.DID {
 				targetDoc = &doc
 				targetDossier = &dossier
 				break
@@ -402,29 +408,34 @@ func (imp *SimpleImporter) processMotionDocument(ctx context.Context, zaak model
 	}
 
 	if targetDoc == nil {
-		log.Printf("No matching document found for motion '%s' (%s)", *zaak.Onderwerp, zaak.ID)
+		log.Printf("No document found with DID '%s' for motion '%s' (%s)", *zaak.DID, *zaak.Onderwerp, zaak.ID)
 		return nil // Not an error, just no document to process
 	}
 
-	log.Printf("Found matching document with volgnummer %d in dossier %s for motion '%s'", targetDoc.Volgnummer, targetDossier.ID, *zaak.Onderwerp)
+	log.Printf("Found document '%s' (volgnummer %d) in dossier %s for motion '%s'",
+		targetDoc.DocumentNummer, targetDoc.Volgnummer, targetDossier.ID, *zaak.Onderwerp)
 
 	docResponse, err := imp.apiClient.FetchDocument(ctx, *targetDossier, targetDoc.Volgnummer)
 	if err != nil {
-		return fmt.Errorf("failed to fetch document with volgnummer %d for dossier %s: %w", targetDoc.Volgnummer, targetDossier.ID, err)
+		return fmt.Errorf("failed to fetch document %s (volgnummer %d) for dossier %s: %w",
+			targetDoc.DocumentNummer, targetDoc.Volgnummer, targetDossier.ID, err)
 	}
 
 	result, err := imp.parser.ExtractBulletPoints(docResponse.XMLData, docResponse.URL)
 	if err != nil {
-		return fmt.Errorf("failed to parse document with volgnummer %d for dossier %s: %w", targetDoc.Volgnummer, targetDossier.ID, err)
+		return fmt.Errorf("failed to parse document %s (volgnummer %d) for dossier %s: %w",
+			targetDoc.DocumentNummer, targetDoc.Volgnummer, targetDossier.ID, err)
 	}
 
 	if result == nil {
-		log.Printf("Document with volgnummer %d at %s is not a motion, skipping for zaak %s", targetDoc.Volgnummer, docResponse.URL, zaak.ID)
+		log.Printf("Document %s (volgnummer %d) at %s is not a motion, skipping for zaak %s",
+			targetDoc.DocumentNummer, targetDoc.Volgnummer, docResponse.URL, zaak.ID)
 		return nil
 	}
 
 	if len(result.BulletPoints) == 0 {
-		log.Printf("Motion '%s' (zaak %s) has no bullet points.", result.Title, zaak.ID)
+		log.Printf("Motion '%s' (zaak %s, document %s) has no bullet points.",
+			result.Title, zaak.ID, targetDoc.DocumentNummer)
 		return nil
 	}
 
@@ -437,7 +448,8 @@ func (imp *SimpleImporter) processMotionDocument(ctx context.Context, zaak model
 		return fmt.Errorf("updating bullet points for zaak %s: %w", zaak.ID, err)
 	}
 
-	log.Printf("Successfully stored %d bullet points for motion '%s' (zaak %s)", len(result.BulletPoints), result.Title, zaak.ID)
+	log.Printf("Successfully stored %d bullet points for motion '%s' (zaak %s, document %s)",
+		len(result.BulletPoints), result.Title, zaak.ID, targetDoc.DocumentNummer)
 
 	return nil
 }
