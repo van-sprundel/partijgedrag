@@ -1,4 +1,4 @@
-import { Github } from "lucide-react";
+import { ExternalLink, Github } from "lucide-react";
 import { Link } from "react-router-dom";
 import logo from "../../assets/tug.png";
 import { Button } from "../ui/Button";
@@ -13,11 +13,18 @@ export function Header() {
 						className="text-2xl font-bold text-gray-900 flex justify-center gap-2"
 					>
 						<img src={logo} alt="Partijgedrag Logo" className="size-8" />
-						Partijgedrag
+						<span className="hidden sm:inline">Partijgedrag</span>
 					</Link>
-					<Button variant="ghost">
-						<Link to="https://old.partijgedrag.nl/index.php">Oude versie</Link>
-					</Button>
+					<a
+						href="https://old.partijgedrag.nl/index.php"
+						target="_blank"
+						rel="noopener noreferrer"
+					>
+						<Button variant="ghost" size="sm" className="text-xs sm:text-sm">
+							<ExternalLink className="h-3 w-3 sm:h-4 sm:w-4 mr-1" />
+							<p className="hidden sm:inline">Bezoek oude versie</p>
+						</Button>
+					</a>
 				</div>
 				<nav className="hidden md:flex items-center space-x-2">
 					<Link to="/compass/settings">
