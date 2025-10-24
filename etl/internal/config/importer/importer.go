@@ -233,10 +233,11 @@ func (imp *SimpleImporter) extractEntities(ctx context.Context, zaken []models.Z
 		}
 
 		// Find and set DID from Document
+		// Match only on Onderwerp (subject) since multiple motions can share the same Titel
 		var targetDoc *models.Document
 		for _, dossier := range zaak.Kamerstukdossier {
 			for _, doc := range dossier.Document {
-				if zaak.Onderwerp != nil && zaak.Titel != nil && strings.EqualFold(strings.TrimSpace(doc.Onderwerp), strings.TrimSpace(*zaak.Onderwerp)) && strings.EqualFold(strings.TrimSpace(doc.Titel), strings.TrimSpace(*zaak.Titel)) {
+				if zaak.Onderwerp != nil && strings.EqualFold(strings.TrimSpace(doc.Onderwerp), strings.TrimSpace(*zaak.Onderwerp)) {
 					targetDoc = &doc
 					break
 				}
