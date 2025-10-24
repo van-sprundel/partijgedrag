@@ -130,10 +130,10 @@ export function CompassPage() {
 	const currentMotion = sessionId
 		? unansweredMotions[state.currentIndex]
 		: motions[state.currentIndex];
-	const progress = calculateProgress(
-		state.currentIndex + 1,
-		COMPASS_QUESTION_COUNT,
-	);
+
+	// Progress through ALL loaded motions
+	const totalMotions = sessionId ? unansweredMotions.length : motions.length;
+	const progress = calculateProgress(state.currentIndex + 1, totalMotions);
 
 	const displayedBulletPoints = useMemo(() => {
 		const allPoints = currentMotion?.bulletPoints || [];
@@ -245,30 +245,29 @@ export function CompassPage() {
 			{/* --- Sticky Header --- */}
 			<div className="sticky top-0 bg-white shadow-sm z-20">
 				<div className="container mx-auto px-4 py-3">
-					<div className="flex items-center justify-between">
+					<div className="flex items-center justify-between gap-2 md:gap-4">
 						<Link
 							to="/compass/settings"
 							className="flex items-center text-sm text-gray-600 hover:text-gray-900 whitespace-nowrap"
 						>
-							<ArrowLeft className="h-4 w-4 mr-2" />
-							Instellingen
+							<ArrowLeft className="h-4 w-4 mr-1 md:mr-2" />
+							<span className="hidden sm:inline">Instellingen</span>
 						</Link>
-						<div className="max-w-lg flex-grow">
+						<div className="flex-grow max-w-lg">
 							<Progress value={progress} />
+							<div className="text-xs text-gray-500 mt-1 text-center">
+								Vraag {state.currentIndex + 1} van {totalMotions}
+							</div>
 						</div>
-						<div className="flex items-center gap-2 whitespace-nowrap">
-							<span className="text-sm font-medium text-gray-700">
-								Vraag {state.currentIndex + 1}
-							</span>
-							<Button
-								variant="ghost"
-								onClick={handleReset}
-								className="text-gray-500 hover:text-gray-700"
-								aria-label="Reset compass"
-							>
-								<RotateCcw className="h-4 w-4" />
-							</Button>
-						</div>
+						<Button
+							variant="ghost"
+							onClick={handleReset}
+							className="text-gray-500 hover:text-gray-700 flex-shrink-0"
+							aria-label="Reset compass"
+							size="sm"
+						>
+							<RotateCcw className="h-4 w-4" />
+						</Button>
 					</div>
 				</div>
 			</div>
@@ -377,12 +376,17 @@ export function CompassPage() {
 						{/* Results CTA - always visible, prominent when ready */}
 						{state.answers.length > 0 && (
 							<div className="mb-4 p-3 bg-gradient-to-r from-blue-50 to-indigo-50 rounded-lg border border-blue-200">
-								<div className="flex items-center justify-between gap-4">
+								<div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
 									<div className="text-sm font-medium text-gray-700">
-										Voortgang:{" "}
-										<span className="font-semibold text-blue-600">
-											{state.answers.length}/{COMPASS_QUESTION_COUNT}
-										</span>
+										<div className="flex items-center gap-2">
+											<span className="font-semibold text-blue-600 text-base">
+												{state.answers.length}/{COMPASS_QUESTION_COUNT}
+											</span>
+											<span className="hidden sm:inline">beantwoord</span>
+										</div>
+										<div className="text-xs text-gray-500 mt-0.5">
+											Minimaal {COMPASS_QUESTION_COUNT} voor resultaten
+										</div>
 									</div>
 									<Button
 										onClick={() => handleSubmit(state.answers)}
@@ -391,7 +395,7 @@ export function CompassPage() {
 											submitAnswers.isPending
 										}
 										loading={submitAnswers.isPending}
-										className={`flex-shrink-0 transition-all ${
+										className={`flex-shrink-0 transition-all w-full sm:w-auto ${
 											state.answers.length >= COMPASS_QUESTION_COUNT
 												? "bg-blue-600 text-white hover:bg-blue-700 shadow-md hover:shadow-lg"
 												: "bg-gray-200 text-gray-400 cursor-not-allowed"
@@ -405,22 +409,22 @@ export function CompassPage() {
 							</div>
 						)}
 
-						<div className="grid grid-cols-3 gap-3 mb-4">
+						<div className="grid grid-cols-3 gap-2 sm:gap-3 mb-4">
 							<Button
 								variant={
 									getCurrentAnswer() === "agree" ? "primary" : "secondary"
 								}
 								size="lg"
 								onClick={() => handleAnswer("agree")}
-								className="h-20 text-lg font-semibold relative"
+								className="h-16 sm:h-20 text-base sm:text-lg font-semibold relative"
 								disabled={submitAnswers.isPending}
 							>
 								{getCurrentAnswer() === "agree" && (
-									<CheckCircle className="absolute top-2 right-2 h-5 w-5" />
+									<CheckCircle className="absolute top-1 right-1 sm:top-2 sm:right-2 h-4 w-4 sm:h-5 sm:w-5" />
 								)}
 								<div className="flex flex-col items-center">
-									<ThumbsUp className="h-8 w-8 mb-1" />
-									<span>Eens</span>
+									<ThumbsUp className="h-6 w-6 sm:h-8 sm:w-8 mb-0.5 sm:mb-1" />
+									<span className="text-xs sm:text-base">Eens</span>
 								</div>
 							</Button>
 
@@ -430,15 +434,15 @@ export function CompassPage() {
 								}
 								size="lg"
 								onClick={() => handleAnswer("neutral")}
-								className="h-20 text-lg font-semibold relative"
+								className="h-16 sm:h-20 text-base sm:text-lg font-semibold relative"
 								disabled={submitAnswers.isPending}
 							>
 								{getCurrentAnswer() === "neutral" && (
-									<CheckCircle className="absolute top-2 right-2 h-5 w-5" />
+									<CheckCircle className="absolute top-1 right-1 sm:top-2 sm:right-2 h-4 w-4 sm:h-5 sm:w-5" />
 								)}
 								<div className="flex flex-col items-center">
-									<Meh className="h-8 w-8 mb-1" />
-									<span>Neutraal</span>
+									<Meh className="h-6 w-6 sm:h-8 sm:w-8 mb-0.5 sm:mb-1" />
+									<span className="text-xs sm:text-base">Neutraal</span>
 								</div>
 							</Button>
 
@@ -448,15 +452,15 @@ export function CompassPage() {
 								}
 								size="lg"
 								onClick={() => handleAnswer("disagree")}
-								className="h-20 text-lg font-semibold relative"
+								className="h-16 sm:h-20 text-base sm:text-lg font-semibold relative"
 								disabled={submitAnswers.isPending}
 							>
 								{getCurrentAnswer() === "disagree" && (
-									<CheckCircle className="absolute top-2 right-2 h-5 w-5" />
+									<CheckCircle className="absolute top-1 right-1 sm:top-2 sm:right-2 h-4 w-4 sm:h-5 sm:w-5" />
 								)}
 								<div className="flex flex-col items-center">
-									<ThumbsDown className="h-8 w-8 mb-1" />
-									<span>Oneens</span>
+									<ThumbsDown className="h-6 w-6 sm:h-8 sm:w-8 mb-0.5 sm:mb-1" />
+									<span className="text-xs sm:text-base">Oneens</span>
 								</div>
 							</Button>
 						</div>
