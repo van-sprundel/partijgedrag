@@ -1,5 +1,6 @@
-import { useMutation, useQuery } from "@tanstack/react-query";
+import { useQueries, useMutation, useQuery } from "@tanstack/react-query";
 import { orpc } from "../lib/api.js";
+import { getStoredSessions } from "../lib/sessionStorage.js";
 
 export const useMotions = (params?: {
 	limit?: number;
@@ -159,4 +160,29 @@ export const usePartyCategoryLikeness = (
 			enabled: !!partyId,
 		}),
 	);
+};
+
+export const useRecentSessions = () => {
+	const storedSessions = getStoredSessions();
+
+	const queries = useQueries({
+		queries: storedSessions.map((session) =>
+			orpc.compass.getResults.queryOptions({
+				input: { sessionId: session.id },
+			}),
+		),
+	});
+
+	return {
+		sessions: queries
+			.map((query, index) => ({
+				id: storedSessions[index].id,
+				createdAt: storedSessions[index].createdAt,
+				data: query.data,
+				isLoading: query.isLoading,
+				error: query.error,
+			}))
+			.filter((session) => session.data !== null), // Only show sessions that exist
+		isLoading: queries.some((q) => q.isLoading),
+	};
 };

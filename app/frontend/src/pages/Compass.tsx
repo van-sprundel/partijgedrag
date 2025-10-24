@@ -26,6 +26,7 @@ import {
 	useSubmitAnswers,
 } from "../hooks/api";
 import type { Motion, UserAnswer } from "../lib/api";
+import { saveSessionId } from "../lib/sessionStorage";
 import { calculateProgress } from "../lib/utils";
 
 type Answer = "agree" | "disagree" | "neutral";
@@ -196,6 +197,8 @@ export function CompassPage() {
 	const handleSubmit = async (answers: UserAnswer[]) => {
 		try {
 			const result = await submitAnswers.mutateAsync({ answers });
+			// Save session ID to localStorage for later retrieval
+			saveSessionId(result.id);
 			navigate(`/results/${result.id}`);
 		} catch (error) {
 			console.error("Failed to submit answers:", error);

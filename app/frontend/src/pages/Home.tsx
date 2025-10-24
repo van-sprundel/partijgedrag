@@ -1,13 +1,17 @@
-import { ArrowRight, Search, Users, Vote } from "lucide-react";
+import { ArrowRight, Clock, Search, Users, Vote } from "lucide-react";
 import { Link } from "react-router-dom";
 
 import { Card, CardContent } from "@/components/ui/Card";
 import { useGetMotionStatistics } from "@/hooks/useGetMotionStatistics";
+import { useRecentSessions } from "@/hooks/api";
 import logo from "../assets/tug.png";
 import { Button } from "../components/ui/Button";
+import { formatPercentage } from "../lib/utils";
 
 export function HomePage() {
 	const { data: motionStatisticsData, isLoading } = useGetMotionStatistics();
+	const { sessions, isLoading: isLoadingSessions } = useRecentSessions();
+
 	return (
 		<div className="pb-16 ">
 			{/* Hero Section */}
@@ -54,6 +58,97 @@ export function HomePage() {
 					</div>
 				</div>
 			</div>
+
+			{/* Recent Sessions Section */}
+			{!isLoadingSessions && sessions.length > 0 && (
+				<div className="bg-white border-b border-gray-200">
+					<div className="container mx-auto px-4 py-8">
+						<div className="mb-4 flex items-center justify-between">
+							<div>
+								<h2 className="text-2xl font-bold text-gray-900">
+									Eerdere resultaten
+								</h2>
+								<p className="text-sm text-gray-600 mt-1">
+									Ga terug naar je vorige kieswijzer sessies
+								</p>
+							</div>
+						</div>
+						<div className="grid md:grid-cols-2 lg:grid-cols-3 gap-4">
+							{sessions.slice(0, 3).map((session) => {
+								const topParty = session.data?.partyResults[0];
+								const formattedDate = new Date(
+									session.createdAt,
+								).toLocaleDateString("nl-NL", {
+									day: "numeric",
+									month: "short",
+									year: "numeric",
+									hour: "2-digit",
+									minute: "2-digit",
+								});
+
+								return (
+									<Card
+										key={session.id}
+										className="h-full transition-all hover:shadow-md border-2 border-gray-100 hover:border-blue-200"
+									>
+										<CardContent className="p-5">
+											<div className="flex items-start justify-between mb-3">
+												<div className="flex items-center text-sm text-gray-500">
+													<Clock className="h-4 w-4 mr-1.5" />
+													{formattedDate}
+												</div>
+												{topParty && (
+													<div className="text-2xl font-bold text-blue-600">
+														{formatPercentage(topParty.agreement)}
+													</div>
+												)}
+											</div>
+											{topParty && (
+												<div className="mb-2">
+													<div className="text-sm text-gray-600 mb-1">
+														Beste match:
+													</div>
+													<div className="font-semibold text-gray-900">
+														{topParty.party.shortName}
+													</div>
+												</div>
+											)}
+											{session.data && (
+												<div className="text-xs text-gray-500 mt-3 pt-3 border-t border-gray-100">
+													{session.data.totalAnswers} stellingen beantwoord
+												</div>
+											)}
+											<div className="mt-4 flex gap-2">
+												<Link to={`/results/${session.id}`} className="flex-1">
+													<Button
+														variant="secondary"
+														size="sm"
+														className="w-full text-xs"
+													>
+														Resultaten
+													</Button>
+												</Link>
+												<Link
+													to={`/compass?session=${session.id}`}
+													className="flex-1"
+												>
+													<Button
+														variant="primary"
+														size="sm"
+														className="w-full text-xs"
+													>
+														Ga verder
+													</Button>
+												</Link>
+											</div>
+										</CardContent>
+									</Card>
+								);
+							})}
+						</div>
+					</div>
+				</div>
+			)}
 
 			{/* Main Tools Section */}
 			<div className="container mx-auto px-4 py-16">
