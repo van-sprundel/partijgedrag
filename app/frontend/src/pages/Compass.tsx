@@ -135,6 +135,9 @@ export function CompassPage() {
 	const totalMotions = sessionId ? unansweredMotions.length : motions.length;
 	const progress = calculateProgress(state.currentIndex + 1, totalMotions);
 
+	// Minimum answers needed is the smaller of 20 or total available motions
+	const minAnswersRequired = Math.min(COMPASS_QUESTION_COUNT, totalMotions);
+
 	const displayedBulletPoints = useMemo(() => {
 		const allPoints = currentMotion?.bulletPoints || [];
 		const advisoryPoints = allPoints.filter((p) =>
@@ -237,11 +240,49 @@ export function CompassPage() {
 	}
 
 	if (motions.length === 0 && !isLoading && !isFetching) {
-		return <div>No motions found for the selected filters.</div>;
+		return (
+			<div className="min-h-screen bg-gray-50 flex items-center justify-center">
+				<Card className="max-w-md mx-auto">
+					<CardHeader>
+						<CardTitle>Geen moties gevonden</CardTitle>
+						<CardDescription>
+							Er zijn geen moties gevonden die voldoen aan je filters. Pas je
+							instellingen aan om meer moties te zien.
+						</CardDescription>
+					</CardHeader>
+					<CardContent>
+						<Link to="/compass/settings">
+							<Button variant="primary" className="w-full">
+								Terug naar instellingen
+							</Button>
+						</Link>
+					</CardContent>
+				</Card>
+			</div>
+		);
 	}
 
 	return (
 		<div className="bg-gray-50 pb-48">
+			{/* Warning banner for limited motions */}
+			{totalMotions < COMPASS_QUESTION_COUNT && (
+				<div className="bg-yellow-50 border-b border-yellow-200">
+					<div className="container mx-auto px-4 py-3">
+						<p className="text-sm text-yellow-800 text-center">
+							⚠️ Let op: Door je filters zijn er maar{" "}
+							<strong>{totalMotions} moties</strong> beschikbaar. Overweeg je
+							filters aan te passen voor meer stellingen.{" "}
+							<Link
+								to="/compass/settings"
+								className="underline font-medium hover:text-yellow-900"
+							>
+								Wijzig filters
+							</Link>
+						</p>
+					</div>
+				</div>
+			)}
+
 			{/* --- Sticky Header --- */}
 			<div className="sticky top-0 bg-white shadow-sm z-20">
 				<div className="container mx-auto px-4 py-3">
@@ -380,23 +421,30 @@ export function CompassPage() {
 									<div className="text-sm font-medium text-gray-700">
 										<div className="flex items-center gap-2">
 											<span className="font-semibold text-blue-600 text-base">
-												{state.answers.length}/{COMPASS_QUESTION_COUNT}
+												{state.answers.length}/{minAnswersRequired}
 											</span>
 											<span className="hidden sm:inline">beantwoord</span>
 										</div>
 										<div className="text-xs text-gray-500 mt-0.5">
-											Minimaal {COMPASS_QUESTION_COUNT} voor resultaten
+											{minAnswersRequired < COMPASS_QUESTION_COUNT ? (
+												<>
+													Minimaal {minAnswersRequired} voor resultaten (beperkte
+													moties beschikbaar)
+												</>
+											) : (
+												<>Minimaal {minAnswersRequired} voor resultaten</>
+											)}
 										</div>
 									</div>
 									<Button
 										onClick={() => handleSubmit(state.answers)}
 										disabled={
-											state.answers.length < COMPASS_QUESTION_COUNT ||
+											state.answers.length < minAnswersRequired ||
 											submitAnswers.isPending
 										}
 										loading={submitAnswers.isPending}
 										className={`flex-shrink-0 transition-all w-full sm:w-auto ${
-											state.answers.length >= COMPASS_QUESTION_COUNT
+											state.answers.length >= minAnswersRequired
 												? "bg-blue-600 text-white hover:bg-blue-700 shadow-md hover:shadow-lg"
 												: "bg-gray-200 text-gray-400 cursor-not-allowed"
 										}`}

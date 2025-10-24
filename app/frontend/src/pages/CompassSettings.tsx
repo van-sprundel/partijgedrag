@@ -118,6 +118,15 @@ export function CompassSettingsPage() {
 								<p className="text-gray-600">
 									Stel je voorkeuren in voor de politieke stellingen
 								</p>
+								<p className="text-sm text-gray-500 mt-1">
+									Je beantwoordt minimaal{" "}
+									<span className="font-semibold text-blue-600">
+										20 stellingen
+									</span>{" "}
+									<span className="text-xs">
+										(kan minder zijn bij beperkte filters)
+									</span>
+								</p>
 							</div>
 						</div>
 						<Link
@@ -236,20 +245,12 @@ export function CompassSettingsPage() {
 								</div>
 							</CardHeader>
 							<CardContent>
-								{settings.categoryIds.length === 0 ? (
+								{settings.categoryIds.length === 0 && (
 									<div className="mb-4 p-3 bg-blue-50 border border-blue-200 rounded-lg">
 										<p className="text-blue-800 text-sm">
 											<strong>Alle onderwerpen:</strong> Er zijn geen specifieke
 											onderwerpen geselecteerd. Je krijgt een willekeurige
 											selectie van alle beschikbare stellingen.
-										</p>
-									</div>
-								) : (
-									<div className="mb-4 p-3 bg-green-50 border border-green-200 rounded-lg">
-										<p className="text-green-800 text-sm">
-											<strong>Geselecteerd:</strong>{" "}
-											{settings.categoryIds.length} van{" "}
-											{availableCategories.length} onderwerpen
 										</p>
 									</div>
 								)}
@@ -295,7 +296,8 @@ export function CompassSettingsPage() {
 								{/* Regular Categories */}
 								<div>
 									<h3 className="text-lg font-semibold text-gray-900 mb-3 flex items-center">
-										<ClipboardList className="h-5 w-5 mr-2 text-blue-500" /> Beleidsagenda
+										<ClipboardList className="h-5 w-5 mr-2 text-blue-500" />{" "}
+										Beleidsagenda
 									</h3>
 
 									<div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
