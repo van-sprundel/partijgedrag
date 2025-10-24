@@ -137,11 +137,17 @@ export function CompassPage() {
 
 	const totalAvailableMotions = motionCount?.count ?? 0;
 
-	// Progress through ALL loaded motions
 	const questionsToAnswer = Math.min(
 		COMPASS_QUESTION_COUNT,
 		totalAvailableMotions,
 	);
+
+	const questionNumber = Math.min(
+		(existingResults?.motionDetails?.length ?? 0) + state.currentIndex + 1,
+		questionsToAnswer,
+	);
+
+	// Progress through ALL loaded motions
 	const progress = calculateProgress(state.answers.length, questionsToAnswer);
 
 	// Minimum answers needed is the smaller of 20 or total available motions
@@ -313,7 +319,7 @@ export function CompassPage() {
 						<div className="flex-grow max-w-lg">
 							<Progress value={progress} />
 							<div className="text-xs text-gray-500 mt-1 text-center">
-								Vraag {state.currentIndex + 1} van {questionsToAnswer}
+								Vraag {questionNumber} van {questionsToAnswer}
 							</div>
 						</div>
 						<Button
