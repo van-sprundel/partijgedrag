@@ -22,6 +22,7 @@ import {
 import { Progress } from "../components/ui/Progress";
 import {
 	useCompassMotions,
+	useCompassMotionsCount,
 	useCompassResults,
 	useSubmitAnswers,
 } from "../hooks/api";
@@ -81,6 +82,9 @@ export function CompassPage() {
 
 	const submitAnswers = useSubmitAnswers();
 
+	const { data: motionCount, isLoading: isCountLoading } =
+		useCompassMotionsCount(filterParams);
+
 	const {
 		data: newMotions,
 		isLoading,
@@ -131,12 +135,20 @@ export function CompassPage() {
 		? unansweredMotions[state.currentIndex]
 		: motions[state.currentIndex];
 
+	const totalAvailableMotions = motionCount?.count ?? 0;
+
 	// Progress through ALL loaded motions
-	const totalMotions = sessionId ? unansweredMotions.length : motions.length;
-	const progress = calculateProgress(state.currentIndex + 1, totalMotions);
+	const questionsToAnswer = Math.min(
+		COMPASS_QUESTION_COUNT,
+		totalAvailableMotions,
+	);
+	const progress = calculateProgress(state.answers.length, questionsToAnswer);
 
 	// Minimum answers needed is the smaller of 20 or total available motions
-	const minAnswersRequired = Math.min(COMPASS_QUESTION_COUNT, totalMotions);
+	const minAnswersRequired = Math.min(
+		COMPASS_QUESTION_COUNT,
+		totalAvailableMotions,
+	);
 
 	const displayedBulletPoints = useMemo(() => {
 		const allPoints = currentMotion?.bulletPoints || [];
@@ -228,7 +240,11 @@ export function CompassPage() {
 		return <div>Error loading questions...</div>;
 	}
 
-	if ((isLoading && motions.length === 0) || (isFetching && !currentMotion)) {
+	if (
+		(isLoading && motions.length === 0) ||
+		(isFetching && !currentMotion) ||
+		isCountLoading
+	) {
 		return (
 			<div className="min-h-screen bg-gray-50 flex items-center justify-center">
 				<div className="text-center">
@@ -239,7 +255,7 @@ export function CompassPage() {
 		);
 	}
 
-	if (motions.length === 0 && !isLoading && !isFetching) {
+	if (totalAvailableMotions === 0 && !isLoading && !isFetching) {
 		return (
 			<div className="min-h-screen bg-gray-50 flex items-center justify-center">
 				<Card className="max-w-md mx-auto">
@@ -265,13 +281,13 @@ export function CompassPage() {
 	return (
 		<div className="bg-gray-50 pb-48">
 			{/* Warning banner for limited motions */}
-			{totalMotions < COMPASS_QUESTION_COUNT && (
+			{totalAvailableMotions < COMPASS_QUESTION_COUNT && (
 				<div className="bg-yellow-50 border-b border-yellow-200">
 					<div className="container mx-auto px-4 py-3">
 						<p className="text-sm text-yellow-800 text-center">
 							⚠️ Let op: Door je filters zijn er maar{" "}
-							<strong>{totalMotions} moties</strong> beschikbaar. Overweeg je
-							filters aan te passen voor meer stellingen.{" "}
+							<strong>{totalAvailableMotions} moties</strong> beschikbaar. Overweeg
+							je filters aan te passen voor meer stellingen.{" "}
 							<Link
 								to="/compass/settings"
 								className="underline font-medium hover:text-yellow-900"
@@ -297,7 +313,7 @@ export function CompassPage() {
 						<div className="flex-grow max-w-lg">
 							<Progress value={progress} />
 							<div className="text-xs text-gray-500 mt-1 text-center">
-								Vraag {state.currentIndex + 1} van {totalMotions}
+								Vraag {state.currentIndex + 1} van {questionsToAnswer}
 							</div>
 						</div>
 						<Button

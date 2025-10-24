@@ -162,6 +162,15 @@ const motionGetForCompassContract = oc
 	)
 	.output(z.array(MotionSchema));
 
+const motionGetForCompassCountContract = oc
+	.input(
+		z.object({
+			categoryIds: z.array(z.string()).optional(),
+			after: z.coerce.date().optional(),
+		}),
+	)
+	.output(z.object({ count: z.number() }));
+
 const motionGetCategoriesContract = oc
 	.input(
 		z.object({ type: z.enum(["generic", "hot_topic", "all"]).default("all") }),
@@ -306,6 +315,7 @@ export const apiContract = {
 		getAll: motionGetAllContract,
 		getById: motionGetByIdContract,
 		getForCompass: motionGetForCompassContract,
+		getForCompassCount: motionGetForCompassCountContract,
 		getCategories: motionGetCategoriesContract,
 		getStatistics: motionGetStatisticsContract,
 		getVotes: motionGetVotesContract,

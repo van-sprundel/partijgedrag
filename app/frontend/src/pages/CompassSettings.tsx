@@ -5,6 +5,7 @@ import {
 	ClipboardList,
 	Compass,
 	Flame,
+	Loader2,
 	Save,
 	Settings,
 	Users,
@@ -19,11 +20,28 @@ import {
 	CardHeader,
 	CardTitle,
 } from "../components/ui/Card";
-import { useMotionCategories } from "../hooks/api";
+import { useCompassMotionsCount, useMotionCategories } from "../hooks/api";
 
 interface CompassSettingsState {
 	categoryIds: string[];
 	coalitionOnly: boolean;
+}
+
+// Debounce hook
+function useDebounce<T>(value: T, delay: number): T {
+	const [debouncedValue, setDebouncedValue] = useState<T>(value);
+
+	useEffect(() => {
+		const handler = setTimeout(() => {
+			setDebouncedValue(value);
+		}, delay);
+
+		return () => {
+			clearTimeout(handler);
+		};
+	}, [value, delay]);
+
+	return debouncedValue;
 }
 
 export function CompassSettingsPage() {
@@ -47,6 +65,17 @@ export function CompassSettingsPage() {
 
 	const [settings, setSettings] =
 		useState<CompassSettingsState>(initialSettings);
+
+	const debouncedSettings = useDebounce(settings, 500);
+
+	const { data: motionCount, isFetching: isCountFetching } =
+		useCompassMotionsCount({
+			categoryIds:
+				debouncedSettings.categoryIds.length > 0
+					? debouncedSettings.categoryIds
+					: undefined,
+			after: debouncedSettings.coalitionOnly ? new Date("2024-07-02") : undefined,
+		});
 
 	useEffect(() => {
 		setSettings(initialSettings);
@@ -106,7 +135,7 @@ export function CompassSettingsPage() {
 
 	return (
 		<div className="bg-gray-50">
-			<div className="bg-white border-b border-gray-200">
+			<div className="bg-white border-b border-gray-200 sticky top-0 z-10">
 				<div className="container mx-auto px-4 py-6 max-w-4xl">
 					<div className="flex items-center justify-between">
 						<div className="flex items-center">
@@ -118,15 +147,18 @@ export function CompassSettingsPage() {
 								<p className="text-gray-600">
 									Stel je voorkeuren in voor de politieke stellingen
 								</p>
-								<p className="text-sm text-gray-500 mt-1">
-									Je beantwoordt minimaal{" "}
+								<div className="text-sm text-gray-500 mt-2 flex items-center gap-2">
 									<span className="font-semibold text-blue-600">
-										20 stellingen
-									</span>{" "}
-									<span className="text-xs">
-										(kan minder zijn bij beperkte filters)
+										{isCountFetching ? (
+											<Loader2 className="h-4 w-4 animate-spin" />
+										) : (
+											<>{motionCount?.count ?? 0} stellingen beschikbaar</>
+										)}
 									</span>
-								</p>
+									<span className="text-xs">
+										(je beantwoordt er minimaal 20)
+									</span>
+								</div>
 							</div>
 						</div>
 						<Link
@@ -335,6 +367,7 @@ export function CompassSettingsPage() {
 								onClick={handleStartCompass}
 								size="lg"
 								className="flex items-center px-12 py-4 text-lg"
+								disabled={isCountFetching || motionCount?.count === 0}
 							>
 								{isEditingExistingFilters ? (
 									<>

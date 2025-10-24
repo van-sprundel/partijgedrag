@@ -4,6 +4,7 @@ import { db } from "../lib/db.js";
 import {
 	getAllMotions,
 	getForCompass,
+	getForCompassCount,
 	getMotionById,
 	getMotionCategories,
 	getMotionStatistics,
@@ -54,6 +55,13 @@ export const motionRouter = {
 		const { count, excludeIds, categoryIds, after } = input;
 		return getForCompass(count, excludeIds, categoryIds, after);
 	}),
+
+	getForCompassCount: os.motions.getForCompassCount.handler(
+		async ({ input }) => {
+			const { categoryIds, after } = input;
+			return getForCompassCount(categoryIds, after);
+		},
+	),
 
 	getRecent: os.motions.getRecent.handler(async ({ input }) => {
 		const { limit } = input;

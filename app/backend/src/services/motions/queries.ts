@@ -259,6 +259,26 @@ export async function getSubmitterByMotionId(motionId: string) {
         FROM personen p
         JOIN zaak_actors za ON p.id = za.persoon_id
         WHERE za.zaak_id = ${motionId}
-        AND za.relatie = 'Indiener'
+    `;
+}
+
+export async function getForCompassCount(
+	categoryIds: string[] | undefined,
+	after: Date | undefined,
+) {
+	return sqlOne<{ count: number }>`
+        SELECT
+            COUNT(z.id)::int as count
+        FROM "zaken" z
+        WHERE "soort" = 'Motie'
+        AND "bullet_points" IS NOT NULL AND jsonb_array_length("bullet_points") > 0
+        AND EXISTS (SELECT 1 FROM jsonb_array_elements_text("bullet_points") AS elem WHERE elem ILIKE 'verzoekt%')
+        AND EXISTS (SELECT 1 FROM besluiten b JOIN stemmingen s ON b.id = s.besluit_id WHERE b.zaak_id = z.id AND s.fractie_id IS NOT NULL)
+        AND (${after}::timestamp IS NULL OR z."gestart_op" >= ${after})
+        AND (${categoryIds}::text[] IS NULL OR EXISTS (
+            SELECT 1 FROM "zaak_categories"
+            WHERE "zaak_id" = z.id
+            AND "category_id" IN (SELECT unnest(${categoryIds}::text[]))
+        ))
     `;
 }

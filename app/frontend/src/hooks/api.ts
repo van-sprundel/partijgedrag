@@ -147,17 +147,20 @@ export const usePartyFocus = (
 	);
 };
 
-export const usePartyCategoryLikeness = (
-	partyId: string,
-	filters?: {
-		dateFrom?: Date;
-		dateTo?: Date;
-	},
-) => {
+		}),
+	);
+};
+
+export const useCompassMotionsCount = (filters: {
+	categoryIds?: string[];
+	after?: Date;
+}) => {
 	return useQuery(
-		orpc.statistics.getPartyCategoryLikeness.queryOptions({
-			input: { partyId, ...filters },
-			enabled: !!partyId,
+		orpc.motions.getForCompassCount.queryOptions({
+			input: {
+				categoryIds: filters.categoryIds,
+				after: filters.after,
+			},
 		}),
 	);
 };
