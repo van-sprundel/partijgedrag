@@ -113,11 +113,11 @@ func seedInitialCategories(ctx context.Context, store storage.Storage) error {
 	}
 
 	hotTopics := map[string][]string{
-		"Immigratie":         {"immigratie", "migratie", "asielzoeker", "vluchtelingen", "grenzen", "azc"},
-		"Oorlog":             {"oorlog", "conflict", "militair", "defensie", "wapen", "vrede", "oekraïne", "rusland", "Gaza", "Israel", "Palestina"},
-		"Klimaatverandering": {"klimaatverandering", "opwarming", "broeikas", "klimaat", "duurzaamheid"},
-		"Woningcrisis":       {"woningcrisis", "woningtekort", "betaalbaar wonen", "huurprijzen"},
-		"Inflatie":           {"inflatie", "prijsstijging", "koopkracht", "duurte"},
+		"Immigratie":         {"immigratie", "migratie", "asielzoeker", "vluchtelingen", "grenzen", "azc", "asielbeleid", "gezinshereniging"},
+		"Oorlog":             {"oorlog", "conflict", "militair", "defensie", "wapen", "vrede", "oekraïne", "rusland", "Gaza", "Israel", "Palestina", "humanitaire hulp", "wederopbouw"},
+		"Klimaatverandering": {"klimaatverandering", "opwarming", "broeikas", "klimaat", "duurzaamheid", "energietransitie", "klimaatdoelen"},
+		"Woningcrisis":       {"woningcrisis", "woningtekort", "betaalbaar wonen", "huurprijzen", "sociale huur", "starters"},
+		"Inflatie":           {"inflatie", "prijsstijging", "koopkracht", "duurte", "energieprijzen", "boodschappen"},
 	}
 
 	for topic := range hotTopics {
