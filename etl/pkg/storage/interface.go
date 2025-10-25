@@ -35,6 +35,7 @@ type Storage interface {
 	Ping(ctx context.Context) error
 	CleanDatabase(ctx context.Context) error
 	Migrate(ctx context.Context) error
+	SimplifyCasesWithOllamaFiltered(ctx context.Context, model string, limit int) error
 }
 
 func NewStorage(config config.StorageConfig) (Storage, error) {

@@ -164,6 +164,7 @@ model Case {
   completedAt            DateTime?                   @map("datum_afgedaan") @db.Timestamptz(6)
   chamber                String?                     @map("kamer")
   bulletPoints           Json?                       @map("bullet_points")
+  simplifiedBulletPoints Json?                       @map("simplified_bullet_points")
   documentURL            String?                     @map("document_url")
   did                    String?
   parliamentaryDocuments CaseParliamentaryDocument[]
