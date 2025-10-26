@@ -238,7 +238,7 @@ function LikenessMatrix({
 											<img
 												src={`data:${party.contentType};base64,${party.logoData}`}
 												alt={`${party.shortName}`}
-                                                                                                title={`${party.shortName}`}
+												title={`${party.shortName}`}
 												className="w-6 h-6 object-contain"
 											/>
 										</div>
@@ -254,7 +254,7 @@ function LikenessMatrix({
 											<img
 												src={`data:${p1.contentType};base64,${p1.logoData}`}
 												alt={`${p1.shortName}`}
-                                                                                                title={`${p1.shortName}`}
+												title={`${p1.shortName}`}
 												className="w-6 h-6 object-contain"
 											/>
 											<span>{p1.name}</span>
@@ -415,7 +415,7 @@ function PartyCategoryLikenessMatrix({
 											<img
 												src={`data:${party.contentType};base64,${party.logoData}`}
 												alt={`${party.shortName}`}
-                                                                                                title={`${party.shortName}`}
+												title={`${party.shortName}`}
 												className="w-6 h-6 object-contain"
 											/>
 										</div>
