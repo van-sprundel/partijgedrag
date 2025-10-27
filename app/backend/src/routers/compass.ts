@@ -1,13 +1,15 @@
 import { implement, ORPCError } from "@orpc/server";
-import type { Party as PartyModel } from "@prisma/client";
 import type { Party, UserAnswer, Vote, VoteType } from "../contracts/index.js";
 import { apiContract, CompassResultSchema } from "../contracts/index.js";
-import { db } from "../lib/db.js";
+import { getDecisionsByCaseIds } from "../services/decisions/queries.js";
+import { getMotionsByIds } from "../services/motions/queries.js";
+import { getActiveParties, getPartiesByIdsOrNames } from "../services/parties/queries.js";
 import {
-	mapCaseToMotion,
-	mapPartyToContract,
-	mapVoteToContract,
-} from "../utils/mappers.js";
+	createUserSession,
+	getUserSessionById,
+} from "../services/sessions/queries.js";
+import { getVotesByDecisionIds } from "../services/votes/queries.js";
+import { mapCaseToMotion } from "../utils/mappers.js";
 
 const os = implement(apiContract);
 
@@ -29,29 +31,25 @@ export const compassRouter = {
 		const { answers } = input;
 
 		const partyResults = await calculatePartyAlignment(answers);
-		const session = await db.userSession.create({
-			data: {
-				answers: answers,
-				results: {
-					totalAnswers: answers.length,
-					partyResults,
-					createdAt: new Date(),
-				},
-			},
-		});
+		const session = await createUserSession(
+			answers,
+			{
+				totalAnswers: answers.length,
+				partyResults,
+				createdAt: new Date(),
+			}
+		);
 
 		return {
 			id: session.id,
 			totalAnswers: answers.length,
 			partyResults,
-			createdAt: new Date(session.createdAt),
+			createdAt: new Date(session.created_at),
 		};
 	}),
 
 	getResults: os.compass.getResults.handler(async ({ input }) => {
-		const session = await db.userSession.findUnique({
-			where: { id: input.sessionId },
-		});
+		const session = await getUserSessionById(input.sessionId);
 
 		if (!session || !session.results) {
 			return null;
@@ -70,22 +68,20 @@ export const compassRouter = {
 			totalAnswers: results.totalAnswers,
 			partyResults: results.partyResults,
 			motionDetails,
-			createdAt: session.createdAt,
+			createdAt: session.created_at,
 		};
 	}),
 
 	getMotionDetails: os.compass.getMotionDetails.handler(async ({ input }) => {
 		const { motionId, includeVotes } = input;
 
-		const zaak = await db.case.findUnique({
-			where: { id: motionId },
-		});
+		const motions = await getMotionsByIds([motionId]);
 
-		if (!zaak) {
+		if (!motions || motions.length === 0) {
 			throw new ORPCError("NOT_FOUND", { message: "Motion not found" });
 		}
 
-		const motion = mapCaseToMotion(zaak);
+		const motion = motions[0];
 
 		let votes: Vote[] = [];
 		let partyPositions: {
@@ -95,34 +91,31 @@ export const compassRouter = {
 		}[] = [];
 
 		if (includeVotes) {
-			const decisions = await db.decision.findMany({
-				where: { caseId: { equals: motionId } },
-				select: { id: true },
-			});
+			const decisions = await getDecisionsByCaseIds([motionId]);
 			const decisionIds = decisions.map((d) => d.id);
 
-			const votesWithRelations = await db.vote.findMany({
-				where: {
-					decisionId: { in: decisionIds },
-				},
-			});
+			const votesWithRelations = await getVotesByDecisionIds(decisionIds);
 
-			votes = votesWithRelations.map((v) => mapVoteToContract(v));
+			votes = votesWithRelations.map((v) => ({
+				id: v.id,
+				motionId: v.motionId,
+				partyId: v.partyId || "",
+				politicianId: v.politicianId || "",
+				voteType: mapVoteType(v.voteType),
+				reasoning: null,
+				createdAt: v.createdAt,
+				updatedAt: v.updatedAt,
+			}));
 
 			const partyVoteMap = new Map<
 				string,
-				{ party: PartyModel; votes: VoteType[]; partySize: number }
+				{ party: Party; votes: VoteType[]; partySize: number }
 			>();
 
-			const parties = await db.party.findMany({
-				where: {
-					id: {
-						in: votesWithRelations
-							.map((v) => v.partyId)
-							.filter((p) => p !== null) as string[],
-					},
-				},
-			});
+			const partyIds = votesWithRelations
+				.map((v) => v.partyId)
+				.filter((p) => p !== null) as string[];
+			const parties = await getPartiesByIdsOrNames(partyIds, []);
 
 			votesWithRelations.forEach((vote) => {
 				if (vote.partyId) {
@@ -165,7 +158,7 @@ export const compassRouter = {
 						(majorityVoteEntry[0] as VoteType) ?? ("NEUTRAL" as const);
 
 					return {
-						party: mapPartyToContract(party),
+						party,
 						position: majorityVote,
 						count: partySize,
 					};
@@ -184,27 +177,20 @@ export const compassRouter = {
 async function calculatePartyAlignment(answers: UserAnswer[]) {
 	const motionIds = answers.map((a) => a.motionId);
 
-	const decisions = await db.decision.findMany({
-		where: { caseId: { in: motionIds } },
-		select: { id: true, caseId: true },
-	});
+	const decisions = await getDecisionsByCaseIds(motionIds);
 	const decisionIds = decisions.map((d) => d.id);
 
-	const votes = await db.vote.findMany({
-		where: {
-			decisionId: { in: decisionIds },
-		},
-	});
+	const votesRaw = await getVotesByDecisionIds(decisionIds);
+	const votes = votesRaw.map((v) => ({
+		...v,
+		type: v.voteType,
+	}));
 
-	const parties = await db.party.findMany({
-		where: {
-			OR: [{ activeTo: null }, { activeTo: { gte: new Date() } }],
-		},
-	});
+	const parties = await getActiveParties();
 
-	const partyNameMap = new Map<string, PartyModel>();
+	const partyNameMap = new Map<string, Party>();
 	parties.forEach((p) => {
-		if (p.nameNl) partyNameMap.set(p.nameNl, p);
+		if (p.name) partyNameMap.set(p.name, p);
 	});
 
 	const partyScores = new Map<
@@ -220,7 +206,7 @@ async function calculatePartyAlignment(answers: UserAnswer[]) {
 
 	parties.forEach((party) => {
 		partyScores.set(party.id, {
-			party: mapPartyToContract(party),
+			party,
 			totalVotes: 0,
 			matchingVotes: 0,
 			score: 0,
@@ -319,21 +305,16 @@ async function calculatePartyAlignment(answers: UserAnswer[]) {
 async function getMotionVoteDetails(answers: UserAnswer[]) {
 	const motionIds = answers.map((a) => a.motionId);
 
-	const motions = await db.case.findMany({
-		where: { id: { in: motionIds } },
-	});
+	const motions = await getMotionsByIds(motionIds);
 
-	const decisions = await db.decision.findMany({
-		where: { caseId: { in: motionIds } },
-		select: { id: true, caseId: true },
-	});
+	const decisions = await getDecisionsByCaseIds(motionIds);
 	const decisionIds = decisions.map((d) => d.id);
 
-	const votes = await db.vote.findMany({
-		where: {
-			decisionId: { in: decisionIds },
-		},
-	});
+	const votesRaw = await getVotesByDecisionIds(decisionIds);
+	const votes = votesRaw.map((v) => ({
+		...v,
+		type: v.voteType,
+	}));
 
 	const partyIdsFromVotes = votes
 		.map((v) => v.partyId)
@@ -342,18 +323,11 @@ async function getMotionVoteDetails(answers: UserAnswer[]) {
 		.map((v) => v.actorParty)
 		.filter((p) => p !== null) as string[];
 
-	const parties = await db.party.findMany({
-		where: {
-			OR: [
-				{ id: { in: partyIdsFromVotes } },
-				{ nameNl: { in: partyNamesFromVotes } },
-			],
-		},
-	});
+	const parties = await getPartiesByIdsOrNames(partyIdsFromVotes, partyNamesFromVotes);
 
-	const partyNameMap = new Map<string, PartyModel>();
+	const partyNameMap = new Map<string, Party>();
 	parties.forEach((p) => {
-		if (p.nameNl) partyNameMap.set(p.nameNl, p);
+		if (p.name) partyNameMap.set(p.name, p);
 	});
 
 	return answers.map((answer) => {
@@ -367,7 +341,7 @@ async function getMotionVoteDetails(answers: UserAnswer[]) {
 		const partyVotes = new Map<
 			string,
 			{
-				party: PartyModel;
+				party: Party;
 				votes: VoteType[];
 				majorityVote: VoteType;
 				partySize: number;
@@ -416,7 +390,7 @@ async function getMotionVoteDetails(answers: UserAnswer[]) {
 
 		const partyPositions = Array.from(partyVotes.values()).map(
 			({ party, majorityVote, partySize }) => ({
-				party: mapPartyToContract(party),
+				party,
 				position: majorityVote,
 				voteCount: partySize,
 				agreesWithUser:
@@ -430,7 +404,7 @@ async function getMotionVoteDetails(answers: UserAnswer[]) {
 		return {
 			motionId: answer.motionId,
 			userAnswer: answer.answer,
-			motion: motion ? mapCaseToMotion(motion) : null,
+			motion: motion || null,
 			partyPositions,
 		};
 	});

@@ -1,70 +1,36 @@
 import { implement, ORPCError } from "@orpc/server";
-import type { Prisma } from "@prisma/client";
 import { apiContract } from "../contracts/index.js";
-import { db } from "../lib/db.js";
-import { mapPartyToContract, mapVoteToContract } from "../utils/mappers.js";
+import {
+	getAllParties,
+	getPartyById,
+	getVotesByPartyAndMotionIds,
+} from "../services/parties/queries.js";
 
 const os = implement(apiContract);
 
 export const partyRouter = {
 	getAll: os.parties.getAll.handler(async ({ input }) => {
 		const { activeOnly } = input;
-
-		const where: Prisma.PartyWhereInput = {
-			removed: { not: true },
-		};
-		if (activeOnly) {
-			where.OR = [{ activeTo: null }, { activeTo: { gte: new Date() } }];
-		}
-
-		const parties = await db.party.findMany({
-			where,
-			orderBy: { nameNl: "asc" },
-		});
-
-		return parties.map((p) => mapPartyToContract(p));
+		return getAllParties(activeOnly);
 	}),
 
 	getById: os.parties.getById.handler(async ({ input }) => {
-		const party = await db.party.findUnique({
-			where: { id: input.id },
-		});
-
-		if (!party) {
-			return null;
-		}
-
-		return mapPartyToContract(party);
+		return getPartyById(input.id);
 	}),
 
 	getWithVotes: os.parties.getWithVotes.handler(async ({ input }) => {
 		const { partyId, motionIds } = input;
 
-		const party = await db.party.findUnique({
-			where: { id: partyId },
-		});
+		const party = await getPartyById(partyId);
 
 		if (!party) {
 			throw new ORPCError("NOT_FOUND", { message: "Party not found" });
 		}
 
-		const where: Prisma.VoteWhereInput = {
-			partyId: partyId,
-		};
-
-		if (motionIds && motionIds.length > 0) {
-			where.decisionId = { in: motionIds };
-		}
-
-		const votesWithRelations = await db.vote.findMany({
-			where,
-			orderBy: { updatedAt: "desc" },
-		});
-
-		const votes = votesWithRelations.map((v) => mapVoteToContract(v));
+		const votes = await getVotesByPartyAndMotionIds(partyId, motionIds);
 
 		return {
-			party: mapPartyToContract(party),
+			party,
 			votes,
 		};
 	}),

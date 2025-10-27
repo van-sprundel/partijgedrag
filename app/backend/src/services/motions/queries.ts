@@ -16,39 +16,39 @@ export async function getForCompass(
 	return sql<Motion>`
         WITH VoteCounts AS (
             SELECT
-                b.zaak_id,
-                SUM(CASE WHEN s.soort = 'Voor' THEN 1 ELSE 0 END) as voor_votes,
-                SUM(CASE WHEN s.soort = 'Tegen' THEN 1 ELSE 0 END) as tegen_votes
-            FROM stemmingen s
-            JOIN besluiten b ON s.besluit_id = b.id
-            WHERE s.soort IN ('Voor', 'Tegen') AND s.vergissing IS NOT TRUE
-            GROUP BY b.zaak_id
+                d.case_id,
+                SUM(CASE WHEN v.type = 'Voor' THEN 1 ELSE 0 END) as voor_votes,
+                SUM(CASE WHEN v.type = 'Tegen' THEN 1 ELSE 0 END) as tegen_votes
+            FROM votes v
+            JOIN decisions d ON v.decision_id = d.id
+            WHERE v.type IN ('Voor', 'Tegen') AND v.mistake IS NOT TRUE
+            GROUP BY d.case_id
         )
         SELECT
-            z.id,
-            z.onderwerp as title,
-            z.citeertitel as "shortTitle",
-            z.nummer as "motionNumber",
-            z.datum as date,
-            z.status,
-            z.soort as category,
-            z.bullet_points as "bulletPoints",
-            z.document_url as "documentURL",
-            z.did,
-            z.gestart_op as "createdAt",
-            z.gewijzigd_op as "updatedAt"
-        FROM "zaken" z
-        JOIN VoteCounts vc ON z.id = vc.zaak_id
-        WHERE "soort" = 'Motie'
-        AND "bullet_points" IS NOT NULL AND jsonb_array_length("bullet_points") > 0
-        AND EXISTS (SELECT 1 FROM jsonb_array_elements_text("bullet_points") AS elem WHERE elem ILIKE 'verzoekt%')
-        AND EXISTS (SELECT 1 FROM besluiten b JOIN stemmingen s ON b.id = s.besluit_id WHERE b.zaak_id = z.id AND s.fractie_id IS NOT NULL)
-        AND (${excludeIds}::text[] IS NULL OR z.id NOT IN (SELECT unnest(${excludeIds}::text[])))
-        AND (${after}::timestamp IS NULL OR z."gestart_op" >= ${after})
+            c.id,
+            c.subject as title,
+            c.citation_title as "shortTitle",
+            c.number as "motionNumber",
+            c.date as date,
+            c.status,
+            c.type as category,
+            c.bullet_points as "bulletPoints",
+            c.document_url as "documentURL",
+            c.did,
+            c.started_at as "createdAt",
+            c.updated_at as "updatedAt"
+        FROM cases c
+        JOIN VoteCounts vc ON c.id = vc.case_id
+        WHERE c.type = 'Motie'
+        AND c.bullet_points IS NOT NULL AND jsonb_array_length(c.bullet_points) > 0
+        AND EXISTS (SELECT 1 FROM jsonb_array_elements_text(c.bullet_points) AS elem WHERE elem ILIKE 'verzoekt%')
+        AND EXISTS (SELECT 1 FROM decisions d JOIN votes v ON d.id = v.decision_id WHERE d.case_id = c.id AND v.party_id IS NOT NULL)
+        AND (${excludeIds}::text[] IS NULL OR c.id NOT IN (SELECT unnest(${excludeIds}::text[])))
+        AND (${after}::timestamp IS NULL OR c.started_at >= ${after})
         AND (${categoryIds}::text[] IS NULL OR EXISTS (
-            SELECT 1 FROM "zaak_categories"
-            WHERE "zaak_id" = z.id
-            AND "category_id" IN (SELECT unnest(${categoryIds}::text[]))
+            SELECT 1 FROM case_categories
+            WHERE case_id = c.id
+            AND category_id IN (SELECT unnest(${categoryIds}::text[]))
         ))
         ORDER BY ABS(vc.voor_votes - vc.tegen_votes) ASC, RANDOM()
         LIMIT ${count}
@@ -65,28 +65,28 @@ export async function getAllMotions(
 	return sql<{ total: string } & Motion>`
         WITH subset AS (
             SELECT
-                z.id,
-                z.onderwerp as title,
-                z.citeertitel as "shortTitle",
-                z.nummer as "motionNumber",
-                z.datum as date,
-                z.status,
-                z.soort as category,
-                z.bullet_points as "bulletPoints",
-                z.document_url as "documentURL",
-                z.did,
-                z.gestart_op as "createdAt",
-                z.gewijzigd_op as "updatedAt"
-            FROM "zaken" z
-            WHERE z."soort" = 'Motie'
-            AND z."bullet_points" IS NOT NULL AND jsonb_array_length(z."bullet_points") > 0
-            AND (${category}::text IS NULL OR z."soort" = ${category})
-            AND (${status}::text IS NULL OR z.status = ${status})
+                c.id,
+                c.subject as title,
+                c.citation_title as "shortTitle",
+                c.number as "motionNumber",
+                c.date as date,
+                c.status,
+                c.type as category,
+                c.bullet_points as "bulletPoints",
+                c.document_url as "documentURL",
+                c.did,
+                c.started_at as "createdAt",
+                c.updated_at as "updatedAt"
+            FROM cases c
+            WHERE c.type = 'Motie'
+            AND c.bullet_points IS NOT NULL AND jsonb_array_length(c.bullet_points) > 0
+            AND (${category}::text IS NULL OR c.type = ${category})
+            AND (${status}::text IS NULL OR c.status = ${status})
             AND (${withVotes}::boolean IS NULL OR ${withVotes} = false OR (
                 ${withVotes} = true AND EXISTS (
-                    SELECT 1 FROM "besluiten" b
-                    JOIN "stemmingen" s ON b.id = s.besluit_id
-                    WHERE b.zaak_id = z.id AND s.vergissing IS NOT TRUE
+                    SELECT 1 FROM decisions d
+                    JOIN votes v ON d.id = v.decision_id
+                    WHERE d.case_id = c.id AND v.mistake IS NOT TRUE
                 )
             ))
         )
@@ -102,18 +102,18 @@ export async function getMotionById(id: string) {
 	return sqlOneOrNull<Motion>`
         SELECT
             id,
-            onderwerp as title,
-            citeertitel as "shortTitle",
-            nummer as "motionNumber",
-            datum as date,
+            subject as title,
+            citation_title as "shortTitle",
+            number as "motionNumber",
+            date as date,
             status,
-            soort as category,
+            type as category,
             bullet_points as "bulletPoints",
             document_url as "documentURL",
             did,
-            gestart_op as "createdAt",
-            gewijzigd_op as "updatedAt"
-        FROM "zaken"
+            started_at as "createdAt",
+            updated_at as "updatedAt"
+        FROM cases
         WHERE id = ${id}
     `;
 }
@@ -122,18 +122,18 @@ export async function getMotionsByIds(motionIds: string[]) {
 	return sql<Motion>`
         SELECT
             id,
-            onderwerp as title,
-            citeertitel as "shortTitle",
-            nummer as "motionNumber",
-            datum as date,
+            subject as title,
+            citation_title as "shortTitle",
+            number as "motionNumber",
+            date as date,
             status,
-            soort as category,
+            type as category,
             bullet_points as "bulletPoints",
             document_url as "documentURL",
             did,
-            gestart_op as "createdAt",
-            gewijzigd_op as "updatedAt"
-        FROM "zaken"
+            started_at as "createdAt",
+            updated_at as "updatedAt"
+        FROM cases
         WHERE id IN (${motionIds})
     `;
 }
@@ -142,20 +142,20 @@ export async function getRecentMotions(limit: number) {
 	return sql<Motion>`
         SELECT
             id,
-            onderwerp as title,
-            citeertitel as "shortTitle",
-            nummer as "motionNumber",
-            datum as date,
+            subject as title,
+            citation_title as "shortTitle",
+            number as "motionNumber",
+            date as date,
             status,
-            soort as category,
+            type as category,
             bullet_points as "bulletPoints",
             document_url as "documentURL",
             did,
-            gestart_op as "createdAt",
-            gewijzigd_op as "updatedAt"
-        FROM "zaken"
-        WHERE "soort" = 'Motie'
-        ORDER BY "gestart_op" DESC
+            started_at as "createdAt",
+            updated_at as "updatedAt"
+        FROM cases
+        WHERE type = 'Motie'
+        ORDER BY started_at DESC
         LIMIT ${limit}
     `;
 }
@@ -182,38 +182,38 @@ export async function getVotesByDecisionId(decisionId: string) {
 	return sql<Vote>`
         SELECT
             id,
-            besluit_id as "motionId",
-            fractie_id as "partyId",
-            persoon_id as "politicianId",
-            soort as "voteType",
-            fractie_grootte as "partySize",
-            gewijzigd_op as "createdAt",
-            api_gewijzigd_op as "updatedAt"
-        FROM "stemmingen"
-        WHERE "besluit_id" = ${decisionId} AND "vergissing" IS NOT TRUE
-        ORDER BY "fractie_id" ASC, "persoon_id" ASC
+            decision_id as "motionId",
+            party_id as "partyId",
+            politician_id as "politicianId",
+            type as "voteType",
+            party_size as "partySize",
+            updated_at as "createdAt",
+            api_updated_at as "updatedAt"
+        FROM votes
+        WHERE decision_id = ${decisionId} AND mistake IS NOT TRUE
+        ORDER BY party_id ASC, politician_id ASC
     `;
 }
 
 export async function getVotesByMotionId(motionId: string) {
 	return sql<Vote>`
         WITH decision_ids AS (
-            SELECT id FROM "besluiten"
-            WHERE "zaak_id" = ${motionId}
+            SELECT id FROM decisions
+            WHERE case_id = ${motionId}
         )
         SELECT
-            s.id,
-            COALESCE(s.besluit_id, '') as "motionId",
-            COALESCE(s.fractie_id, '') as "partyId",
-            COALESCE(s.persoon_id, '') as "politicianId",
-            s.soort as "voteType",
-            s.fractie_grootte as "partySize",
-            COALESCE(s.gewijzigd_op, NOW()) as "createdAt",
-            COALESCE(s.api_gewijzigd_op, NOW()) as "updatedAt"
-        FROM "stemmingen" s
-        WHERE s.besluit_id IN (SELECT id FROM decision_ids)
-        AND s.vergissing IS NOT TRUE
-        ORDER BY s.fractie_id ASC, s.persoon_id ASC
+            v.id,
+            COALESCE(v.decision_id, '') as "motionId",
+            COALESCE(v.party_id, '') as "partyId",
+            COALESCE(v.politician_id, '') as "politicianId",
+            v.type as "voteType",
+            v.party_size as "partySize",
+            COALESCE(v.updated_at, NOW()) as "createdAt",
+            COALESCE(v.api_updated_at, NOW()) as "updatedAt"
+        FROM votes v
+        WHERE v.decision_id IN (SELECT id FROM decision_ids)
+        AND v.mistake IS NOT TRUE
+        ORDER BY v.party_id ASC, v.politician_id ASC
     `;
 }
 
@@ -224,16 +224,16 @@ export async function getPartiesByIds(partyIds: string[]) {
 	return sql<Party>`
         SELECT
             id,
-            naam_nl as name,
-            afkorting as "shortName",
-            aantal_zetels as seats,
-            datum_actief as "activeFrom",
-            datum_inactief as "activeTo",
+            name_nl as name,
+            short_name as "shortName",
+            seats as seats,
+            active_from as "activeFrom",
+            active_to as "activeTo",
             content_type as "contentType",
             encode(logo_data, 'base64') as "logoData",
-            gewijzigd_op as "createdAt",
-            api_gewijzigd_op as "updatedAt"
-        FROM "fracties"
+            updated_at as "createdAt",
+            api_updated_at as "updatedAt"
+        FROM parties
         WHERE id IN (${partyIds})
     `;
 }
@@ -246,19 +246,19 @@ export async function getMotionStatistics() {
 	}>`
         SELECT
             COUNT(id)::int as count,
-            MIN("gestart_op") as "firstMotionDate",
-            MAX("gestart_op") as "lastMotionDate"
-        FROM "zaken"
-        WHERE "soort" = 'Motie'
+            MIN(started_at) as "firstMotionDate",
+            MAX(started_at) as "lastMotionDate"
+        FROM cases
+        WHERE type = 'Motie'
     `;
 }
 
 export async function getSubmitterByMotionId(motionId: string) {
 	return sqlOneOrNull<Politician>`
-        SELECT p.id, p.voornamen as "firstName", p.achternaam as "lastName", CONCAT(p.voornamen, ' ', p.achternaam) as "fullName", p.bijgewerkt as "updatedAt"
-        FROM personen p
-        JOIN zaak_actors za ON p.id = za.persoon_id
-        WHERE za.zaak_id = ${motionId}
+        SELECT p.id, p.first_names as "firstName", p.last_name as "lastName", CONCAT(p.first_names, ' ', p.last_name) as "fullName", p.updated_at as "updatedAt"
+        FROM politicians p
+        JOIN case_actors ca ON p.id = ca.politician_id
+        WHERE ca.case_id = ${motionId}
     `;
 }
 
@@ -268,17 +268,17 @@ export async function getForCompassCount(
 ) {
 	return sqlOne<{ count: number }>`
         SELECT
-            COUNT(z.id)::int as count
-        FROM "zaken" z
-        WHERE "soort" = 'Motie'
-        AND "bullet_points" IS NOT NULL AND jsonb_array_length("bullet_points") > 0
-        AND EXISTS (SELECT 1 FROM jsonb_array_elements_text("bullet_points") AS elem WHERE elem ILIKE 'verzoekt%')
-        AND EXISTS (SELECT 1 FROM besluiten b JOIN stemmingen s ON b.id = s.besluit_id WHERE b.zaak_id = z.id AND s.fractie_id IS NOT NULL)
-        AND (${after}::timestamp IS NULL OR z."gestart_op" >= ${after})
+            COUNT(c.id)::int as count
+        FROM cases c
+        WHERE c.type = 'Motie'
+        AND c.bullet_points IS NOT NULL AND jsonb_array_length(c.bullet_points) > 0
+        AND EXISTS (SELECT 1 FROM jsonb_array_elements_text(c.bullet_points) AS elem WHERE elem ILIKE 'verzoekt%')
+        AND EXISTS (SELECT 1 FROM decisions d JOIN votes v ON d.id = v.decision_id WHERE d.case_id = c.id AND v.party_id IS NOT NULL)
+        AND (${after}::timestamp IS NULL OR c.started_at >= ${after})
         AND (${categoryIds}::text[] IS NULL OR EXISTS (
-            SELECT 1 FROM "zaak_categories"
-            WHERE "zaak_id" = z.id
-            AND "category_id" IN (SELECT unnest(${categoryIds}::text[]))
+            SELECT 1 FROM case_categories
+            WHERE case_id = c.id
+            AND category_id IN (SELECT unnest(${categoryIds}::text[]))
         ))
     `;
 }

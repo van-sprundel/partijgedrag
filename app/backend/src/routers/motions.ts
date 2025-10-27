@@ -75,19 +75,17 @@ export const motionRouter = {
 
 	getVotes: os.motions.getVotes.handler(async ({ input }) => {
 		// Get decisions for this motion
-		const decisions = await db.decision.findMany({
-			where: { caseId: { equals: input.motionId } },
-			select: { id: true },
-		});
+		const { getDecisionsByCaseIds } = await import(
+			"../services/decisions/queries.js"
+		);
+		const decisions = await getDecisionsByCaseIds([input.motionId]);
 		const decisionIds = decisions.map((d) => d.id);
 
 		// Get votes for all decisions of this motion
-		const votesWithRelations = await db.vote.findMany({
-			where: {
-				decisionId: { in: decisionIds },
-				mistake: { not: true },
-			},
-		});
+		const { getVotesByDecisionIds } = await import(
+			"../services/votes/queries.js"
+		);
+		const votesWithRelations = await getVotesByDecisionIds(decisionIds);
 
 		// Map votes to contract format
 		const votes = votesWithRelations.map((v) => ({
@@ -105,10 +103,10 @@ export const motionRouter = {
 		const partyIds = votesWithRelations
 			.map((v) => v.partyId)
 			.filter((p) => p !== null) as string[];
-		const partiesFromDb = await db.party.findMany({
-			where: { id: { in: partyIds } },
-		});
-		const parties = partiesFromDb.map(mapPartyToContract);
+		const { getPartiesByIdsOrNames } = await import(
+			"../services/parties/queries.js"
+		);
+		const parties = await getPartiesByIdsOrNames(partyIds, []);
 
 		const partyVoteMap = new Map<
 			string,
