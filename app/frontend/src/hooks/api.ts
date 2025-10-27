@@ -1,4 +1,4 @@
-import { useQueries, useMutation, useQuery } from "@tanstack/react-query";
+import { useMutation, useQueries, useQuery } from "@tanstack/react-query";
 import { orpc } from "../lib/api.js";
 import { getStoredSessions } from "../lib/sessionStorage.js";
 
@@ -132,6 +132,21 @@ export const usePartyLikenessMatrix = (filters?: {
 	);
 };
 
+export const usePartyCategoryLikeness = (
+	partyId: string,
+	filters?: {
+		dateFrom?: Date;
+		dateTo?: Date;
+	},
+) => {
+	return useQuery(
+		orpc.statistics.getPartyCategoryLikeness.queryOptions({
+			input: { partyId, ...filters },
+			enabled: !!partyId,
+		}),
+	);
+};
+
 export const usePartyFocus = (
 	partyId: string,
 	filters?: {
@@ -143,10 +158,6 @@ export const usePartyFocus = (
 		orpc.statistics.getPartyFocus.queryOptions({
 			input: { partyId, ...filters },
 			enabled: !!partyId,
-		}),
-	);
-};
-
 		}),
 	);
 };
