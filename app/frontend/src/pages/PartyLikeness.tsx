@@ -237,7 +237,8 @@ function LikenessMatrix({
 										<div className="flex items-center justify-center">
 											<img
 												src={`data:${party.contentType};base64,${party.logoData}`}
-												alt={` `}
+												alt={`${party.shortName}`}
+												title={`${party.shortName}`}
 												className="w-6 h-6 object-contain"
 											/>
 										</div>
@@ -252,7 +253,8 @@ function LikenessMatrix({
 										<div className="flex items-center gap-2">
 											<img
 												src={`data:${p1.contentType};base64,${p1.logoData}`}
-												alt={` `}
+												alt={`${p1.shortName}`}
+												title={`${p1.shortName}`}
 												className="w-6 h-6 object-contain"
 											/>
 											<span>{p1.name}</span>
@@ -412,7 +414,8 @@ function PartyCategoryLikenessMatrix({
 										<div className="flex items-center justify-center">
 											<img
 												src={`data:${party.contentType};base64,${party.logoData}`}
-												alt={` `}
+												alt={`${party.shortName}`}
+												title={`${party.shortName}`}
 												className="w-6 h-6 object-contain"
 											/>
 										</div>
