@@ -15,9 +15,11 @@ require (
 	github.com/jackc/pgx/v5 v5.4.3 // indirect
 	github.com/jinzhu/inflection v1.0.0 // indirect
 	github.com/jinzhu/now v1.1.5 // indirect
+	github.com/joho/godotenv v1.5.1 // indirect
 	github.com/kr/text v0.2.0 // indirect
 	github.com/lib/pq v1.10.9 // indirect
 	github.com/rogpeppe/go-internal v1.14.1 // indirect
+	github.com/sashabaranov/go-openai v1.41.2 // indirect
 	golang.org/x/crypto v0.14.0 // indirect
 	golang.org/x/text v0.26.0 // indirect
 )

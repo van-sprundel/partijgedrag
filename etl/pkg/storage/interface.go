@@ -30,12 +30,16 @@ type Storage interface {
 
 	GetZakenForEnrichment(ctx context.Context) ([]models.Zaak, error)
 
+	GetZakenForSimplifying(ctx context.Context, limit int) ([]models.Zaak, error)
+	UpdateZakenForSimplifying(ctx context.Context, zaak []models.Zaak) error
+
 	// Utility operations
 	Close() error
 	Ping(ctx context.Context) error
 	CleanDatabase(ctx context.Context) error
 	Migrate(ctx context.Context) error
-	SimplifyCasesWithOllamaFiltered(ctx context.Context, model string, limit int) error
+	//SimplifyCasesWithOllamaFiltered(ctx context.Context, model string, limit int) error
+
 }
 
 func NewStorage(config config.StorageConfig) (Storage, error) {

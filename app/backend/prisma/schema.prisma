@@ -144,6 +144,7 @@ model Case {
   subject                String?                     @map("onderwerp")
   type                   String?                     @map("soort")
   title                  String?                     @map("titel")
+  simplifiedTitle        String?                     @map("simplified_title")
   citationTitle          String?                     @map("citeertitel")
   alias                  String?                     @map("alias")
   status                 String?                     @map("status")
