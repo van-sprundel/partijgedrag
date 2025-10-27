@@ -33,12 +33,11 @@ export const statisticsRouter = {
 					FROM stemmingen s
 					JOIN besluiten b ON s.besluit_id = b.id
 					JOIN zaken z ON b.zaak_id = z.id
-					JOIN fracties f ON (s.actor_fractie = f.naam_nl OR s.actor_fractie = f.afkorting)
-					WHERE s.actor_fractie IS NOT NULL
+					JOIN fracties f ON s.fractie_id = f.id
+					WHERE s.fractie_id IS NOT NULL
 						AND s.soort IN ('Voor', 'Tegen')
 						AND z.soort = 'Motie'
 						AND f.datum_inactief IS NULL
-						AND f.afkorting != 'Nieuw Sociaal Contract'
 						${dateFilter}
 				),
 				PartyComparisons AS (
@@ -165,13 +164,12 @@ export const statisticsRouter = {
 					FROM stemmingen s
 					JOIN besluiten b ON s.besluit_id = b.id
 					JOIN zaken z ON b.zaak_id = z.id
-					JOIN fracties f ON (s.actor_fractie = f.naam_nl OR s.actor_fractie = f.afkorting)
+					JOIN fracties f ON s.fractie_id = f.id
 					JOIN zaak_categories zc ON z.id = zc.zaak_id
-					WHERE s.actor_fractie IS NOT NULL
+					WHERE s.fractie_id IS NOT NULL
 						AND s.soort IN ('Voor', 'Tegen')
 						AND z.soort = 'Motie'
 						AND f.datum_inactief IS NULL
-						AND f.afkorting != 'Nieuw Sociaal Contract'
 						${dateFilter}
 				),
 				CategoryComparisons AS (
@@ -201,7 +199,6 @@ export const statisticsRouter = {
 				JOIN motion_categories mc ON cc.category_id = mc.id
 				JOIN fracties f ON cc.other_party_id = f.id
 				WHERE f.datum_inactief IS NULL
-  				AND f.afkorting != 'Nieuw Sociaal Contract'
 				ORDER BY mc.name, f.afkorting;
 			`;
 

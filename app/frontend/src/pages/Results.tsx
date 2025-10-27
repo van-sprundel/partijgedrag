@@ -477,7 +477,13 @@ export function ResultsPage() {
 																					className="w-5 h-5 object-contain"
 																				/>
 																			</div>
-																		) : null}
+																		) : (
+														<div
+															className={`w-6 h-6 rounded-full flex items-center justify-center text-white text-[8px] font-bold flex-shrink-0 ${getPartyColorClass(partyPos.party.shortName)}`}
+														>
+															{partyPos.party.shortName?.slice(0, 3) || "?"}
+														</div>
+													)}
 																		<div>
 																			<span className="font-medium text-gray-900">
 																				{partyPos.party.shortName}
@@ -503,7 +509,13 @@ export function ResultsPage() {
 																			<span className="text-xs bg-green-100 text-green-800 px-2 py-1 rounded-full">
 																				✓ Eens met jou
 																			</span>
-																		) : null}
+																		) : (
+														<div
+															className={`w-6 h-6 rounded-full flex items-center justify-center text-white text-[8px] font-bold flex-shrink-0 ${getPartyColorClass(partyPos.party.shortName)}`}
+														>
+															{partyPos.party.shortName?.slice(0, 3) || "?"}
+														</div>
+													)}
 																	</div>
 																</div>
 															))}

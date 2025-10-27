@@ -11,7 +11,6 @@ export const partyRouter = {
 		const { activeOnly } = input;
 
 		const where: Prisma.PartyWhereInput = {
-			shortName: { not: "Nieuw Sociaal Contract" },
 			removed: { not: true },
 		};
 		if (activeOnly) {

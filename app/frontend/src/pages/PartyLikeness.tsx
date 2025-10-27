@@ -30,10 +30,6 @@ const cabinetPresets = {
 	},
 	"rutte-iv": { from: "2022-01-10", to: "2024-07-02" },
 	"rutte-iii": { from: "2017-10-26", to: "2022-01-10" },
-	"rutte-asscher": { from: "2012-11-05", to: "2017-10-26" },
-	"rutte-verhagen": { from: "2010-10-14", to: "2012-11-05" },
-	"balkenende-iv": { from: "2007-02-22", to: "2010-10-14" },
-	"balkenende-iii": { from: "2006-07-07", to: "2007-02-22" },
 };
 
 export function PartyLikenessPage() {
@@ -97,10 +93,6 @@ export function PartyLikenessPage() {
 							<option value="schoof-i">Schoof I</option>
 							<option value="rutte-iv">Rutte IV</option>
 							<option value="rutte-iii">Rutte III</option>
-							<option value="rutte-asscher">Rutte-Asscher</option>
-							<option value="rutte-verhagen">Rutte-Verhagen</option>
-							<option value="balkenende-iv">Balkenende IV</option>
-							<option value="balkenende-iii">Balkenende III</option>
 						</select>
 					</div>
 					<div>
@@ -235,12 +227,21 @@ function LikenessMatrix({
 								{parties.map((party) => (
 									<th key={party.id} className="border p-2">
 										<div className="flex items-center justify-center">
-											<img
-												src={`data:${party.contentType};base64,${party.logoData}`}
-												alt={`${party.shortName}`}
-												title={`${party.shortName}`}
-												className="w-6 h-6 object-contain"
-											/>
+											{party.logoData ? (
+												<img
+													src={`data:${party.contentType};base64,${party.logoData}`}
+													alt={`${party.shortName}`}
+													title={`${party.shortName}`}
+													className="w-6 h-6 object-contain"
+												/>
+											) : (
+												<div
+													title={`${party.name}`}
+													className="w-6 h-6 flex items-center justify-center text-xs font-bold bg-gray-200 rounded"
+												>
+													{party.shortName?.slice(0, 3) || "?"}
+												</div>
+											)}
 										</div>
 									</th>
 								))}
@@ -251,12 +252,21 @@ function LikenessMatrix({
 								<tr key={p1.id}>
 									<td className="border p-2 font-bold">
 										<div className="flex items-center gap-2">
-											<img
-												src={`data:${p1.contentType};base64,${p1.logoData}`}
-												alt={`${p1.shortName}`}
-												title={`${p1.shortName}`}
-												className="w-6 h-6 object-contain"
-											/>
+											{p1.logoData ? (
+												<img
+													src={`data:${p1.contentType};base64,${p1.logoData}`}
+													alt={`${p1.shortName}`}
+													title={`${p1.shortName}`}
+													className="w-6 h-6 object-contain"
+												/>
+											) : (
+												<div
+													title={`${p1.name}`}
+													className="w-6 h-6 flex items-center justify-center text-xs font-bold bg-gray-200 rounded flex-shrink-0"
+												>
+													{p1.shortName?.slice(0, 3) || "?"}
+												</div>
+											)}
 											<span>{p1.name}</span>
 										</div>
 									</td>
@@ -412,12 +422,21 @@ function PartyCategoryLikenessMatrix({
 								{otherParties.map((party) => (
 									<th key={party.id} className="border p-2">
 										<div className="flex items-center justify-center">
-											<img
-												src={`data:${party.contentType};base64,${party.logoData}`}
-												alt={`${party.shortName}`}
-												title={`${party.shortName}`}
-												className="w-6 h-6 object-contain"
-											/>
+											{party.logoData ? (
+												<img
+													src={`data:${party.contentType};base64,${party.logoData}`}
+													alt={`${party.shortName}`}
+													title={`${party.shortName}`}
+													className="w-6 h-6 object-contain"
+												/>
+											) : (
+												<div
+													title={`${party.name}`}
+													className="w-6 h-6 flex items-center justify-center text-xs font-bold bg-gray-200 rounded"
+												>
+													{party.shortName?.slice(0, 3) || "?"}
+												</div>
+											)}
 										</div>
 									</th>
 								))}
