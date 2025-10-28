@@ -137,6 +137,7 @@ const motionGetAllContract = oc
 			category: z.string().optional(),
 			status: z.string().optional(),
 			withVotes: z.boolean().optional(),
+			search: z.string().optional(),
 		}),
 	)
 	.output(

@@ -5,8 +5,10 @@ import {
 	ExternalLink,
 	FileText,
 	Filter,
+	Search,
+	X,
 } from "lucide-react";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
 import {
 	Card,
@@ -64,12 +66,25 @@ const MotionVoteResult = ({ motionId }: { motionId: string }) => {
 export function MotionsPage() {
 	const [currentPage, setCurrentPage] = useState(1);
 	const [showOnlyWithVotes, setShowOnlyWithVotes] = useState(false);
+	const [searchInput, setSearchInput] = useState("");
+	const [searchQuery, setSearchQuery] = useState("");
 	const offset = (currentPage - 1) * ITEMS_PER_PAGE;
+
+	// Debounce search input
+	useEffect(() => {
+		const timer = setTimeout(() => {
+			setSearchQuery(searchInput);
+			setCurrentPage(1); // Reset to first page when search changes
+		}, 500);
+
+		return () => clearTimeout(timer);
+	}, [searchInput]);
 
 	const { data, isLoading, error } = useMotions({
 		limit: ITEMS_PER_PAGE,
 		offset,
 		withVotes: showOnlyWithVotes,
+		search: searchQuery || undefined,
 	});
 
 	const totalPages = data ? Math.ceil(data.total / ITEMS_PER_PAGE) : 0;
@@ -139,7 +154,13 @@ export function MotionsPage() {
 		const baseText = showOnlyWithVotes
 			? "Moties uit de Tweede Kamer met stemresultaten"
 			: "Alle moties uit de Tweede Kamer";
-		return `${baseText} (${data?.total || 0} moties)`;
+		const searchText = searchQuery ? ` - Zoekresultaten voor "${searchQuery}"` : "";
+		return `${baseText}${searchText} (${data?.total || 0} moties)`;
+	};
+
+	const handleClearSearch = () => {
+		setSearchInput("");
+		setSearchQuery("");
 	};
 
 	return (
@@ -147,25 +168,56 @@ export function MotionsPage() {
 			<div className="container mx-auto px-4 py-8 max-w-7xl">
 				<Card>
 					<CardHeader>
-						<div className="flex items-center justify-between">
-							<div>
-								<CardTitle>Moties</CardTitle>
-								<CardDescription>{getDescription()}</CardDescription>
+						<div className="flex flex-col gap-4">
+							<div className="flex items-center justify-between">
+								<div>
+									<CardTitle>Moties</CardTitle>
+									<CardDescription>{getDescription()}</CardDescription>
+								</div>
+								<div className="flex items-center gap-3 p-3 bg-gray-50 rounded-lg border">
+									<Filter className="h-4 w-4 text-gray-600" />
+									<label className="flex items-center gap-2 text-sm font-medium text-gray-700 cursor-pointer">
+										<input
+											type="checkbox"
+											checked={showOnlyWithVotes}
+											onChange={handleFilterChange}
+											disabled={isLoading}
+											className="rounded border-gray-300 text-primary-600 focus:ring-primary-500 focus:ring-offset-0 focus:ring-2 disabled:opacity-50"
+										/>
+										Alleen met stemresultaten
+									</label>
+									{isLoading && (
+										<div className="animate-spin h-4 w-4 border-2 border-primary-600 border-t-transparent rounded-full"></div>
+									)}
+								</div>
 							</div>
-							<div className="flex items-center gap-3 p-3 bg-gray-50 rounded-lg border">
-								<Filter className="h-4 w-4 text-gray-600" />
-								<label className="flex items-center gap-2 text-sm font-medium text-gray-700 cursor-pointer">
+
+							{/* Search Bar */}
+							<div className="relative">
+								<div className="flex items-center">
+									<Search className="absolute left-3 h-5 w-5 text-gray-400" />
 									<input
-										type="checkbox"
-										checked={showOnlyWithVotes}
-										onChange={handleFilterChange}
-										disabled={isLoading}
-										className="rounded border-gray-300 text-primary-600 focus:ring-primary-500 focus:ring-offset-0 focus:ring-2 disabled:opacity-50"
+										type="text"
+										value={searchInput}
+										onChange={(e) => setSearchInput(e.target.value)}
+										placeholder="Zoek in moties... (bijv. 'chroomverf', 'CO2-heffing', '2015Z20433')"
+										className="w-full pl-10 pr-10 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-primary-500 transition-colors"
 									/>
-									Alleen met stemresultaten
-								</label>
-								{isLoading && (
-									<div className="animate-spin h-4 w-4 border-2 border-primary-600 border-t-transparent rounded-full"></div>
+									{searchInput && (
+										<button
+											type="button"
+											onClick={handleClearSearch}
+											className="absolute right-3 p-1 hover:bg-gray-100 rounded-full transition-colors"
+											aria-label="Wis zoekopdracht"
+										>
+											<X className="h-4 w-4 text-gray-400" />
+										</button>
+									)}
+								</div>
+								{searchQuery && (
+									<p className="mt-2 text-sm text-gray-600">
+										Zoeken naar: <span className="font-medium">"{searchQuery}"</span>
+									</p>
 								)}
 							</div>
 						</div>

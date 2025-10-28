@@ -61,6 +61,7 @@ export async function getAllMotions(
 	category?: string,
 	status?: string,
 	withVotes?: boolean,
+	search?: string,
 ) {
 	return sql<{ total: string } & Motion>`
         WITH subset AS (
@@ -87,6 +88,15 @@ export async function getAllMotions(
                     SELECT 1 FROM "besluiten" b
                     JOIN "stemmingen" s ON b.id = s.besluit_id
                     WHERE b.zaak_id = z.id AND s.vergissing IS NOT TRUE
+                )
+            ))
+            AND (${search}::text IS NULL OR (
+                z.onderwerp ILIKE '%' || ${search} || '%'
+                OR z.citeertitel ILIKE '%' || ${search} || '%'
+                OR z.nummer ILIKE '%' || ${search} || '%'
+                OR EXISTS (
+                    SELECT 1 FROM jsonb_array_elements_text(z."bullet_points") AS elem
+                    WHERE elem ILIKE '%' || ${search} || '%'
                 )
             ))
         )

@@ -8,6 +8,7 @@ export const useMotions = (params?: {
 	category?: string;
 	status?: string;
 	withVotes?: boolean;
+	search?: string;
 }) => {
 	return useQuery(
 		orpc.motions.getAll.queryOptions({
