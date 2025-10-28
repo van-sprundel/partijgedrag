@@ -233,17 +233,38 @@ func (imp *SimpleImporter) extractEntities(ctx context.Context, zaken []models.Z
 		}
 
 		// Find and set DID from Document
-		// Match only on Onderwerp (subject) since multiple motions can share the same Titel
+		// Match on both Onderwerp (subject) and Volgnummer for precision
+		// This ensures we get the correct document when multiple motions exist in the same dossier
 		var targetDoc *models.Document
 		for _, dossier := range zaak.Kamerstukdossier {
 			for _, doc := range dossier.Document {
-				if zaak.Onderwerp != nil && strings.EqualFold(strings.TrimSpace(doc.Onderwerp), strings.TrimSpace(*zaak.Onderwerp)) {
+				// First try to match on both Onderwerp and Volgnummer (most precise)
+				if zaak.Onderwerp != nil && zaak.Volgnummer != nil &&
+					strings.EqualFold(strings.TrimSpace(doc.Onderwerp), strings.TrimSpace(*zaak.Onderwerp)) &&
+					doc.Volgnummer == int(*zaak.Volgnummer) {
 					targetDoc = &doc
 					break
 				}
 			}
 			if targetDoc != nil {
 				break
+			}
+		}
+
+		// Fallback: if no match on both fields, try matching on Onderwerp only
+		// This handles cases where Volgnummer might not be set correctly
+		if targetDoc == nil {
+			for _, dossier := range zaak.Kamerstukdossier {
+				for _, doc := range dossier.Document {
+					if zaak.Onderwerp != nil && strings.EqualFold(strings.TrimSpace(doc.Onderwerp), strings.TrimSpace(*zaak.Onderwerp)) {
+						targetDoc = &doc
+						log.Printf("Warning: Matched document for zaak %s using Onderwerp only (Volgnummer mismatch or missing)", zaak.ID)
+						break
+					}
+				}
+				if targetDoc != nil {
+					break
+				}
 			}
 		}
 
