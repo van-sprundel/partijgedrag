@@ -2,6 +2,7 @@ package storage
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"log"
 	"strings"
@@ -248,3 +249,236 @@ func (s *PostgresStorage) Migrate(ctx context.Context) error {
 		&models.ZaakCategory{},
 	)
 }
+
+func (s *PostgresStorage) GetZakenForSimplifying(ctx context.Context, limit int) ([]models.Zaak, error) {
+	var zaken []models.Zaak
+
+	q := s.db.WithContext(ctx).
+		Table("zaken AS z").
+		Select("z.id, z.titel, z.bullet_points").
+		Joins("LEFT JOIN besluiten b ON b.zaak_id = z.id").
+		Where("z.simplified_bullet_points IS NULL").
+		Where("z.bullet_points IS NOT NULL")
+
+	if limit > 0 {
+		q = q.Limit(limit)
+	}
+
+	if err := q.Find(&zaken).Error; err != nil {
+		return nil, fmt.Errorf("failed to load filtered zaken: %w", err)
+	}
+	log.Printf("Found %d zakent to simpolify", len(zaken))
+	return zaken, nil
+}
+
+func (s *PostgresStorage) UpdateZakenForSimplifying(ctx context.Context, zaken []models.Zaak) error {
+	if len(zaken) == 0 {
+		return nil
+	}
+
+	log.Printf("🔄 Updating %d simplified zaken...", len(zaken))
+
+	tx := s.db.WithContext(ctx).Begin()
+	for _, z := range zaken {
+		updates := map[string]interface{}{}
+
+		if len(z.SimplifiedBulletPoints) > 0 {
+			bpJSON, err := json.Marshal(z.SimplifiedBulletPoints)
+			if err != nil {
+				log.Printf("⚠️ could not marshal simplified bullet points for zaak %s: %v", z.ID, err)
+				continue
+			}
+			updates["simplified_bullet_points"] = string(bpJSON)
+		}
+
+		if z.SimplifiedTitel != nil && *z.SimplifiedTitel != "" {
+			updates["simplified_title"] = *z.SimplifiedTitel
+		}
+
+		if len(updates) == 0 {
+			continue
+		}
+
+		if err := tx.Model(&models.Zaak{}).
+			Where("id = ?", z.ID).
+			Updates(updates).Error; err != nil {
+			tx.Rollback()
+			return fmt.Errorf("failed to update zaak %s: %w", z.ID, err)
+		}
+	}
+
+	if err := tx.Commit().Error; err != nil {
+		return fmt.Errorf("failed to commit zaak updates: %w", err)
+	}
+
+	log.Println("✅ Simplified zaken updated successfully.")
+	return nil
+}
+
+//func (s *PostgresStorage) SimplifyCasesWithOllamaFiltered(ctx context.Context, model string, limit int) error {
+//	type CaseRow struct {
+//		ID           string          `gorm:"column:id"`
+//		Title        string          `gorm:"column:titel"`
+//		BulletPoints json.RawMessage `gorm:"column:bullet_points"`
+//	}
+//
+//	type SimplifiedCase struct {
+//		SimplifiedTitle        string `json:"simplified_title"`
+//		SimplifiedBulletPoints string `json:"simplified_bullet_points"`
+//	}
+//
+//	var cases []CaseRow
+//
+//	query := `
+//	SELECT z.id, z.titel, z.bullet_points
+//	FROM zaken z
+//	LEFT JOIN besluiten b ON b.zaak_id = z.id
+//	WHERE z.simplified_bullet_points IS NULL
+//	AND z.bullet_points IS NOT NULL
+//`
+//	if limit > 0 {
+//		query += fmt.Sprintf(" LIMIT %d", limit)
+//	}
+//
+//	if err := s.db.WithContext(ctx).Raw(query).Scan(&cases).Error; err != nil {
+//		return fmt.Errorf("failed to load filtered cases: %w", err)
+//	}
+//
+//	log.Printf("🧾 Found %d cases to simplify", len(cases))
+//
+//	for _, c := range cases {
+//		var bulletPoints []string
+//		if err := json.Unmarshal(c.BulletPoints, &bulletPoints); err != nil {
+//			log.Printf("❌ case %s: invalid bullet_points json", c.ID)
+//			continue
+//		}
+//
+//		simplifiedCase, err := callOllamaSimplifyCase(model, c.Title, bulletPoints)
+//		if err != nil {
+//			log.Printf("ollama error for case %s: %v", c.ID, err)
+//			continue
+//		}
+//		// Add "vz:" prefix to bullet points that start with "verzoekt"
+//		for i, bp := range bulletPoints {
+//			if strings.HasPrefix(strings.ToLower(strings.TrimSpace(bp)), "verzoekt") {
+//				if i < len(simplifiedCase.SimplifiedBulletPoints) {
+//					simplifiedCase.SimplifiedBulletPoints[i] = "vz: " + simplifiedCase.SimplifiedBulletPoints[i]
+//				}
+//			}
+//		}
+//
+//		simplifiedJSON, _ := json.Marshal(simplifiedCase.SimplifiedBulletPoints)
+//
+//		if err := s.db.WithContext(ctx).
+//			Model(&models.Zaak{}).
+//			Where("id = ?", c.ID).
+//			Updates(map[string]interface{}{
+//				"simplified_bullet_points": simplifiedJSON,
+//				"simplified_title":         simplifiedCase.SimplifiedTitle,
+//			}).Error; err != nil {
+//			log.Printf("❌ failed to update case %s: %v", c.ID, err)
+//		} else {
+//			log.Printf("✅ simplified case %s", c.ID)
+//		}
+//	}
+//
+//	return nil
+//}
+//
+////func callOllamaSimplifyCase(model string, title string, bulletPoints []string) (*struct {
+////	SimplifiedTitle        string   `json:"simplified_title"`
+////	SimplifiedBulletPoints []string `json:"simplified_bullet_points"`
+////}, error) {
+////	if strings.TrimSpace(title) == "" && len(bulletPoints) == 0 {
+////		return &struct {
+////			SimplifiedTitle        string   `json:"simplified_title"`
+////			SimplifiedBulletPoints []string `json:"simplified_bullet_points"`
+////		}{
+////			SimplifiedTitle:        "",
+////			SimplifiedBulletPoints: []string{},
+////		}, nil
+////	}
+////
+////	bpJSON, _ := json.Marshal(bulletPoints)
+////
+////	prompt := fmt.Sprintf(`Je bent een taalassistent gespecialiseerd in het eenvoudig en duidelijk herschrijven van politieke teksten in het Nederlands.
+////
+////**Doel:**
+////Herschrijf de volgende titel en bijbehorende bullet points in eenvoudiger Nederlands.
+////Behoud de oorspronkelijke betekenis en nuance, maar gebruik korte, begrijpelijke zinnen voor een breed publiek.
+////
+////**Belangrijk:**
+////- Maak de tekst vriendelijk en helder, zonder jargon.
+////- Kort waar mogelijk, maar verlies geen inhoud.
+////- Geef **uitsluitend** het JSON-object terug en niets anders.
+////
+////**Verwacht JSON-formaat:**
+////{
+////  "simplified_title": "Nieuwe titel in eenvoudiger Nederlands",
+////  "simplified_bullet_points": [
+////    "Eerste vereenvoudigde bullet point",
+////    "Tweede vereenvoudigde bullet point"
+////  ]
+////}
+////
+////**Invoer:**
+////Titel:
+////%s
+////
+////Bullet points:
+////%s
+////`, title, string(bpJSON))
+////	req := map[string]string{
+////		"model":  model,
+////		"prompt": prompt,
+////	}
+////	body, _ := json.Marshal(req)
+////
+////	resp, err := http.Post("http://localhost:11434/api/generate", "application/json", bytes.NewBuffer(body))
+////	if err != nil {
+////		return nil, err
+////	}
+////	defer resp.Body.Close()
+////
+////	var out strings.Builder
+////	decoder := json.NewDecoder(resp.Body)
+////	for decoder.More() {
+////		var chunk struct {
+////			Response string `json:"response"`
+////			Done     bool   `json:"done"`
+////		}
+////		if err := decoder.Decode(&chunk); err != nil {
+////
+////			io.Copy(io.Discard, resp.Body)
+////			return nil, err
+////		}
+////
+////		out.WriteString(chunk.Response)
+////		if chunk.Done {
+////			break
+////		}
+////	}
+////	raw := out.String()
+////
+////	// Find the first '{' and the last '}'
+////	start := strings.Index(raw, "{")
+////	end := strings.LastIndex(raw, "}")
+////
+////	if start == -1 || end == -1 || start >= end {
+////		log.Printf("⚠️ Could not find JSON object in Ollama response:\n%s", raw)
+////		return nil, fmt.Errorf("no valid JSON found in response")
+////	}
+////
+////	jsonStr := raw[start : end+1]
+////
+////	// Then decode
+////	var simplified struct {
+////		SimplifiedTitle        string   `json:"simplified_title"`
+////		SimplifiedBulletPoints []string `json:"simplified_bullet_points"`
+////	}
+////	if err := json.Unmarshal([]byte(jsonStr), &simplified); err != nil {
+////		return nil, fmt.Errorf("failed to parse cleaned ollama JSON: %w", err)
+////	}
+////
+////	return &simplified, nil
+////}
