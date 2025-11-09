@@ -21,9 +21,18 @@ docker stack deploy -c docker-stack.yml --with-registry-auth partijgedrag
 # Monitor deployment
 echo "⏳ Monitoring deployment status..."
 timeout 120 bash -c '
-  until [ $(docker service ls --filter "name=partijgedrag_web" --format "{{.Replicas}}" | grep -o "^[0-9]*") -eq $(docker service ls --filter "name=partijgedrag_web" --format "{{.Replicas}}" | grep -o "[0-9]*$") ]; do
-    echo "Waiting for services to converge..."
-    docker service ls --filter "label=com.docker.stack.namespace=partijgedrag"
+  while true; do
+    REPLICAS=$(docker service ls --filter "name=partijgedrag_web" --format "{{.Replicas}}")
+    echo "   Web service: $REPLICAS"
+
+    CURRENT=$(echo "$REPLICAS" | cut -d "/" -f 1)
+    DESIRED=$(echo "$REPLICAS" | cut -d "/" -f 2)
+
+    if [ "$CURRENT" = "$DESIRED" ] && [ "$CURRENT" -gt "0" ]; then
+      echo "✅ Service has converged!"
+      break
+    fi
+
     sleep 5
   done
 '
