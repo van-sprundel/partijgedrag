@@ -96,7 +96,7 @@ docker compose -f docker-compose.server.yml ps
 # Cleanup
 echo ""
 echo "🧹 Cleaning up old images..."
-docker image prune -f > /dev/null 2>&1
+docker image prune -f
 
 echo ""
 echo "✅ Deployment complete!"
