@@ -67,7 +67,7 @@ fi
 echo ""
 echo "🚀 Starting deployment..."
 
-if [[ "$COMPOSE_VERSION" > "2.20" ]]; then
+if [ "$(printf '%s\n' "$REQUIRED_COMPOSE_VERSION" "$COMPOSE_VERSION" | sort -V | head -n1)" = "$REQUIRED_COMPOSE_VERSION" ] && [ "$COMPOSE_VERSION" != "unknown" ]; then
   # Use --wait for Docker Compose 2.20+
   docker compose -f docker-compose.server.yml up -d --wait
 else
