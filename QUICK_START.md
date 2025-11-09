@@ -88,7 +88,7 @@ docker compose up -d --scale app=2 --force-recreate
 ### Before Deployment
 ```bash
 # Terminal 1: Monitor health
-watch -n 1 'curl -s http://localhost:8080/ready | jq'
+watch -n 1 'curl -s http://localhost:8080/ready'
 
 # Terminal 2: Run deployment
 ./deploy-easiest.sh
