@@ -3,7 +3,10 @@ set -e
 
 # Load environment variables from .env file
 if [ -f .env ]; then
-  export $(grep -v '^#' .env | xargs)
+  set -a
+  # shellcheck source=.env
+  source .env
+  set +a
 fi
 
 echo "🚀 Zero-Downtime Deployment (Simple Method)"
