@@ -4,14 +4,15 @@ set -e
 echo "🚀 Starting Docker Swarm deployment..."
 
 # Load environment variables
-if [ -f .env.prod ]; then
-  set -a; source .env.prod; set +a
+# Load environment variables
+if [ -f .env ]; then
+  export $(grep -v '^#' .env | xargs)
 fi
 
-# Pull latest images
-echo "📦 Pulling latest images on all nodes..."
-docker pull ghcr.io/van-sprundel/partijgedrag-web:latest
-docker pull ghcr.io/van-sprundel/partijgedrag-etl:latest
+# Pull images from .env
+echo "📦 Pulling images specified in .env..."
+docker pull "$WEB_IMAGE"
+docker pull "$ETL_IMAGE"
 
 # Deploy stack (automatically does rolling update)
 echo "🔄 Deploying stack with rolling update..."
