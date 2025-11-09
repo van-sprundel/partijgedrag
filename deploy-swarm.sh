@@ -6,7 +6,10 @@ echo "🚀 Starting Docker Swarm deployment..."
 # Load environment variables
 # Load environment variables
 if [ -f .env ]; then
-  export $(grep -v '^#' .env | xargs)
+  set -a
+  # shellcheck source=.env
+  source .env
+  set +a
 fi
 
 # Pull images from .env
