@@ -9,7 +9,10 @@ if [ -f .env ]; then
   set +a
 fi
 
-echo "🚀 Zero-Downtime Deployment (Simple Method)"
+echo "🚀 Docker Compose Deployment (Best-Effort)"
+echo ""
+echo "⚠️  WARNING: This method does NOT guarantee zero-downtime"
+echo "   For true zero-downtime, use: ./deploy-production.sh (Docker Swarm)"
 echo ""
 
 COMPOSE_FILE="docker-compose.server.yml"
@@ -19,10 +22,11 @@ echo "📦 Pulling latest images..."
 docker compose -f $COMPOSE_FILE pull
 
 echo ""
-echo "🔄 Deploying with zero downtime..."
+echo "🔄 Deploying (best-effort rolling update)..."
 
-# The trick: Scale to 2, update, then scale back to 1
-# Nginx load balancer will distribute traffic between both instances
+# Strategy: Scale to 2, update, then scale back to 1
+# Nginx load balancer will distribute traffic between instances
+# NOTE: Docker Compose may still recreate both simultaneously (brief downtime possible)
 
 # Step 1: Start second instance (still running old version)
 docker compose -f $COMPOSE_FILE up -d --scale app=2 --no-recreate
@@ -30,7 +34,8 @@ docker compose -f $COMPOSE_FILE up -d --scale app=2 --no-recreate
 echo "⏳ Waiting for second instance to start..."
 docker compose -f $COMPOSE_FILE up -d --scale app=2 --no-recreate --wait
 
-# Step 2: Now recreate both (Docker will rolling restart them one at a time)
+# Step 2: Recreate both instances. Docker Compose will update them to the new image.
+# Note: This is a best-effort rolling update and may still cause brief downtime.
 echo "⏳ Waiting for new instances to be healthy..."
 docker compose -f $COMPOSE_FILE up -d --scale app=2 --force-recreate --wait app
 
