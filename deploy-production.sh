@@ -93,10 +93,12 @@ echo "🔍 Verifying deployment..."
 sleep 10
 
 # Test health endpoint
-if curl -f "http://localhost:3000/ready" > /dev/null 2>&1; then
+if curl -fsS "http://localhost:3000/ready" > /dev/null; then
   echo "✅ Health check passed!"
 else
-  echo "⚠️  Health check warning (service might not be exposed on localhost:3000)"
+  echo "❌ Health check failed! The service at http://localhost:3000/ready is not responding."
+  echo "   Check service logs with: docker service logs partijgedrag_web --tail 100"
+  exit 1
 fi
 
 # Show final state
