@@ -96,18 +96,21 @@ jobs:
           script: |
             cd ${{ secrets.DEPLOY_PATH || '/opt/partijgedrag' }}
 
-            # Wait a moment for containers to fully start
+            # Wait a moment for Swarm services to converge
             sleep 10
 
-            # Check container status
-            docker compose -f docker-compose.server.yml ps
+            # Check Swarm service status
+            echo "📊 Service status:"
+            docker stack services partijgedrag
 
             # Test readiness endpoint (verifies DB connection)
-            if curl -f http://localhost:8080/ready; then
+            # Note: docker-stack.yml exposes on port 3000
+            if curl -f http://localhost:3000/ready; then
               echo "✅ Deployment verified - app is healthy!"
             else
               echo "❌ Health check failed!"
-              docker compose -f docker-compose.server.yml logs --tail=50 app
+              echo "Service logs:"
+              docker service logs partijgedrag_web --tail=50
               exit 1
             fi
 
