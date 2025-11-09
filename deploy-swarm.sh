@@ -5,7 +5,7 @@ echo "🚀 Starting Docker Swarm deployment..."
 
 # Load environment variables
 if [ -f .env.prod ]; then
-  export $(cat .env.prod | grep -v '^#' | xargs)
+  set -a; source .env.prod; set +a
 fi
 
 # Pull latest images
