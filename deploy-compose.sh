@@ -33,8 +33,9 @@ echo ""
 COMPOSE_VERSION=$(docker compose version --short 2>/dev/null || echo "unknown")
 echo "📋 Docker Compose version: $COMPOSE_VERSION"
 
-if [[ "$COMPOSE_VERSION" < "2.20" ]]; then
-  echo "⚠️  Docker Compose v2.20+ recommended for --wait flag"
+REQUIRED_COMPOSE_VERSION="2.20"
+if [ "$(printf '%s\n' "$REQUIRED_COMPOSE_VERSION" "$COMPOSE_VERSION" | sort -V | head -n1)" != "$REQUIRED_COMPOSE_VERSION" ] && [ "$COMPOSE_VERSION" != "unknown" ]; then
+  echo "⚠️  Docker Compose v${REQUIRED_COMPOSE_VERSION}+ recommended for --wait flag"
 fi
 echo ""
 
