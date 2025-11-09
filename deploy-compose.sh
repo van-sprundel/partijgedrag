@@ -10,7 +10,10 @@ echo ""
 
 # Load environment
 if [ -f .env ]; then
-  export $(grep -v '^#' .env | xargs)
+  set -a
+  # shellcheck source=.env
+  source .env
+  set +a
 fi
 
 # Validate
