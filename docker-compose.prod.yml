@@ -2,20 +2,21 @@ version: '3.8'
 
 services:
   web:
-    image: ghcr.io/van-sprundel/partijgedrag-web:latest
+    image: ${WEB_IMAGE:-ghcr.io/van-sprundel/partijgedrag-web:latest}
     container_name: partijgedrag-web
     restart: unless-stopped
     ports:
       - "3000:3000"
     environment:
-      DATABASE_URL: postgresql://etl_user:${DB_PASSWORD}@postgres:5432/partijgedrag?schema=public
+      DATABASE_URL: ${DATABASE_URL:-postgresql://etl_user:${DB_PASSWORD}@postgres:5432/partijgedrag?schema=public}
       NODE_ENV: production
       PORT: 3000
+      CORS_ORIGIN: ${CORS_ORIGIN:-http://localhost:3000}
     depends_on:
       postgres:
         condition: service_healthy
     healthcheck:
-      test: ["CMD", "wget", "--quiet", "--tries=1", "--spider", "http://localhost:3000/health"]
+      test: ["CMD", "wget", "--quiet", "--tries=1", "--spider", "http://localhost:3000/ready"]
       interval: 10s
       timeout: 5s
       retries: 3
@@ -24,7 +25,7 @@ services:
       - partijgedrag
 
   etl:
-    image: ghcr.io/van-sprundel/partijgedrag-etl:latest
+    image: ${ETL_IMAGE:-ghcr.io/van-sprundel/partijgedrag-etl:latest}
     container_name: partijgedrag-etl
     restart: unless-stopped
     environment:

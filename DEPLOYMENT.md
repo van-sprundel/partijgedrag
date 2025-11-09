@@ -366,14 +366,19 @@ docker container prune -f
 
 ```bash
 # Login to GitHub Container Registry
-echo "$GITHUB_TOKEN" | docker login ghcr.io -u USERNAME --password-stdin
+# Note: For GHCR, username can be your GitHub username or any string when using PAT
+echo "$GITHUB_TOKEN" | docker login ghcr.io -u YOUR_GITHUB_USERNAME --password-stdin
 
 # Manually pull
 docker pull ghcr.io/van-sprundel/partijgedrag-web:SHA
 
 # Check if image exists
-curl -H "Authorization: token $GITHUB_TOKEN" \
-  https://api.github.com/orgs/van-sprundel/packages/container/partijgedrag-web/versions
+# WARNING: Using tokens in curl exposes them in shell history!
+# Safer alternative: Use gh CLI if available:
+#   gh api repos/van-sprundel/partijgedrag/packages/container/partijgedrag-web/versions
+# Or prefix command with space to avoid history in some shells:
+#  curl -H "Authorization: token $GITHUB_TOKEN" \
+#    https://api.github.com/orgs/van-sprundel/packages/container/partijgedrag-web/versions
 ```
 
 ## Performance Tuning

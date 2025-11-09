@@ -76,7 +76,9 @@ app.get("/ready", async (_req, res) => {
 			timestamp: new Date().toISOString()
 		});
 	} catch (error) {
+		// Log detailed error server-side only (not exposed to client)
 		console.error("Readiness check failed:", error);
+		// Return safe error response (no sensitive details)
 		res.status(503).json({
 			status: "not ready",
 			database: "disconnected",
