@@ -19,14 +19,12 @@ echo "🔄 Deploying with zero downtime..."
 # Step 1: Start second instance (still running old version)
 docker compose -f $COMPOSE_FILE up -d --scale app=2 --no-recreate
 
-echo "⏳ Waiting 10 seconds for second instance to start..."
-sleep 10
+echo "⏳ Waiting for second instance to start..."
+docker compose -f $COMPOSE_FILE up -d --scale app=2 --no-recreate --wait
 
 # Step 2: Now recreate both (Docker will rolling restart them one at a time)
-docker compose -f $COMPOSE_FILE up -d --scale app=2 --force-recreate app
-
-echo "⏳ Waiting 30 seconds for new instances to be healthy..."
-sleep 30
+echo "⏳ Waiting for new instances to be healthy..."
+docker compose -f $COMPOSE_FILE up -d --scale app=2 --force-recreate --wait app
 
 # Step 3: Verify both are running
 echo "📊 Checking status..."
