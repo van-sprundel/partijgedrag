@@ -31,13 +31,11 @@ echo "📊 Checking status..."
 docker compose -f $COMPOSE_FILE ps app
 
 # Step 4: (Optional) Scale back to 1 instance
-read -p "Scale back to 1 instance? (y/n) " -n 1 -r
-echo
-if [[ $REPLY =~ ^[Yy]$ ]]; then
+if [[ "$1" == "--scale-down" ]]; then
     docker compose -f $COMPOSE_FILE up -d --scale app=1 --no-recreate
     echo "📉 Scaled back to 1 instance"
 else
-    echo "✅ Keeping 2 instances for redundancy"
+    echo "✅ Keeping 2 instances for redundancy. Pass --scale-down to scale back."
 fi
 
 # Update ETL (downtime OK)
