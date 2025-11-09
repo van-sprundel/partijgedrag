@@ -46,6 +46,9 @@ echo "📊 Current active: $ACTIVE"
 echo "   Deploying to: $INACTIVE"
 echo ""
 
+# Clean up any old container for the inactive color
+docker rm -f "partijgedrag-app-$INACTIVE" > /dev/null 2>&1 || true
+
 # Start new container (inactive color)
 echo "🚀 Starting $INACTIVE container..."
 docker run -d \
