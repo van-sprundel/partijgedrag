@@ -1,0 +1,63 @@
+version: '3.8'
+
+services:
+  web:
+    image: ghcr.io/van-sprundel/partijgedrag-web:latest
+    container_name: partijgedrag-web
+    restart: unless-stopped
+    ports:
+      - "3000:3000"
+    environment:
+      DATABASE_URL: postgresql://etl_user:${DB_PASSWORD}@postgres:5432/partijgedrag?schema=public
+      NODE_ENV: production
+      PORT: 3000
+    depends_on:
+      postgres:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "wget", "--quiet", "--tries=1", "--spider", "http://localhost:3000/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+      start_period: 40s
+    networks:
+      - partijgedrag
+
+  etl:
+    image: ghcr.io/van-sprundel/partijgedrag-etl:latest
+    container_name: partijgedrag-etl
+    restart: unless-stopped
+    environment:
+      DATABASE_URL: postgresql://etl_user:${DB_PASSWORD}@postgres:5432/partijgedrag?schema=public
+    depends_on:
+      postgres:
+        condition: service_healthy
+    networks:
+      - partijgedrag
+
+  postgres:
+    image: postgres:15
+    container_name: partijgedrag-db
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: partijgedrag
+      POSTGRES_USER: etl_user
+      POSTGRES_PASSWORD: ${DB_PASSWORD}
+    ports:
+      - "127.0.0.1:5432:5432"  # Only expose on localhost
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U etl_user -d partijgedrag"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+    networks:
+      - partijgedrag
+
+volumes:
+  postgres_data:
+
+networks:
+  partijgedrag:
+    driver: bridge

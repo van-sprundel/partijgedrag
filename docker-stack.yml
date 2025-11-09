@@ -1,0 +1,73 @@
+version: '3.8'
+
+services:
+  web:
+    image: ghcr.io/van-sprundel/partijgedrag-web:latest
+    ports:
+      - "3000:3000"  # Nginx will proxy to this port
+    deploy:
+      replicas: 2  # Run 2 instances for redundancy
+      update_config:
+        parallelism: 1        # Update 1 at a time
+        delay: 10s            # Wait 10s between updates
+        failure_action: rollback
+        order: start-first    # Start new before stopping old (ZERO DOWNTIME!)
+      restart_policy:
+        condition: any
+        delay: 5s
+        max_attempts: 3
+    environment:
+      DATABASE_URL: postgresql://etl_user:${DB_PASSWORD}@postgres:5432/partijgedrag?schema=public
+      NODE_ENV: production
+      PORT: 3000
+      CORS_ORIGIN: ${CORS_ORIGIN:-https://your-domain.nl}
+    healthcheck:
+      test: ["CMD", "wget", "--quiet", "--tries=1", "--spider", "http://localhost:3000/ready"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+      start_period: 40s
+    networks:
+      - partijgedrag
+
+  etl:
+    image: ghcr.io/van-sprundel/partijgedrag-etl:latest
+    deploy:
+      replicas: 1
+      restart_policy:
+        condition: any
+    environment:
+      DATABASE_URL: postgresql://etl_user:${DB_PASSWORD}@postgres:5432/partijgedrag?schema=public
+    networks:
+      - partijgedrag
+
+  postgres:
+    image: postgres:15
+    environment:
+      POSTGRES_DB: partijgedrag
+      POSTGRES_USER: etl_user
+      POSTGRES_PASSWORD: ${DB_PASSWORD}
+    ports:
+      - "127.0.0.1:5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    deploy:
+      placement:
+        constraints:
+          - node.role == manager
+      restart_policy:
+        condition: any
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U etl_user -d partijgedrag"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+    networks:
+      - partijgedrag
+
+volumes:
+  postgres_data:
+
+networks:
+  partijgedrag:
+    driver: overlay

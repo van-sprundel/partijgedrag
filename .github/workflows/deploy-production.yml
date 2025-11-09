@@ -1,0 +1,118 @@
+name: Deploy to Production (CYSO)
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:  # Allow manual trigger
+
+jobs:
+  build-and-push:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Log in to GitHub Container Registry
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Build and push Web image
+        uses: docker/build-push-action@v5
+        with:
+          context: ./app
+          push: true
+          tags: |
+            ghcr.io/van-sprundel/partijgedrag-web:latest
+            ghcr.io/van-sprundel/partijgedrag-web:${{ github.sha }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+      - name: Build and push ETL image
+        uses: docker/build-push-action@v5
+        with:
+          context: ./etl
+          push: true
+          tags: |
+            ghcr.io/van-sprundel/partijgedrag-etl:latest
+            ghcr.io/van-sprundel/partijgedrag-etl:${{ github.sha }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+  deploy:
+    needs: build-and-push
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Deploy to CYSO via SSH
+        uses: appleboy/ssh-action@v1.0.0
+        env:
+          DATABASE_URL: ${{ secrets.DATABASE_URL }}
+          CORS_ORIGIN: ${{ secrets.CORS_ORIGIN }}
+        with:
+          host: ${{ secrets.CYSO_HOST }}
+          username: ${{ secrets.CYSO_USER }}
+          key: ${{ secrets.CYSO_SSH_KEY }}
+          port: ${{ secrets.CYSO_SSH_PORT || 22 }}
+          envs: DATABASE_URL,CORS_ORIGIN
+          script: |
+            cd ${{ secrets.DEPLOY_PATH || '/opt/partijgedrag' }}
+
+            # Create/update .env file
+            cat > .env << EOF
+            DATABASE_URL=${DATABASE_URL}
+            PORT=80
+            CORS_ORIGIN=${CORS_ORIGIN}
+            EOF
+
+            # Pull latest code (to get updated docker-compose.server.yml)
+            git pull origin main || echo "Skipping git pull (might not be a git repo)"
+
+            # Login to GitHub Container Registry
+            echo "${{ secrets.GITHUB_TOKEN }}" | docker login ghcr.io -u ${{ github.actor }} --password-stdin
+
+            # Make deploy script executable
+            chmod +x deploy-easiest.sh
+
+            # Run zero-downtime deployment
+            ./deploy-easiest.sh
+
+      - name: Verify deployment
+        uses: appleboy/ssh-action@v1.0.0
+        with:
+          host: ${{ secrets.CYSO_HOST }}
+          username: ${{ secrets.CYSO_USER }}
+          key: ${{ secrets.CYSO_SSH_KEY }}
+          port: ${{ secrets.CYSO_SSH_PORT || 22 }}
+          script: |
+            cd ${{ secrets.DEPLOY_PATH || '/opt/partijgedrag' }}
+
+            # Wait a moment for containers to fully start
+            sleep 10
+
+            # Check container status
+            docker compose -f docker-compose.server.yml ps
+
+            # Test readiness endpoint (verifies DB connection)
+            if curl -f http://localhost:8080/ready; then
+              echo "✅ Deployment verified - app is healthy!"
+            else
+              echo "❌ Health check failed!"
+              docker compose -f docker-compose.server.yml logs --tail=50 app
+              exit 1
+            fi
+
+      - name: Notify deployment status
+        if: always()
+        run: |
+          if [ "${{ job.status }}" == "success" ]; then
+            echo "✅ Deployment to CYSO successful!"
+          else
+            echo "❌ Deployment to CYSO failed!"
+            exit 1
+          fi

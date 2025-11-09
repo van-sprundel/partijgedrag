@@ -1,0 +1,23 @@
+services:
+  app:
+    image: ghcr.io/van-sprundel/partijgedrag-web:latest
+    ports:
+      - "8080:80"
+    environment:
+      - DATABASE_URL=${DATABASE_URL}
+      - PORT=80
+      - NODE_ENV=production
+      - CORS_ORIGIN=${CORS_ORIGIN}
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "wget", "--quiet", "--tries=1", "--spider", "http://localhost:80/ready"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+      start_period: 40s
+
+  etl:
+    image: ghcr.io/van-sprundel/partijgedrag-etl:latest
+    environment:
+      - DATABASE_URL=${DATABASE_URL}
+    restart: unless-stopped
