@@ -37,6 +37,34 @@ export const partyRouter = {
 		return mapPartyToContract(party);
 	}),
 
+
+	getInRange: os.parties.getInRange.handler(async ({ input }) => {
+		const { dateFrom, dateTo } = input;
+
+		if (dateFrom > dateTo) {
+			throw new ORPCError("BAD_REQUEST", {
+				message: "`dateFrom` must be earlier than or the same as `dateTo`",
+			});
+		}
+
+		const parties = await db.party.findMany({
+			where: {
+				removed: { not: true },
+				AND: [
+					{
+						OR: [{ activeFrom: null }, { activeFrom: { lte: dateTo } }],
+					},
+					{
+						OR: [{ activeTo: null }, { activeTo: { gte: dateFrom } }],
+					},
+				],
+			},
+			orderBy: { nameNl: "asc" },
+		});
+
+		return parties.map((p) => mapPartyToContract(p));
+	}),
+
 	getWithVotes: os.parties.getWithVotes.handler(async ({ input }) => {
 		const { partyId, motionIds } = input;
 

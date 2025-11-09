@@ -202,6 +202,15 @@ const partyGetAllContract = oc
 	.input(z.object({ activeOnly: z.boolean().default(true) }))
 	.output(z.array(PartySchema));
 
+const partyGetInRangeContract = oc
+	.input(
+		z.object({
+			dateFrom: z.coerce.date(),
+			dateTo: z.coerce.date(),
+		}),
+	)
+	.output(z.array(PartySchema));
+
 const partyGetByIdContract = oc
 	.input(z.object({ id: z.string() }))
 	.output(PartySchema.nullable());
@@ -324,6 +333,7 @@ export const apiContract = {
 	},
 	parties: {
 		getAll: partyGetAllContract,
+		getInRange: partyGetInRangeContract,
 		getById: partyGetByIdContract,
 		getWithVotes: partyGetWithVotesContract,
 	},

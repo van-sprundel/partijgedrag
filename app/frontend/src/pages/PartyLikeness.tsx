@@ -1,4 +1,4 @@
-import { useId, useMemo, useState } from "react";
+import { useEffect, useId, useMemo, useState } from "react";
 import { z } from "zod";
 import {
 	Card,
@@ -39,7 +39,33 @@ export function PartyLikenessPage() {
 	);
 	const [dateTo, setDateTo] = useState<string>(cabinetPresets["schoof-i"].to);
 
-	const { data: parties, isLoading: isLoadingParties } = useParties();
+	const dateRange = useMemo(() => {
+		if (!dateFrom || !dateTo) return undefined;
+		const parsedFrom = new Date(dateFrom);
+		const parsedTo = new Date(dateTo);
+
+		if (Number.isNaN(parsedFrom.getTime()) || Number.isNaN(parsedTo.getTime())) {
+			return undefined;
+		}
+
+		return {
+			dateFrom: parsedFrom,
+			dateTo: parsedTo,
+		};
+	}, [dateFrom, dateTo]);
+
+	const filters: Filter = dateRange ?? {};
+	const { data: parties, isLoading: isLoadingParties } = useParties(dateRange);
+
+	useEffect(() => {
+		if (
+			activeTab !== "matrix" &&
+			parties &&
+			!parties.some((party) => party.id === activeTab)
+		) {
+			setActiveTab("matrix");
+		}
+	}, [activeTab, parties]);
 
 	const handleTabClick = (partyId: string) => {
 		setActiveTab(partyId);
@@ -58,11 +84,6 @@ export function PartyLikenessPage() {
 			setDateTo(preset.to);
 		}
 	};
-
-	const filters =
-		dateFrom && dateTo
-			? { dateFrom: new Date(dateFrom), dateTo: new Date(dateTo) }
-			: {};
 
 	const presetId = useId();
 	const dateFromId = useId();

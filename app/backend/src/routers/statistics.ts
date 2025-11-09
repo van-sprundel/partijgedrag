@@ -37,7 +37,6 @@ export const statisticsRouter = {
 					WHERE s.fractie_id IS NOT NULL
 						AND s.soort IN ('Voor', 'Tegen')
 						AND z.soort = 'Motie'
-						AND f.datum_inactief IS NULL
 						${dateFilter}
 				),
 				PartyComparisons AS (
