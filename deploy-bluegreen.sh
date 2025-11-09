@@ -13,7 +13,7 @@ NETWORK="partijgedrag"
 
 # Load environment
 if [ -f .env ]; then
-  set -a; source .env; set +a
+  export $(grep -v '^#' .env | xargs)
 fi
 
 echo "📦 Target images:"
