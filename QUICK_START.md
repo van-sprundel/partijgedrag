@@ -1,176 +1,297 @@
 # Zero-Downtime Deployment - Quick Start
 
-## TL;DR
+## The Problem
 
-Your current deployment causes downtime because you do `docker compose down && up`.
-
-**The fix:** Use the new deployment scripts that scale up before scaling down.
-
-## What I Changed
-
-### 1. Enhanced Backend Health Checks ✅
-
-**File:** `app/backend/src/index.ts`
-
-Added `/ready` endpoint that checks database connectivity:
+Your current deployment:
 ```bash
-curl http://localhost:8080/ready
+docker compose down && docker compose up
 ```
 
-This ensures new containers are actually ready before routing traffic to them.
+**Causes 5-30 seconds of downtime** because all containers stop before new ones start.
 
-### 2. Created Zero-Downtime Deployment Scripts
+## The Solution
 
-**Simplest (Recommended):** `deploy-easiest.sh`
+Use **Docker Swarm** (built into Docker) for true zero-downtime deployments.
+
+## Quick Setup
+
+### 1. Enable Docker Swarm (One-Time)
+
+SSH to your CYSO server:
+
 ```bash
-./deploy-easiest.sh
+docker swarm init
 ```
 
-This script:
-- Pulls latest images
-- Scales to 2 instances
-- Does rolling restart (one at a time)
-- Your Nginx load balancer keeps traffic flowing
+That's it! Swarm is now enabled.
 
-**More control:** `deploy-simple.sh` or `deploy-server.sh`
+### 2. Deploy
 
-### 3. Created Production Docker Compose
+```bash
+cd /opt/partijgedrag  # or your deployment directory
+./deploy-production.sh
+```
 
-**File:** `docker-compose.server.yml`
+**What happens:**
+- Pulls images with immutable Git SHA tags
+- Starts new containers BEFORE stopping old ones (`order: start-first`)
+- Waits for health checks (`/ready` endpoint checks DB connection)
+- Removes old containers
+- **Zero downtime! 🎉**
 
-This adds health checks and proper restart policies:
+## Why Docker Swarm?
+
+**Docker Compose cannot reliably do zero-downtime deployments.** Even with health checks and `--wait`, it may stop old containers before new ones are ready.
+
+**Docker Swarm guarantees zero-downtime:**
+- ✅ Starts new container before stopping old (`order: start-first`)
+- ✅ Integrated health checks
+- ✅ Automatic rollback on failure
+- ✅ No infrastructure changes (already in Docker)
+- ✅ Works on single-node setups
+
+## Key Improvements
+
+### 1. Immutable Git SHA Tags
+
+**Before:**
+```bash
+image: ghcr.io/van-sprundel/partijgedrag-web:latest  # ❌ Non-deterministic
+```
+
+**After:**
+```bash
+image: ghcr.io/van-sprundel/partijgedrag-web:abc123def  # ✅ Immutable, traceable
+```
+
+**Why?** `:latest` changes on every push. Git SHA tags are permanent and enable reliable rollbacks.
+
+### 2. Enhanced Health Checks
+
+**Before:**
+```typescript
+app.get("/health", (_req, res) => {
+  res.json({ status: "ok" });  // ❌ Doesn't check dependencies
+});
+```
+
+**After:**
+```typescript
+app.get("/ready", async (_req, res) => {
+  await db.$queryRaw`SELECT 1`;  // ✅ Checks database connection
+  res.json({ status: "ready", database: "connected" });
+});
+```
+
+**Why?** A container can be "running" but not "ready" (e.g., DB connection failed). `/ready` prevents routing traffic to broken containers.
+
+### 3. Proper Rolling Updates
+
+**Docker Compose (before):**
 ```yaml
-healthcheck:
-  test: ["CMD", "wget", "--quiet", "--tries=1", "--spider", "http://localhost:80/ready"]
-  interval: 10s
-  timeout: 5s
-  retries: 3
+# Recreates containers, may stop old before new is ready
+# NO guarantee of zero-downtime
 ```
 
-### 4. Automated CI/CD
+**Docker Swarm (after):**
+```yaml
+update_config:
+  order: start-first       # ✅ New starts before old stops
+  parallelism: 1           # ✅ One at a time
+  failure_action: rollback # ✅ Auto-rollback on failure
+```
 
-**File:** `.github/workflows/deploy-production.yml`
+## Automated CI/CD
 
-Auto-deploys when you push to `main`.
+### Setup GitHub Secrets
 
-**Setup required:**
-Add these GitHub Secrets (Settings → Secrets → Actions):
-- `CYSO_HOST` - Your server IP
+Go to: Settings → Secrets → Actions
+
+Add:
+- `CYSO_HOST` - Server IP/hostname
 - `CYSO_USER` - SSH username
-- `CYSO_SSH_KEY` - Private SSH key
-- `CYSO_SSH_PORT` - SSH port (default: 22)
-- `DATABASE_URL` - Your PostgreSQL connection string
+- `CYSO_SSH_KEY` - Your private SSH key
+- `CYSO_SSH_PORT` - SSH port (usually 22)
+- `DATABASE_URL` - PostgreSQL connection string
 - `CORS_ORIGIN` - Your domain (e.g., `https://partijgedrag.nl`)
-- `DEPLOY_PATH` - Path on server (e.g., `/opt/partijgedrag`)
+- `DEPLOY_PATH` - Deployment directory (e.g., `/opt/partijgedrag`)
 
-## How Zero-Downtime Works
+### Push to Main = Auto-Deploy
 
-### Current (Causes Downtime ❌)
 ```bash
-docker compose down    # ← ALL containers stop (DOWNTIME!)
-docker compose up      # ← New containers start
+git add .
+git commit -m "feat: add new feature"
+git push origin main
 ```
 
-### New Approach (No Downtime ✅)
+**GitHub Actions will:**
+1. Build images tagged with Git SHA
+2. Push to GitHub Container Registry
+3. SSH to your server
+4. Deploy with zero-downtime
+5. Verify `/ready` endpoint
+6. Report success/failure
+
+## Rollback
+
+### Automatic (Swarm)
+
 ```bash
-# Step 1: Start 2nd instance (old version)
-docker compose up -d --scale app=2
-
-# Step 2: Rolling restart (one at a time)
-docker compose up -d --scale app=2 --force-recreate
-
-# Step 3: Nginx load balancer routes to healthy instances
-# ✅ Traffic never stops!
+./rollback.sh
+# or
+docker service update --rollback partijgedrag_web
 ```
 
-## Test It Yourself
+### Manual (Any method)
 
-### Before Deployment
 ```bash
-# Terminal 1: Monitor health
-watch -n 1 'curl -s http://localhost:8080/ready'
+# 1. Find previous version
+git log --oneline
 
-# Terminal 2: Run deployment
-./deploy-easiest.sh
+# 2. Update .env
+WEB_IMAGE=ghcr.io/van-sprundel/partijgedrag-web:previous-sha
+ETL_IMAGE=ghcr.io/van-sprundel/partijgedrag-etl:previous-sha
+
+# 3. Redeploy
+./deploy-production.sh
 ```
 
-You should see **zero failed requests** during deployment!
+## Alternative: Docker Compose (Best Effort)
 
-## Next Steps
+If you can't use Swarm:
 
-### Option A: Manual Testing (Do This First!)
+```bash
+./deploy-compose.sh
+```
 
-1. SSH to your CYSO server
-2. Copy the new files:
-   ```bash
-   cd /opt/partijgedrag  # or wherever you deploy
-   git pull origin main
-   ```
-3. Test deployment:
-   ```bash
-   ./deploy-easiest.sh
-   ```
-4. Monitor during deployment:
-   ```bash
-   # In another terminal
-   docker compose -f docker-compose.server.yml logs -f app
-   ```
+**⚠️ Warning:** May have 1-5s downtime during container recreation. Use for:
+- Testing/staging environments
+- When brief downtime is acceptable
+- Quick local testing
 
-### Option B: Automated CI/CD (Recommended Long-term)
+## Deployment Methods Comparison
 
-1. Add GitHub Secrets (see above)
-2. Push to main:
-   ```bash
-   git add .
-   git commit -m "Add zero-downtime deployment"
-   git push origin main
-   ```
-3. Watch GitHub Actions deploy automatically!
+| Method | Zero-Downtime | Complexity | Rollback | Recommended |
+|--------|---------------|------------|----------|-------------|
+| **Docker Swarm** | ✅ Guaranteed | Low (1 command setup) | Automatic | ✅ **YES** |
+| **Docker Compose** | ❌ Best effort | Low (already using) | Manual | ⚠️ Staging only |
+| **Blue-Green Manual** | ✅ Guaranteed | High (manual steps) | Manual | Advanced use cases |
+| **Current (down + up)** | ❌ 5-30s downtime | Low | N/A | ❌ **NEVER** |
+
+## Monitor Deployment
+
+### During Deployment
+
+```bash
+# Terminal 1: Deploy
+./deploy-production.sh
+
+# Terminal 2: Monitor health (should NEVER fail)
+watch -n 1 'curl -s http://localhost:8080/ready | jq'
+
+# Terminal 3: Watch services
+watch -n 2 'docker service ls'
+```
+
+### Post-Deployment
+
+```bash
+# Check health
+curl http://localhost:8080/ready
+
+# View logs
+docker service logs partijgedrag_web -f
+
+# Check version
+docker service inspect partijgedrag_web | grep Image
+```
+
+## Database Migrations
+
+**CRITICAL:** Run migrations BEFORE deploying!
+
+```bash
+# On server
+docker compose -f docker-compose.server.yml run --rm app npm run db:migrate
+
+# Then deploy
+./deploy-production.sh
+```
+
+**Important:** Make migrations backward-compatible:
+- ✅ Add new columns (keep old ones)
+- ✅ Gradually migrate data
+- ✅ Remove old columns in next release
+- ❌ Don't rename columns in same deploy as code change
+
+See `DEPLOYMENT.md` for detailed migration strategies.
 
 ## FAQ
 
-**Q: Do I need to keep 2 instances running all the time?**
-A: No! The script scales to 2 during deployment, then can scale back to 1.
+**Q: Do I need multiple servers for Swarm?**
+A: No! Swarm works perfectly on single-node setups. It's just an orchestration mode, not a clustering requirement.
 
-**Q: What about the ETL service?**
-A: ETL can have downtime (as you said), so it just does a normal restart.
+**Q: Will Swarm change my existing setup?**
+A: Minimal. You just run `docker swarm init` once, then use `docker stack deploy` instead of `docker compose up`.
 
-**Q: Will this work with CYSO's nginx?**
-A: Yes! Your nginx load balancer will automatically route traffic between the 2 instances.
+**Q: What about my existing Docker Compose setup?**
+A: It keeps working! Docker Compose and Docker Swarm coexist. You can use both.
 
-**Q: What if a deployment fails?**
-A: The old container keeps running. Just fix the issue and redeploy.
+**Q: Can I rollback database migrations?**
+A: Database rollbacks are risky. Better approach: deploy a forward-fix. See `DEPLOYMENT.md`.
 
-**Q: How do I rollback?**
-A: Pull the old image tag and redeploy:
+**Q: How do I scale to more instances?**
+A:
 ```bash
-docker pull ghcr.io/van-sprundel/partijgedrag-web:previous-sha
-# Update docker-compose to use that tag
-./deploy-easiest.sh
+docker service scale partijgedrag_web=3
 ```
 
-## Comparison
-
-| Method | Downtime | Complexity | Recommendation |
-|--------|----------|------------|----------------|
-| `docker compose down && up` | ❌ Yes (5-30s) | Simple | Don't use |
-| `./deploy-easiest.sh` | ✅ None | Simple | **Use this!** |
-| `./deploy-simple.sh` | ✅ None | Medium | If you want control |
-| GitHub Actions | ✅ None | Medium | Best long-term |
-| Docker Swarm | ✅ None | High | Overkill for 1 server |
-
-## Read More
-
-See `DEPLOYMENT.md` for detailed documentation including:
-- Database migration strategies
-- Rollback procedures
-- Monitoring and debugging
-- Performance tuning
-- Docker Swarm comparison
+**Q: What if deployment fails?**
+A: Swarm automatically rolls back to previous version. Check logs with:
+```bash
+docker service logs partijgedrag_web --tail 50
+```
 
 ## Summary
 
-**Before:** `ssh server → docker compose down && up` (30 seconds downtime)
-**After:** `git push` → GitHub Actions → Zero-downtime deploy (0 seconds downtime)
+**Before:**
+```bash
+ssh server
+docker compose down && docker compose up  # ❌ 30s downtime
+```
 
+**After:**
+```bash
+git push origin main  # ✅ Auto-deploy with 0s downtime
+```
+
+Or manually:
+```bash
+ssh server
+./deploy-production.sh  # ✅ Zero-downtime deployment
+```
+
+## Next Steps
+
+1. ✅ **Enable Swarm:** `docker swarm init`
+2. ✅ **Test deployment:** `./deploy-production.sh`
+3. ✅ **Set up GitHub Secrets** for automated deploys
+4. ✅ **Test rollback:** Verify rollback procedure works
+5. ✅ **Monitor first production deploy** during off-peak hours
+
+## Read More
+
+- **DEPLOYMENT.md** - Comprehensive deployment guide
+- **deploy-production.sh** - Swarm deployment script
+- **deploy-compose.sh** - Fallback Docker Compose script
+- **rollback.sh** - Rollback script
+
+---
+
+**The Bottom Line:**
+
+Docker Compose + `down && up` = ❌ Downtime
+Docker Swarm + `stack deploy` = ✅ Zero-downtime
+
+One command to enable: `docker swarm init`
 You're welcome! 🚀

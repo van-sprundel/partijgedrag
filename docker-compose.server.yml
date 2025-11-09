@@ -1,6 +1,6 @@
 services:
   app:
-    image: ghcr.io/van-sprundel/partijgedrag-web:latest
+    image: ${WEB_IMAGE:-ghcr.io/van-sprundel/partijgedrag-web:latest}
     ports:
       - "8080:80"
     environment:
@@ -17,7 +17,7 @@ services:
       start_period: 40s
 
   etl:
-    image: ghcr.io/van-sprundel/partijgedrag-etl:latest
+    image: ${ETL_IMAGE:-ghcr.io/van-sprundel/partijgedrag-etl:latest}
     environment:
       - DATABASE_URL=${DATABASE_URL}
     restart: unless-stopped

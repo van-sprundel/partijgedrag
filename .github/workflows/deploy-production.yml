@@ -54,20 +54,24 @@ jobs:
         env:
           DATABASE_URL: ${{ secrets.DATABASE_URL }}
           CORS_ORIGIN: ${{ secrets.CORS_ORIGIN }}
+          GIT_SHA: ${{ github.sha }}
         with:
           host: ${{ secrets.CYSO_HOST }}
           username: ${{ secrets.CYSO_USER }}
           key: ${{ secrets.CYSO_SSH_KEY }}
           port: ${{ secrets.CYSO_SSH_PORT || 22 }}
-          envs: DATABASE_URL,CORS_ORIGIN
+          envs: DATABASE_URL,CORS_ORIGIN,GIT_SHA
           script: |
             cd ${{ secrets.DEPLOY_PATH || '/opt/partijgedrag' }}
 
-            # Create/update .env file
+            # Create/update .env file with immutable Git SHA
             cat > .env << EOF
             DATABASE_URL=${DATABASE_URL}
             PORT=80
             CORS_ORIGIN=${CORS_ORIGIN}
+            GIT_SHA=${GIT_SHA}
+            WEB_IMAGE=ghcr.io/van-sprundel/partijgedrag-web:${GIT_SHA}
+            ETL_IMAGE=ghcr.io/van-sprundel/partijgedrag-etl:${GIT_SHA}
             EOF
 
             # Pull latest code (to get updated docker-compose.server.yml)
@@ -77,10 +81,10 @@ jobs:
             echo "${{ secrets.GITHUB_TOKEN }}" | docker login ghcr.io -u ${{ github.actor }} --password-stdin
 
             # Make deploy script executable
-            chmod +x deploy-easiest.sh
+            chmod +x deploy-production.sh
 
-            # Run zero-downtime deployment
-            ./deploy-easiest.sh
+            # Run zero-downtime deployment with Git SHA
+            ./deploy-production.sh
 
       - name: Verify deployment
         uses: appleboy/ssh-action@v1.0.0

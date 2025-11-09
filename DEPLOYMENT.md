@@ -1,380 +1,473 @@
 # Zero-Downtime Deployment Guide
 
-This guide explains how to deploy Partijgedrag with zero downtime on CYSO infrastructure.
+## Overview
 
-## Current Setup
-
-- **Hosting:** CYSO VPS
-- **Reverse Proxy:** CYSO-managed Nginx (with load balancing)
-- **Container Runtime:** Docker + Docker Compose
-- **Current Deployment:** Manual SSH + `docker compose down && up` (causes downtime)
+This project uses **immutable Git SHA tags** for deterministic, repeatable deployments with proper rollback support.
 
 ## Architecture
 
 ```
-┌─────────────────────────────────────┐
-│   CYSO Nginx (Load Balancer)        │
-│   - Handles SSL termination          │
-│   - Load balancing between instances │
-│   - Health checking                  │
-└─────────────────────────────────────┘
-              ↓
-┌─────────────────────────────────────┐
-│   Docker Compose (Your Server)      │
-│                                      │
-│   ┌──────────┐  ┌──────────┐        │
-│   │  App #1  │  │  App #2  │        │
-│   │  :8080   │  │  :8081   │        │
-│   └──────────┘  └──────────┘        │
-│                                      │
-│   ┌──────────┐                       │
-│   │   ETL    │  (cron-based)         │
-│   └──────────┘                       │
-└─────────────────────────────────────┘
-              ↓
-┌─────────────────────────────────────┐
-│   PostgreSQL Database                │
-│   (Managed separately)               │
-└─────────────────────────────────────┘
+GitHub Actions (CI/CD)
+  ↓
+Build Docker images with Git SHA tags
+  ↓
+Push to GitHub Container Registry
+  ↓
+SSH to CYSO server
+  ↓
+Deploy using Docker Swarm (recommended)
+  or Docker Compose (best effort)
 ```
 
-## Zero-Downtime Deployment Methods
+## Why Docker Swarm?
 
-### Method 1: Simplest (Recommended)
+Docker Compose **cannot reliably provide zero-downtime deployments**. Even with health checks, scaling, and `--wait` flags, Docker Compose may still stop old containers before new ones are fully ready.
 
-**File:** `deploy-easiest.sh`
+**Docker Swarm provides:**
+- ✅ True rolling updates with `order: start-first` (new container starts before old stops)
+- ✅ Automatic health check integration
+- ✅ Built-in rollback on failure
+- ✅ No infrastructure changes needed (built into Docker)
+- ✅ Works on single-node setups
+
+**Setup:** One command: `docker swarm init`
+
+## Deployment Methods
+
+### Method 1: Docker Swarm (RECOMMENDED)
+
+**File:** `deploy-production.sh`
 
 ```bash
-./deploy-easiest.sh
+./deploy-production.sh
 ```
 
 **How it works:**
-1. Pulls latest Docker images
-2. Scales to 2 app instances
-3. Docker Compose does rolling restart (stops old, starts new, one at a time)
-4. Nginx automatically routes traffic to healthy instances
+1. Checks if Swarm is initialized (offers to initialize if not)
+2. Pulls images with specific Git SHA tags
+3. Uses `docker stack deploy` with proper rolling update config
+4. Monitors deployment until services converge
+5. Verifies health checks
 
-**Pros:**
-- ✅ One command
-- ✅ Built into Docker Compose (no extra tools)
-- ✅ Automatic health checking with `--wait` flag
+**Zero-downtime guarantee:** Yes (via `update_config.order: start-first`)
 
-**Cons:**
-- ⚠️ Requires Docker Compose v2.x (check with `docker compose version`)
+**Rollback:** `./rollback.sh` or `docker service update --rollback partijgedrag_web`
 
-### Method 2: Manual Control
+### Method 2: Docker Compose (BEST EFFORT)
 
-**File:** `deploy-simple.sh`
+**File:** `deploy-compose.sh`
 
 ```bash
-./deploy-simple.sh
+./deploy-compose.sh
 ```
 
 **How it works:**
-1. Scale to 2 instances (old version still running)
-2. Force recreate both (rolling restart)
-3. Wait for health checks
-4. Optionally scale back to 1
+1. Pulls images with specific Git SHA tags
+2. Uses `docker compose up -d --wait` (if Compose v2.20+)
+3. Waits for health checks
+4. Shows deployment status
 
-**Pros:**
-- ✅ More control over each step
-- ✅ Can verify health before proceeding
-- ✅ Choose to keep 1 or 2 instances
+**Zero-downtime guarantee:** No (may have 1-5s gap during container recreation)
 
-### Method 3: Step-by-Step (Most Control)
+**When to use:**
+- You cannot use Docker Swarm for some reason
+- Brief downtime (1-5s) is acceptable
+- Testing/staging environments
 
-**File:** `deploy-server.sh`
+### Method 3: Blue-Green (MANUAL)
 
-Manually orchestrates each container update with health checks between steps.
+**File:** `deploy-bluegreen.sh`
 
-**Use when:**
-- You want maximum control
-- Debugging deployment issues
-- Understanding the internals
+Manual blue-green deployment with explicit container management.
 
-### Method 4: Automated CI/CD
+**Use case:** Maximum control, requires manual Nginx reconfiguration
 
-**File:** `.github/workflows/deploy-production.yml`
+## Image Tagging Strategy
 
-Automatically deploys when you push to `main` branch.
+### Immutable Git SHA Tags
 
-**Setup:**
-1. Add GitHub Secrets (Settings → Secrets → Actions):
-   - `CYSO_HOST` - Your server IP/hostname
-   - `CYSO_USER` - SSH username
-   - `CYSO_SSH_KEY` - Private SSH key (generate with `ssh-keygen`)
-   - `CYSO_SSH_PORT` - SSH port (usually 22)
-   - `DATABASE_URL` - PostgreSQL connection string
-   - `CORS_ORIGIN` - Your frontend domain
+Every image is tagged with both `:latest` and `:$GIT_SHA`:
 
-2. Push to main:
-   ```bash
-   git push origin main
-   ```
+```
+ghcr.io/van-sprundel/partijgedrag-web:latest
+ghcr.io/van-sprundel/partijgedrag-web:abc123def456  # Git SHA
+```
 
-3. GitHub Actions will:
-   - Build Docker images
-   - Push to GitHub Container Registry
-   - SSH into your server
-   - Run zero-downtime deployment
-   - Verify deployment succeeded
+**Why?**
+- `:latest` is **non-deterministic** (changes on every push)
+- Git SHA tags are **immutable** (specific version forever)
+- Enables reliable rollbacks
+- Deployment history is traceable to git commits
 
-## Database Migrations
+### Environment Variables
 
-**CRITICAL:** Run migrations BEFORE deploying new code.
+The `.env` file specifies which version to deploy:
 
 ```bash
-# On your server, before deployment:
-cd /path/to/partijgedrag
-docker compose -f docker-compose.server.yml run --rm app npm run db:migrate
-
-# Then deploy:
-./deploy-easiest.sh
-```
-
-### Migration Best Practices
-
-**❌ Breaking changes (NEVER do this):**
-```sql
--- Renaming column in same deploy
-ALTER TABLE parties RENAME COLUMN name TO full_name;
--- Old code breaks immediately!
-```
-
-**✅ Backward-compatible approach:**
-```sql
--- Step 1 (Deploy 1): Add new column
-ALTER TABLE parties ADD COLUMN full_name TEXT;
-
--- Step 2 (Deploy 1): Update code to write to both columns
--- (Deploy this version)
-
--- Step 3 (Later): Backfill data
-UPDATE parties SET full_name = name WHERE full_name IS NULL;
-
--- Step 4 (Deploy 2): Update code to read from full_name only
--- (Deploy this version)
-
--- Step 5 (Deploy 3): Remove old column
-ALTER TABLE parties DROP COLUMN name;
+GIT_SHA=abc123def456
+WEB_IMAGE=ghcr.io/van-sprundel/partijgedrag-web:abc123def456
+ETL_IMAGE=ghcr.io/van-sprundel/partijgedrag-etl:abc123def456
+DATABASE_URL=postgresql://...
+CORS_ORIGIN=https://your-domain.nl
 ```
 
 ## Health Checks
 
-The app now has two health endpoints:
+### Endpoints
 
-### `/health` - Liveness Probe
+**`/health`** - Liveness probe
 - Returns `200` if app is running
-- Doesn't check dependencies
-- Used by Docker for container health
+- Does NOT check dependencies
+- Used by Docker to detect crashed processes
 
-### `/ready` - Readiness Probe
+**`/ready`** - Readiness probe (RECOMMENDED)
 - Returns `200` if app is ready to serve traffic
-- Checks database connection
-- Returns `503` if database is down
-- **Use this for zero-downtime deploys**
+- **Checks database connection** (`SELECT 1`)
+- Returns `503` if database is unavailable
+- **Use this for deployment health checks**
 
-Test:
-```bash
-curl http://localhost:8080/health
-curl http://localhost:8080/ready
+### Configuration
+
+All deployment configs use `/ready`:
+
+```yaml
+healthcheck:
+  test: ["CMD", "wget", "--quiet", "--tries=1", "--spider", "http://localhost:80/ready"]
+  interval: 10s
+  timeout: 5s
+  retries: 3
+  start_period: 40s
 ```
 
-## Graceful Shutdown
+**Why `/ready` over `/health`?**
 
-The app already handles `SIGTERM` properly:
+A container can be "running" (healthy process) but not "ready" (database down). Using `/ready` prevents routing traffic to containers that cannot serve requests.
 
-1. Receives `SIGTERM` from Docker
-2. Stops accepting new connections
-3. Finishes processing existing requests (max 30s)
-4. Closes database connections
-5. Exits cleanly
+## Database Migrations
 
-This ensures no requests are dropped during deployment.
+**CRITICAL:** Always run migrations BEFORE deploying new code.
 
-## Rollback Strategy
+### Best Practices
 
-### If deployment fails during update:
-
-**Compose method:**
+1. **Run migrations in a separate step:**
 ```bash
-# Pull previous version
-docker pull ghcr.io/van-sprundel/partijgedrag-web:previous-tag
-
-# Update compose file to use previous tag
-# Then redeploy
-./deploy-easiest.sh
+# On server, before deployment
+docker compose -f docker-compose.server.yml run --rm app npm run db:migrate
 ```
 
-**Quick rollback:**
-```bash
-# Stop all new containers
-docker compose -f docker-compose.server.yml down
+2. **Make migrations backward-compatible:**
 
-# Start previous containers (if still present)
-docker compose -f docker-compose.server.yml up -d
+**❌ WRONG (breaking change):**
+```sql
+-- Rename column
+ALTER TABLE parties RENAME COLUMN name TO full_name;
+-- Old code breaks immediately during rolling deployment!
 ```
 
-### If deployment succeeds but app has bugs:
+**✅ CORRECT (backward-compatible):**
+```sql
+-- Deploy 1: Add new column
+ALTER TABLE parties ADD COLUMN full_name TEXT;
 
-1. Revert git commit
-2. Push to main (triggers new build)
-3. Re-deploy
+-- Deploy 1: Update code to write to BOTH columns
+-- (Old code still reads 'name', new code writes both)
+
+-- Deploy 2: Backfill data
+UPDATE parties SET full_name = name WHERE full_name IS NULL;
+
+-- Deploy 2: Update code to read from 'full_name'
+
+-- Deploy 3: Remove old column (after confirming Deploy 2 is stable)
+ALTER TABLE parties DROP COLUMN name;
+```
+
+### Expand-Contract Pattern
+
+For schema changes during rolling deployments:
+
+1. **Expand:** Add new schema (columns, tables) without removing old
+2. **Migrate:** Deploy code that works with both old and new schema
+3. **Contract:** Remove old schema after all instances are updated
+
+## Rollback Procedures
+
+### Automatic Rollback (Swarm only)
+
+```bash
+./rollback.sh
+# or
+docker service update --rollback partijgedrag_web
+```
+
+**How it works:**
+- Docker Swarm keeps previous task definition
+- Rolls back to exact previous state
+- Handles health checks automatically
+
+### Manual Rollback (Any method)
+
+```bash
+# 1. Find previous Git SHA
+git log --oneline
+
+# 2. Update .env
+WEB_IMAGE=ghcr.io/van-sprundel/partijgedrag-web:PREVIOUS_SHA
+ETL_IMAGE=ghcr.io/van-sprundel/partijgedrag-etl:PREVIOUS_SHA
+
+# 3. Redeploy
+./deploy-production.sh  # or deploy-compose.sh
+```
+
+### Rollback Database Migrations
+
+**WARNING:** Database rollbacks are risky!
+
+```bash
+# Check migration history
+npm run prisma:migrate:status
+
+# Rollback (use with caution!)
+npm run prisma:migrate:resolve --rolled-back MIGRATION_NAME
+```
+
+**Better approach:** Deploy forward-fix instead of rollback
+
+## Automated CI/CD
+
+### GitHub Actions Workflow
+
+**File:** `.github/workflows/deploy-production.yml`
+
+**Triggered on:** Push to `main` branch
+
+**Steps:**
+1. Build Docker images
+2. Tag with both `:latest` and `:$GITHUB_SHA`
+3. Push to GitHub Container Registry
+4. SSH to CYSO server
+5. Create `.env` with Git SHA tags
+6. Run `deploy-production.sh`
+7. Verify `/ready` endpoint
+8. Report success/failure
+
+### Required GitHub Secrets
+
+Go to: Settings → Secrets → Actions
+
+```
+CYSO_HOST          # Server IP or hostname
+CYSO_USER          # SSH username (e.g., root)
+CYSO_SSH_KEY       # Private SSH key (full key including -----BEGIN-----)
+CYSO_SSH_PORT      # SSH port (default: 22)
+DEPLOY_PATH        # Path on server (e.g., /opt/partijgedrag)
+DATABASE_URL       # Full PostgreSQL connection string
+CORS_ORIGIN        # Your domain (e.g., https://partijgedrag.nl)
+```
+
+### Manual Trigger
+
+You can manually trigger deployment from GitHub Actions UI using `workflow_dispatch`.
 
 ## Monitoring Deployment
 
-### Watch logs during deployment:
-```bash
-# Terminal 1: Run deployment
-./deploy-easiest.sh
+### During Deployment
 
-# Terminal 2: Watch logs
+**Swarm:**
+```bash
+# Watch service status
+watch -n 2 'docker service ls'
+
+# View task history
+docker service ps partijgedrag_web --no-trunc
+
+# Live logs
+docker service logs partijgedrag_web -f
+```
+
+**Compose:**
+```bash
+# Watch container status
+watch -n 2 'docker compose -f docker-compose.server.yml ps'
+
+# Live logs
 docker compose -f docker-compose.server.yml logs -f app
 ```
 
-### Check container health:
-```bash
-docker compose -f docker-compose.server.yml ps
+### Health Monitoring
 
-# Should show:
-# app-1   running (healthy)
-# app-2   running (healthy)
+```bash
+# Monitor health endpoint
+watch -n 1 'curl -s http://localhost:8080/ready | jq'
+
+# Should never return non-200 during Swarm deployment
+# May have brief downtime with Compose deployment
 ```
 
-### Test from outside:
+### Post-Deployment Verification
+
 ```bash
-# From your local machine
-curl -I https://your-domain.nl/ready
-# Should return 200 OK during entire deployment
+# Check health
+curl -I http://localhost:8080/ready
+
+# Verify version (check logs for Git SHA)
+docker service logs partijgedrag_web | grep "GIT_SHA\|version"
+
+# Check resource usage
+docker stats
 ```
 
 ## Troubleshooting
 
-### Health check fails
-```bash
-# Check app logs
-docker compose -f docker-compose.server.yml logs app
+### Health Check Fails
 
-# Test health endpoint
-docker compose -f docker-compose.server.yml exec app wget -O- http://localhost:80/ready
+```bash
+# Check logs
+docker service logs partijgedrag_web --tail 50
+
+# Test health endpoint inside container
+docker exec $(docker ps -q -f name=partijgedrag_web) wget -O- http://localhost:80/ready
 
 # Check database connectivity
-# docker compose -f docker-compose.server.yml exec app sh -c 'echo "SELECT 1" | psql $DATABASE_URL' # psql is not available in the container
-# Instead, test the readiness probe which checks the DB connection:
-docker compose -f docker-compose.server.yml exec app wget -O- http://localhost:80/ready
+# The /ready endpoint already checks DB, so if it fails, DB is likely the issue
 ```
 
-### Deployment hangs
+### Deployment Stuck
+
+**Swarm:**
+```bash
+# Check what's blocking
+docker service ps partijgedrag_web --no-trunc
+
+# Force update (careful!)
+docker service update --force partijgedrag_web
+```
+
+**Compose:**
 ```bash
 # Check container status
 docker compose -f docker-compose.server.yml ps
 
-# Check what's blocking
-docker compose -f docker-compose.server.yml events
-
-# Force stop and retry
-docker compose -f docker-compose.server.yml down
-./deploy-easiest.sh
+# Force recreate
+docker compose -f docker-compose.server.yml up -d --force-recreate app
 ```
 
-### Old containers not stopping
+### Old Containers Not Stopping
+
 ```bash
 # List all containers
 docker ps -a | grep partijgedrag
 
-# Manually stop old ones
-docker stop <container-id>
-docker rm <container-id>
+# Manually clean up
+docker stop $(docker ps -q -f name=partijgedrag)
+docker container prune -f
+```
 
-# Clean up
-docker system prune -f
+### Image Pull Fails
+
+```bash
+# Login to GitHub Container Registry
+echo "$GITHUB_TOKEN" | docker login ghcr.io -u USERNAME --password-stdin
+
+# Manually pull
+docker pull ghcr.io/van-sprundel/partijgedrag-web:SHA
+
+# Check if image exists
+curl -H "Authorization: token $GITHUB_TOKEN" \
+  https://api.github.com/orgs/van-sprundel/packages/container/partijgedrag-web/versions
 ```
 
 ## Performance Tuning
 
-### Running 2 instances permanently
-```bash
-# Update docker-compose.server.yml
-services:
-  app:
-    deploy:
-      replicas: 2  # Add this line
+### Resource Limits (Swarm)
 
-# Or use scale flag
+```yaml
+deploy:
+  resources:
+    limits:
+      cpus: '1.0'
+      memory: 512M
+    reservations:
+      cpus: '0.5'
+      memory: 256M
+```
+
+### Scaling
+
+**Swarm:**
+```bash
+# Scale to 3 instances
+docker service scale partijgedrag_web=3
+
+# Or update stack file with replicas: 3
+```
+
+**Compose:**
+```bash
+# Scale to 2 instances
 docker compose -f docker-compose.server.yml up -d --scale app=2
 ```
 
-**Benefits:**
-- Better redundancy
-- Load distribution (if Nginx balances between them)
-- Faster deployments (one instance always available)
+### Update Strategy Tuning
 
-**Cost:**
-- 2x memory usage
-- 2x CPU usage
-
-### Resource limits (optional)
 ```yaml
-services:
-  app:
-    deploy:
-      resources:
-        limits:
-          cpus: '1.0'
-          memory: 512M
-        reservations:
-          cpus: '0.5'
-          memory: 256M
+update_config:
+  parallelism: 2      # Update 2 at a time (faster)
+  delay: 5s           # Less delay between updates
+  failure_action: rollback
+  max_failure_ratio: 0.3  # Rollback if 30% fail
 ```
 
-## Comparison: Docker Compose vs Docker Swarm
+## Comparison Table
 
-| Feature | Docker Compose | Docker Swarm |
-|---------|----------------|--------------|
-| **Setup** | Already using | `docker swarm init` |
-| **Zero-downtime** | Manual scaling | Built-in |
-| **Rollback** | Manual | Automatic on failure |
-| **Multiple nodes** | No | Yes |
-| **Complexity** | Low | Medium |
-| **Best for** | Single server | Multi-server |
-
-### Should you switch to Swarm?
-
-**No, if:**
-- You only have 1 server
-- Current approach works
-- You want simplicity
-
-**Yes, if:**
-- You want automatic rollbacks
-- You plan to add more servers
-- You want built-in orchestration
-
-## Next Steps
-
-1. **Add health checks to docker-compose.server.yml** (already in updated version)
-2. **Test deployment in non-peak hours** (verify zero-downtime)
-3. **Set up automated deployments** (GitHub Actions)
-4. **Add monitoring** (track deployment success/failure)
-5. **Document rollback procedures** for your team
+| Feature | Docker Swarm | Docker Compose | Blue-Green Manual |
+|---------|--------------|----------------|-------------------|
+| **Zero-downtime** | ✅ Guaranteed | ❌ Best effort | ✅ Guaranteed |
+| **Complexity** | Low | Low | High |
+| **Setup time** | 1 command | None (already using) | Medium |
+| **Rollback** | Automatic | Manual | Manual |
+| **Health checks** | Integrated | Supported | Manual |
+| **Multi-node** | Yes | No | Depends |
+| **Production ready** | ✅ Yes | ⚠️ Not recommended | ✅ Yes |
 
 ## Quick Reference
 
 ```bash
-# Manual deployment (zero-downtime)
-./deploy-easiest.sh
+# Deploy production (Swarm - RECOMMENDED)
+./deploy-production.sh
 
-# Check logs
+# Deploy production (Compose - if Swarm unavailable)
+./deploy-compose.sh
+
+# Rollback
+./rollback.sh
+
+# View logs (Swarm)
+docker service logs partijgedrag_web -f
+
+# View logs (Compose)
 docker compose -f docker-compose.server.yml logs -f app
 
 # Check health
 curl http://localhost:8080/ready
 
-# Scale to 2 instances
-docker compose -f docker-compose.server.yml up -d --scale app=2
+# Scale service (Swarm)
+docker service scale partijgedrag_web=3
 
-# Rollback (manual)
-docker compose -f docker-compose.server.yml down
-# ... restore previous version ...
-docker compose -f docker-compose.server.yml up -d
+# Swarm rollback
+docker service update --rollback partijgedrag_web
 ```
+
+## Next Steps
+
+1. **Enable Docker Swarm:** `docker swarm init` (one-time setup)
+2. **Test deployment:** Run `./deploy-production.sh` in non-peak hours
+3. **Set up GitHub Secrets:** Enable automated deployments
+4. **Monitor first deployment:** Watch logs and health checks
+5. **Test rollback:** Verify rollback procedure works
+
+## Additional Resources
+
+- [Docker Swarm tutorial](https://docs.docker.com/engine/swarm/swarm-tutorial/)
+- [Docker health checks](https://docs.docker.com/engine/reference/builder/#healthcheck)
+- [Prisma migrations](https://www.prisma.io/docs/concepts/components/prisma-migrate)
+- [Zero-downtime deployments](https://www.martinfowler.com/bliki/BlueGreenDeployment.html)

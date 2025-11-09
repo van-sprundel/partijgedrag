@@ -2,7 +2,7 @@ version: '3.8'
 
 services:
   web:
-    image: ghcr.io/van-sprundel/partijgedrag-web:latest
+    image: ${WEB_IMAGE:-ghcr.io/van-sprundel/partijgedrag-web:latest}
     ports:
       - "3000:3000"  # Nginx will proxy to this port
     deploy:
@@ -17,7 +17,7 @@ services:
         delay: 5s
         max_attempts: 3
     environment:
-      DATABASE_URL: postgresql://etl_user:${DB_PASSWORD}@postgres:5432/partijgedrag?schema=public
+      DATABASE_URL: ${DATABASE_URL}
       NODE_ENV: production
       PORT: 3000
       CORS_ORIGIN: ${CORS_ORIGIN:-https://your-domain.nl}
@@ -31,37 +31,13 @@ services:
       - partijgedrag
 
   etl:
-    image: ghcr.io/van-sprundel/partijgedrag-etl:latest
+    image: ${ETL_IMAGE:-ghcr.io/van-sprundel/partijgedrag-etl:latest}
     deploy:
       replicas: 1
       restart_policy:
         condition: any
     environment:
-      DATABASE_URL: postgresql://etl_user:${DB_PASSWORD}@postgres:5432/partijgedrag?schema=public
-    networks:
-      - partijgedrag
-
-  postgres:
-    image: postgres:15
-    environment:
-      POSTGRES_DB: partijgedrag
-      POSTGRES_USER: etl_user
-      POSTGRES_PASSWORD: ${DB_PASSWORD}
-    ports:
-      - "127.0.0.1:5432:5432"
-    volumes:
-      - postgres_data:/var/lib/postgresql/data
-    deploy:
-      placement:
-        constraints:
-          - node.role == manager
-      restart_policy:
-        condition: any
-    healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U etl_user -d partijgedrag"]
-      interval: 5s
-      timeout: 5s
-      retries: 5
+      DATABASE_URL: ${DATABASE_URL}
     networks:
       - partijgedrag
 
