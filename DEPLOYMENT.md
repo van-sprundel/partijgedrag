@@ -244,7 +244,7 @@ docker compose -f docker-compose.server.yml ps
 ### Test from outside:
 ```bash
 # From your local machine
-curl -I https://your-domain.nl/health
+curl -I https://your-domain.nl/ready
 # Should return 200 OK during entire deployment
 ```
 
