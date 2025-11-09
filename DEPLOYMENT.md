@@ -259,7 +259,9 @@ docker compose -f docker-compose.server.yml logs app
 docker compose -f docker-compose.server.yml exec app wget -O- http://localhost:80/ready
 
 # Check database connectivity
-docker compose -f docker-compose.server.yml exec app sh -c 'echo "SELECT 1" | psql $DATABASE_URL'
+# docker compose -f docker-compose.server.yml exec app sh -c 'echo "SELECT 1" | psql $DATABASE_URL' # psql is not available in the container
+# Instead, test the readiness probe which checks the DB connection:
+docker compose -f docker-compose.server.yml exec app wget -O- http://localhost:80/ready
 ```
 
 ### Deployment hangs
