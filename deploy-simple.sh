@@ -1,6 +1,11 @@
 #!/bin/bash
 set -e
 
+# Load environment variables from .env file
+if [ -f .env ]; then
+  export $(grep -v '^#' .env | xargs)
+fi
+
 echo "🚀 Zero-Downtime Deployment (Simple Method)"
 echo ""
 
