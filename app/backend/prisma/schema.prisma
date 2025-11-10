@@ -18,6 +18,7 @@ model Decision {
   comment                      String?   @map("opmerking")
   status                       String?   @map("status")
   agendaPointCaseDecisionOrder BigInt?   @map("agendapunt_zaak_besluit_volgorde")
+  votingDate                   DateTime? @map("stemming_datum") @db.Timestamptz(6)
   updatedAt                    DateTime? @map("gewijzigd_op") @db.Timestamptz(6)
   apiUpdatedAt                 DateTime? @map("api_gewijzigd_op") @db.Timestamptz(6)
 

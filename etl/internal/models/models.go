@@ -205,24 +205,58 @@ func (Zaak) TableName() string {
 }
 
 type Besluit struct {
-	ID                            string     `json:"Id" gorm:"primaryKey;column:id"`
-	AgendapuntId                  *string    `json:"Agendapunt_Id" gorm:"column:agendapunt_id"`
-	ZaakID                        *string    `json:"zaak_id,omitempty" gorm:"column:zaak_id;index"`
-	StemmingsSoort                *string    `json:"StemmingsSoort" gorm:"column:stemmings_soort"`
-	BesluitSoort                  *string    `json:"BesluitSoort" gorm:"column:besluit_soort"`
-	BesluitTekst                  *string    `json:"BesluitTekst" gorm:"column:besluit_tekst"`
-	Opmerking                     *string    `json:"Opmerking" gorm:"column:opmerking"`
-	Status                        *string    `json:"Status" gorm:"column:status"`
-	AgendapuntZaakBesluitVolgorde *int64     `json:"AgendapuntZaakBesluitVolgorde" gorm:"column:agendapunt_zaak_besluit_volgorde"`
-	GewijzigdOp                   *time.Time `json:"GewijzigdOp" gorm:"column:gewijzigd_op"`
-	ApiGewijzigdOp                *time.Time `json:"ApiGewijzigdOp" gorm:"column:api_gewijzigd_op"`
+	ID                            string      `json:"Id" gorm:"primaryKey;column:id"`
+	AgendapuntId                  *string     `json:"Agendapunt_Id" gorm:"column:agendapunt_id"`
+	ZaakID                        *string     `json:"zaak_id,omitempty" gorm:"column:zaak_id;index"`
+	StemmingsSoort                *string     `json:"StemmingsSoort" gorm:"column:stemmings_soort"`
+	BesluitSoort                  *string     `json:"BesluitSoort" gorm:"column:besluit_soort"`
+	BesluitTekst                  *string     `json:"BesluitTekst" gorm:"column:besluit_tekst"`
+	Opmerking                     *string     `json:"Opmerking" gorm:"column:opmerking"`
+	Status                        *string     `json:"Status" gorm:"column:status"`
+	AgendapuntZaakBesluitVolgorde *int64      `json:"AgendapuntZaakBesluitVolgorde" gorm:"column:agendapunt_zaak_besluit_volgorde"`
+	StemmingDatum                 *CustomDate `json:"stemming_datum,omitempty" gorm:"column:stemming_datum"`
+	GewijzigdOp                   *time.Time  `json:"GewijzigdOp" gorm:"column:gewijzigd_op"`
+	ApiGewijzigdOp                *time.Time  `json:"ApiGewijzigdOp" gorm:"column:api_gewijzigd_op"`
 
-	Stemming []Stemming `json:"Stemming,omitempty" gorm:"-"`
-	Zaak     *Zaak      `json:"Zaak,omitempty" gorm:"-"`
+	Stemming    []Stemming   `json:"Stemming,omitempty" gorm:"-"`
+	Zaak        *Zaak        `json:"Zaak,omitempty" gorm:"-"`
+	Agendapunt  *Agendapunt  `json:"Agendapunt,omitempty" gorm:"-"`
 }
 
 func (Besluit) TableName() string {
 	return "besluiten"
+}
+
+type Agendapunt struct {
+	ID                            string      `json:"Id" gorm:"primaryKey;column:id"`
+	ActiviteitId                  *string     `json:"Activiteit_Id" gorm:"column:activiteit_id"`
+	Nummer                        *int64      `json:"Nummer" gorm:"column:nummer"`
+	Onderwerp                     *string     `json:"Onderwerp" gorm:"column:onderwerp"`
+	Volgorde                      *int64      `json:"Volgorde" gorm:"column:volgorde"`
+	Status                        *string     `json:"Status" gorm:"column:status"`
+	GewijzigdOp                   *time.Time  `json:"GewijzigdOp" gorm:"column:gewijzigd_op"`
+	ApiGewijzigdOp                *time.Time  `json:"ApiGewijzigdOp" gorm:"column:api_gewijzigd_op"`
+
+	Activiteit *Activiteit `json:"Activiteit,omitempty" gorm:"-"`
+}
+
+func (Agendapunt) TableName() string {
+	return "agendapunten"
+}
+
+type Activiteit struct {
+	ID             string      `json:"Id" gorm:"primaryKey;column:id"`
+	Soort          *string     `json:"Soort" gorm:"column:soort"`
+	Datum          *CustomDate `json:"Datum" gorm:"column:datum"`
+	DatumSoort     *string     `json:"DatumSoort" gorm:"column:datum_soort"`
+	Aanvangstijd   *CustomDate `json:"Aanvangstijd" gorm:"column:aanvangstijd"`
+	Eindtijd       *CustomDate `json:"Eindtijd" gorm:"column:eindtijd"`
+	GewijzigdOp    *time.Time  `json:"GewijzigdOp" gorm:"column:gewijzigd_op"`
+	ApiGewijzigdOp *time.Time  `json:"ApiGewijzigdOp" gorm:"column:api_gewijzigd_op"`
+}
+
+func (Activiteit) TableName() string {
+	return "activiteiten"
 }
 
 type Stemming struct {

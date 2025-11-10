@@ -73,7 +73,7 @@ export const useParties = (params?: {
 	dateTo?: Date;
 }) => {
 	const { activeOnly = true, dateFrom, dateTo } = params ?? {};
-	const useRange = Boolean(dateFrom && dateTo);
+	const useRange = dateFrom !== undefined && dateTo !== undefined;
 
 	return useQuery(
 		useRange
