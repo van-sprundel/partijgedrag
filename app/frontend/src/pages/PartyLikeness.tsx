@@ -48,6 +48,9 @@ export function PartyLikenessPage() {
 			return undefined;
 		}
 
+		// To ensure the date range is inclusive of the end date, set the time to the end of the day.
+		parsedTo.setUTCHours(23, 59, 59, 999);
+
 		return {
 			dateFrom: parsedFrom,
 			dateTo: parsedTo,
