@@ -67,11 +67,22 @@ export const useMotionVotes = (motionId: string) => {
 	);
 };
 
-export const useParties = (activeOnly: boolean = true) => {
+export const useParties = (params?: {
+	activeOnly?: boolean;
+	dateFrom?: Date;
+	dateTo?: Date;
+}) => {
+	const { activeOnly = true, dateFrom, dateTo } = params ?? {};
+	const useRange = Boolean(dateFrom && dateTo);
+
 	return useQuery(
-		orpc.parties.getAll.queryOptions({
-			input: { activeOnly },
-		}),
+		useRange
+			? orpc.parties.getInRange.queryOptions({
+					input: { dateFrom, dateTo },
+			  })
+			: orpc.parties.getAll.queryOptions({
+					input: { activeOnly },
+			  }),
 	);
 };
 
