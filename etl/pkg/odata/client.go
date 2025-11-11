@@ -85,7 +85,7 @@ func (c *Client) GetMotiesWithVotesAfter(ctx context.Context, skip int, top int,
 
 	options := QueryOptions{
 		Filter: filter,
-		Expand: "Besluit($filter=Verwijderd eq false and Stemming/any(s: s/Verwijderd eq false);$expand=Stemming($filter=Verwijderd eq false;$expand=Persoon,Fractie)),ZaakActor($filter=relatie eq 'Indiener'),Kamerstukdossier($expand=Document($filter=Soort eq 'Motie' and Verwijderd eq false;$orderby=Volgnummer desc);$filter=HoogsteVolgnummer gt 0;$select=Id,Nummer,HoogsteVolgnummer)",
+		Expand: "Besluit($filter=Verwijderd eq false and Stemming/any(s: s/Verwijderd eq false);$expand=Stemming($filter=Verwijderd eq false;$expand=Persoon,Fractie),Agendapunt($expand=Activiteit)),ZaakActor($filter=relatie eq 'Indiener'),Kamerstukdossier($expand=Document($filter=Soort eq 'Motie' and Verwijderd eq false;$orderby=Volgnummer desc);$filter=HoogsteVolgnummer gt 0;$select=Id,Nummer,HoogsteVolgnummer)",
 		Skip:   skip,
 	}
 

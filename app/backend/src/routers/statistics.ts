@@ -14,11 +14,11 @@ const os = implement(apiContract);
 export const statisticsRouter = {
 	getPartyLikenessMatrix: os.statistics.getPartyLikenessMatrix.handler(
 		async ({ input }) => {
-			const { dateFrom, dateTo } = input || {};
+			const { dateFrom, dateTo} = input || {};
 
 			const dateFilter =
 				dateFrom && dateTo
-					? Prisma.sql`AND z.gestart_op BETWEEN ${dateFrom} AND ${dateTo}`
+					? Prisma.sql`AND b.stemming_datum BETWEEN ${dateFrom} AND ${dateTo}`
 					: Prisma.empty;
 
 			// Simplified approach: directly compare votes between parties
@@ -104,7 +104,7 @@ export const statisticsRouter = {
 
 		const dateFilter =
 			dateFrom && dateTo
-				? Prisma.sql`AND z.gestart_op BETWEEN ${dateFrom} AND ${dateTo}`
+				? Prisma.sql`AND b.stemming_datum BETWEEN ${dateFrom} AND ${dateTo}`
 				: Prisma.empty;
 
 		const results: PartyFocusCategory[] = await db.$queryRaw`
@@ -112,7 +112,7 @@ export const statisticsRouter = {
 				mc.id AS "categoryId",
 				mc.name AS "categoryName",
 				mc.type AS "categoryType",
-				COUNT(z.id) AS "motionCount"
+				COUNT(DISTINCT z.id) AS "motionCount"
 			FROM
 				zaak_actors za
 			JOIN
@@ -123,6 +123,8 @@ export const statisticsRouter = {
 				zaak_categories zc ON z.id = zc.zaak_id
 			JOIN
 				motion_categories mc ON zc.category_id = mc.id
+			JOIN
+				besluiten b ON z.id = b.zaak_id
 			WHERE
 				f.id = ${partyId}
 				AND za.relatie = 'Indiener'
@@ -149,7 +151,7 @@ export const statisticsRouter = {
 
 			const dateFilter =
 				dateFrom && dateTo
-					? Prisma.sql`AND z.gestart_op BETWEEN ${dateFrom} AND ${dateTo}`
+					? Prisma.sql`AND b.stemming_datum BETWEEN ${dateFrom} AND ${dateTo}`
 					: Prisma.empty;
 
 			// Simplified approach: directly analyze votes by category

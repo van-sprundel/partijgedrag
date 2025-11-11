@@ -193,6 +193,12 @@ func (imp *SimpleImporter) extractEntities(ctx context.Context, zaken []models.Z
 		zaak := &zaken[i]
 		for _, besluit := range zaak.Besluit {
 			besluit.ZaakID = &zaak.ID
+
+			// Extract voting date from Agendapunt -> Activiteit
+			if besluit.Agendapunt != nil && besluit.Agendapunt.Activiteit != nil {
+				besluit.StemmingDatum = besluit.Agendapunt.Activiteit.Datum
+			}
+
 			entities.Besluiten = append(entities.Besluiten, besluit)
 
 			for _, stemming := range besluit.Stemming {
