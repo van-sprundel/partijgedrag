@@ -4,6 +4,7 @@ import (
 	"database/sql/driver"
 	"encoding/json"
 	"fmt"
+	"strconv"
 	"strings"
 	"time"
 
@@ -157,6 +158,18 @@ func (csn *CustomStringNumber) Scan(value interface{}) error {
 		return nil
 	case []byte:
 		csn.StringValue = string(v)
+		csn.Valid = true
+		return nil
+	case int64:
+		csn.StringValue = strconv.FormatInt(v, 10)
+		csn.Valid = true
+		return nil
+	case float64:
+		if v == float64(int64(v)) {
+			csn.StringValue = fmt.Sprintf("%.0f", v)
+		} else {
+			csn.StringValue = fmt.Sprintf("%g", v)
+		}
 		csn.Valid = true
 		return nil
 	default:
