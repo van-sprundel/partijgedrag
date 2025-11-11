@@ -3,6 +3,13 @@ package main
 import (
 	"context"
 	"encoding/json"
+	"etl/internal/api"
+	"etl/internal/categorisation"
+	"etl/internal/cmdutils"
+	"etl/internal/config/importer"
+	"etl/internal/models"
+	"etl/pkg/odata"
+	"etl/pkg/storage"
 	"flag"
 	"fmt"
 	"log"
@@ -11,14 +18,6 @@ import (
 	"strings"
 	"syscall"
 	"time"
-
-	"etl/internal/api"
-	"etl/internal/categorisation"
-	"etl/internal/cmdutils"
-	"etl/internal/config/importer"
-	"etl/internal/models"
-	"etl/pkg/odata"
-	"etl/pkg/storage"
 )
 
 func main() {

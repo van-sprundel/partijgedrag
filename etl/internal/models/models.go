@@ -178,33 +178,35 @@ func (csn *CustomStringNumber) Scan(value interface{}) error {
 }
 
 type Zaak struct {
-	ID                    string      `json:"Id" gorm:"primaryKey;column:id"`
-	Nummer                *string     `json:"Nummer" gorm:"column:nummer"`
-	Onderwerp             *string     `json:"Onderwerp" gorm:"column:onderwerp"`
-	Soort                 *string     `json:"Soort" gorm:"column:soort"`
-	Titel                 *string     `json:"Titel" gorm:"column:titel"`
-	Citeertitel           *string     `json:"Citeertitel" gorm:"column:citeertitel"`
-	Alias                 *string     `json:"Alias" gorm:"column:alias"`
-	Status                *string     `json:"Status" gorm:"column:status"`
-	Datum                 *CustomDate `json:"Datum" gorm:"column:datum"`
-	GestartOp             *time.Time  `json:"GestartOp" gorm:"column:gestart_op"`
-	Organisatie           *string     `json:"Organisatie" gorm:"column:organisatie"`
-	Grondslagvoorhang     *string     `json:"Grondslagvoorhang" gorm:"column:grondslagvoorhang"`
-	Termijn               *string     `json:"Termijn" gorm:"column:termijn"`
-	Vergaderjaar          *string     `json:"Vergaderjaar" gorm:"column:vergaderjaar"`
-	Volgnummer            *int64      `json:"Volgnummer" gorm:"column:volgnummer"`
-	HuidigeBehandelstatus *string     `json:"HuidigeBehandelstatus" gorm:"column:huidige_behandelstatus"`
-	Afgedaan              *bool       `json:"Afgedaan" gorm:"column:afgedaan"`
-	GrootProject          *bool       `json:"GrootProject" gorm:"column:groot_project"`
-	GewijzigdOp           *time.Time  `json:"GewijzigdOp" gorm:"column:gewijzigd_op"`
-	ApiGewijzigdOp        *time.Time  `json:"ApiGewijzigdOp" gorm:"column:api_gewijzigd_op"`
-	Verwijderd            *bool       `json:"Verwijderd" gorm:"column:verwijderd"`
-	Kabinetsappreciatie   *string     `json:"Kabinetsappreciatie" gorm:"column:kabinetsappreciatie"`
-	DatumAfgedaan         *CustomDate `json:"DatumAfgedaan" gorm:"column:datum_afgedaan"`
-	Kamer                 *string     `json:"Kamer" gorm:"column:kamer"`
-	BulletPoints          *string     `json:"BulletPoints,omitempty" gorm:"type:jsonb;column:bullet_points"`
-	DocumentURL           *string     `json:"DocumentURL,omitempty" gorm:"column:document_url"`
-	DID                   *string     `gorm:"column:did"`
+	ID                     string         `json:"Id" gorm:"primaryKey;column:id"`
+	Nummer                 *string        `json:"Nummer" gorm:"column:nummer"`
+	Onderwerp              *string        `json:"Onderwerp" gorm:"column:onderwerp"`
+	Soort                  *string        `json:"Soort" gorm:"column:soort"`
+	Titel                  *string        `json:"Titel" gorm:"column:titel"`
+	SimplifiedTitel        *string        `json:"SimplifiedTitel" gorm:"column:simplified_titel"`
+	Citeertitel            *string        `json:"Citeertitel" gorm:"column:citeertitel"`
+	Alias                  *string        `json:"Alias" gorm:"column:alias"`
+	Status                 *string        `json:"Status" gorm:"column:status"`
+	Datum                  *CustomDate    `json:"Datum" gorm:"column:datum"`
+	GestartOp              *time.Time     `json:"GestartOp" gorm:"column:gestart_op"`
+	Organisatie            *string        `json:"Organisatie" gorm:"column:organisatie"`
+	Grondslagvoorhang      *string        `json:"Grondslagvoorhang" gorm:"column:grondslagvoorhang"`
+	Termijn                *string        `json:"Termijn" gorm:"column:termijn"`
+	Vergaderjaar           *string        `json:"Vergaderjaar" gorm:"column:vergaderjaar"`
+	Volgnummer             *int64         `json:"Volgnummer" gorm:"column:volgnummer"`
+	HuidigeBehandelstatus  *string        `json:"HuidigeBehandelstatus" gorm:"column:huidige_behandelstatus"`
+	Afgedaan               *bool          `json:"Afgedaan" gorm:"column:afgedaan"`
+	GrootProject           *bool          `json:"GrootProject" gorm:"column:groot_project"`
+	GewijzigdOp            *time.Time     `json:"GewijzigdOp" gorm:"column:gewijzigd_op"`
+	ApiGewijzigdOp         *time.Time     `json:"ApiGewijzigdOp" gorm:"column:api_gewijzigd_op"`
+	Verwijderd             *bool          `json:"Verwijderd" gorm:"column:verwijderd"`
+	Kabinetsappreciatie    *string        `json:"Kabinetsappreciatie" gorm:"column:kabinetsappreciatie"`
+	DatumAfgedaan          *CustomDate    `json:"DatumAfgedaan" gorm:"column:datum_afgedaan"`
+	Kamer                  *string        `json:"Kamer" gorm:"column:kamer"`
+	BulletPoints           *string        `json:"BulletPoints,omitempty" gorm:"type:jsonb;column:bullet_points"`
+	SimplifiedBulletPoints pq.StringArray `json:"SimplifiedBulletPoints,omitempty" gorm:"type:jsonb;column:simplified_bullet_points"`
+	DocumentURL            *string        `json:"DocumentURL,omitempty" gorm:"column:document_url"`
+	DID                    *string        `gorm:"column:did"`
 
 	Besluit          []Besluit          `json:"Besluit,omitempty" gorm:"-"`
 	ZaakActor        []ZaakActor        `json:"ZaakActor,omitempty" gorm:"-"`
