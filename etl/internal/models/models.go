@@ -4,6 +4,7 @@ import (
 	"database/sql/driver"
 	"encoding/json"
 	"fmt"
+	"strconv"
 	"strings"
 	"time"
 
@@ -159,6 +160,18 @@ func (csn *CustomStringNumber) Scan(value interface{}) error {
 		csn.StringValue = string(v)
 		csn.Valid = true
 		return nil
+	case int64:
+		csn.StringValue = strconv.FormatInt(v, 10)
+		csn.Valid = true
+		return nil
+	case float64:
+		if v == float64(int64(v)) {
+			csn.StringValue = fmt.Sprintf("%.0f", v)
+		} else {
+			csn.StringValue = fmt.Sprintf("%g", v)
+		}
+		csn.Valid = true
+		return nil
 	default:
 		return fmt.Errorf("cannot scan %T into CustomStringNumber", value)
 	}
@@ -228,14 +241,14 @@ func (Besluit) TableName() string {
 }
 
 type Agendapunt struct {
-	ID                            string      `json:"Id" gorm:"primaryKey;column:id"`
-	ActiviteitId                  *string     `json:"Activiteit_Id" gorm:"column:activiteit_id"`
-	Nummer                        *int64      `json:"Nummer" gorm:"column:nummer"`
-	Onderwerp                     *string     `json:"Onderwerp" gorm:"column:onderwerp"`
-	Volgorde                      *int64      `json:"Volgorde" gorm:"column:volgorde"`
-	Status                        *string     `json:"Status" gorm:"column:status"`
-	GewijzigdOp                   *time.Time  `json:"GewijzigdOp" gorm:"column:gewijzigd_op"`
-	ApiGewijzigdOp                *time.Time  `json:"ApiGewijzigdOp" gorm:"column:api_gewijzigd_op"`
+	ID                            string               `json:"Id" gorm:"primaryKey;column:id"`
+	ActiviteitId                  *string              `json:"Activiteit_Id" gorm:"column:activiteit_id"`
+	Nummer                        *CustomStringNumber  `json:"Nummer" gorm:"column:nummer"`
+	Onderwerp                     *string              `json:"Onderwerp" gorm:"column:onderwerp"`
+	Volgorde                      *int64               `json:"Volgorde" gorm:"column:volgorde"`
+	Status                        *string              `json:"Status" gorm:"column:status"`
+	GewijzigdOp                   *time.Time           `json:"GewijzigdOp" gorm:"column:gewijzigd_op"`
+	ApiGewijzigdOp                *time.Time           `json:"ApiGewijzigdOp" gorm:"column:api_gewijzigd_op"`
 
 	Activiteit *Activiteit `json:"Activiteit,omitempty" gorm:"-"`
 }
