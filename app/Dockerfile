@@ -53,6 +53,9 @@ RUN npm run build --prefix frontend
 FROM node-with-ssl AS production
 WORKDIR /app
 
+# Install wget for health checks
+RUN apt-get update && apt-get install -y --no-install-recommends wget && rm -rf /var/lib/apt/lists/*
+
 ARG DATABASE_URL
 ENV DATABASE_URL=${DATABASE_URL}
 ENV NODE_ENV=production

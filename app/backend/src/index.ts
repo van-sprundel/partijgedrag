@@ -60,9 +60,31 @@ app.use(express.json());
 const __dirname = path.dirname(new URL(import.meta.url).pathname);
 app.use(express.static(path.join(__dirname, "../public")));
 
-// Health check endpoint
+// Health check endpoint (liveness probe)
 app.get("/health", (_req, res) => {
 	res.json({ status: "ok", timestamp: new Date().toISOString() });
+});
+
+// Readiness check endpoint (checks DB connection)
+app.get("/ready", async (_req, res) => {
+	try {
+		// Test database connection
+		await db.$queryRaw`SELECT 1`;
+		res.json({
+			status: "ready",
+			database: "connected",
+			timestamp: new Date().toISOString()
+		});
+	} catch (error) {
+		// Log detailed error server-side only (not exposed to client)
+		console.error("Readiness check failed:", error);
+		// Return safe error response (no sensitive details)
+		res.status(503).json({
+			status: "not ready",
+			database: "disconnected",
+			timestamp: new Date().toISOString()
+		});
+	}
 });
 
 app.get("/", (_req, res) => {
