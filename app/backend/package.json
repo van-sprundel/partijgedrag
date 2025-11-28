@@ -7,6 +7,7 @@
   "scripts": {
     "dev": "tsx watch src/index.ts",
     "build": "tsc",
+    "lint": "eslint .",
     "start": "node dist/index.js",
     "db:seed": "tsx src/scripts/seed.ts"
   },
@@ -29,13 +30,16 @@
     "zod": "^4.0.17"
   },
   "devDependencies": {
-    "@ts-safeql/eslint-plugin": "^4.0.2",
+    "@eslint/js": "^9.39.1",
+    "@ts-safeql/eslint-plugin": "^4.0.8",
     "@types/cors": "^2.8.17",
     "@types/express": "^4.17.21",
-    "@types/node": "^22.18.7",
+    "@types/node": "^22.19.1",
     "@types/pg": "^8.15.5",
+    "eslint": "^9.39.1",
     "libpg-query": "^17.6.0",
     "tsx": "^4.7.0",
-    "typescript": "^5.3.3"
+    "typescript": "^5.9.3",
+    "typescript-eslint": "^8.48.0"
   }
 }

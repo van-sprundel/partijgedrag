@@ -1,16 +1,31 @@
 import { implement, ORPCError } from "@orpc/server";
 import { apiContract } from "../contracts/index.js";
-import { sql, sqlOneOrNull } from "../lib/db.js";
-import type { PartyMapped, VoteMapped } from "../lib/db-types.js";
+import { sql, sqlOneOrNull } from "../services/db/sql-tag.js";
 import { mapPartyToContract, mapVoteToContract } from "../utils/mappers.js";
 
 const os = implement(apiContract);
 
 export const partyRouter = {
-	getAll: os.parties.getAll.handler(async ({ input }) => {
-		const { activeOnly } = input;
+  getAll: os.parties.getAll.handler(async ({ input }) => {
+    const { activeOnly } = input;
 
-		const parties = await sql<PartyMapped>`
+    const parties = await sql<{
+      id: string;
+      number: string | null;
+      shortName: string | null;
+      nameNl: string | null;
+      nameEn: string | null;
+      seats: string | null;
+      votesCount: string | null;
+      activeFrom: Date | null;
+      activeTo: Date | null;
+      contentType: string | null;
+      contentLength: string | null;
+      updatedAt: Date | null;
+      apiUpdatedAt: Date | null;
+      logoData: any | null;
+      removed: boolean | null;
+    }>`
 			SELECT
 				id,
 				nummer as number,
@@ -37,11 +52,27 @@ export const partyRouter = {
 			ORDER BY naam_nl ASC
 		`;
 
-		return parties.map((p) => mapPartyToContract(p));
-	}),
+    return parties.map((p) => mapPartyToContract(p));
+  }),
 
-	getById: os.parties.getById.handler(async ({ input }) => {
-		const party = await sqlOneOrNull<PartyMapped>`
+  getById: os.parties.getById.handler(async ({ input }) => {
+    const party = await sqlOneOrNull<{
+      id: string;
+      number: string | null;
+      shortName: string | null;
+      nameNl: string | null;
+      nameEn: string | null;
+      seats: string | null;
+      votesCount: string | null;
+      activeFrom: Date | null;
+      activeTo: Date | null;
+      contentType: string | null;
+      contentLength: string | null;
+      updatedAt: Date | null;
+      apiUpdatedAt: Date | null;
+      logoData: any | null;
+      removed: boolean | null;
+    }>`
 			SELECT
 				id,
 				nummer as number,
@@ -62,23 +93,39 @@ export const partyRouter = {
 			WHERE id = ${input.id}
 		`;
 
-		if (!party) {
-			return null;
-		}
+    if (!party) {
+      return null;
+    }
 
-		return mapPartyToContract(party);
-	}),
+    return mapPartyToContract(party);
+  }),
 
-	getInRange: os.parties.getInRange.handler(async ({ input }) => {
-		const { dateFrom, dateTo } = input;
+  getInRange: os.parties.getInRange.handler(async ({ input }) => {
+    const { dateFrom, dateTo } = input;
 
-		if (dateFrom > dateTo) {
-			throw new ORPCError("BAD_REQUEST", {
-				message: "`dateFrom` must be earlier than or the same as `dateTo`",
-			});
-		}
+    if (dateFrom > dateTo) {
+      throw new ORPCError("BAD_REQUEST", {
+        message: "`dateFrom` must be earlier than or the same as `dateTo`",
+      });
+    }
 
-		const parties = await sql<PartyMapped>`
+    const parties = await sql<{
+      id: string;
+      number: string | null;
+      shortName: string | null;
+      nameNl: string | null;
+      nameEn: string | null;
+      seats: string | null;
+      votesCount: string | null;
+      activeFrom: Date | null;
+      activeTo: Date | null;
+      contentType: string | null;
+      contentLength: string | null;
+      updatedAt: Date | null;
+      apiUpdatedAt: Date | null;
+      logoData: any | null;
+      removed: boolean | null;
+    }>`
 			SELECT
 				id,
 				nummer as number,
@@ -102,13 +149,29 @@ export const partyRouter = {
 			ORDER BY naam_nl ASC
 		`;
 
-		return parties.map((p) => mapPartyToContract(p));
-	}),
+    return parties.map((p) => mapPartyToContract(p));
+  }),
 
-	getWithVotes: os.parties.getWithVotes.handler(async ({ input }) => {
-		const { partyId, motionIds } = input;
+  getWithVotes: os.parties.getWithVotes.handler(async ({ input }) => {
+    const { partyId, motionIds } = input;
 
-		const party = await sqlOneOrNull<PartyMapped>`
+    const party = await sqlOneOrNull<{
+      id: string;
+      number: string | null;
+      shortName: string | null;
+      nameNl: string | null;
+      nameEn: string | null;
+      seats: string | null;
+      votesCount: string | null;
+      activeFrom: Date | null;
+      activeTo: Date | null;
+      contentType: string | null;
+      contentLength: string | null;
+      updatedAt: Date | null;
+      apiUpdatedAt: Date | null;
+      logoData: any | null;
+      removed: boolean | null;
+    }>`
 			SELECT
 				id,
 				nummer as number,
@@ -129,11 +192,28 @@ export const partyRouter = {
 			WHERE id = ${partyId}
 		`;
 
-		if (!party) {
-			throw new ORPCError("NOT_FOUND", { message: "Party not found" });
-		}
+    if (!party) {
+      throw new ORPCError("NOT_FOUND", { message: "Party not found" });
+    }
 
-		const votesWithRelations = await sql<VoteMapped>`
+    const votesWithRelations = await sql<{
+      id: string;
+      decisionIdRaw: string | null;
+      decisionId: string | null;
+      type: string | null;
+      partySize: string | null;
+      actorName: string | null;
+      actorParty: string | null;
+      mistake: boolean | null;
+      sidActorMember: string | null;
+      sidActorParty: string | null;
+      politicianIdRaw: string | null;
+      politicianId: string | null;
+      partyIdRaw: string | null;
+      partyId: string | null;
+      updatedAt: Date | null;
+      apiUpdatedAt: Date | null;
+    }>`
 			SELECT
 				id,
 				besluit_id_raw as "decisionIdRaw",
@@ -157,11 +237,11 @@ export const partyRouter = {
 			ORDER BY gewijzigd_op DESC
 		`;
 
-		const votes = votesWithRelations.map((v) => mapVoteToContract(v));
+    const votes = votesWithRelations.map((v) => mapVoteToContract(v));
 
-		return {
-			party: mapPartyToContract(party),
-			votes,
-		};
-	}),
+    return {
+      party: mapPartyToContract(party),
+      votes,
+    };
+  }),
 };

@@ -2,7 +2,18 @@ import type { Party, Vote } from "../../contracts/index.js";
 import { sql, sqlOneOrNull } from "../db/sql-tag.js";
 
 export async function getActiveParties() {
-	return sql<Party>`
+  return sql<{
+    id: string;
+    name: string | null;
+    shortName: string | null;
+    seats: string | null;
+    activeFrom: Date | null;
+    activeTo: Date | null;
+    contentType: string | null;
+    logoData: unknown | null;
+    createdAt: Date | null;
+    updatedAt: Date | null;
+  }>`
         SELECT
             id,
             naam_nl as name,
@@ -20,10 +31,21 @@ export async function getActiveParties() {
 }
 
 export async function getPartiesByIdsOrNames(
-	partyIds: string[],
-	partyNames: string[],
+  partyIds: string[],
+  partyNames: string[],
 ) {
-	return sql<Party>`
+  return sql<{
+    id: string;
+    name: string | null;
+    shortName: string | null;
+    seats: string | null;
+    activeFrom: Date | null;
+    activeTo: Date | null;
+    contentType: string | null;
+    logoData: unknown | null;
+    createdAt: Date | null;
+    updatedAt: Date | null;
+  }>`
         SELECT
             id,
             naam_nl as name,
@@ -42,7 +64,18 @@ export async function getPartiesByIdsOrNames(
 }
 
 export async function getAllParties(activeOnly: boolean) {
-	return sql<Party>`
+  return sql<{
+    id: string;
+    name: string | null;
+    shortName: string | null;
+    seats: string | null;
+    activeFrom: Date | null;
+    activeTo: Date | null;
+    contentType: string | null;
+    logoData: unknown | null;
+    createdAt: Date | null;
+    updatedAt: Date | null;
+  }>`
         SELECT
             id,
             naam_nl as name,
@@ -62,7 +95,18 @@ export async function getAllParties(activeOnly: boolean) {
 }
 
 export async function getPartyById(id: string) {
-	return sqlOneOrNull<Party>`
+  return sqlOneOrNull<{
+    id: string;
+    name: string | null;
+    shortName: string | null;
+    seats: string | null;
+    activeFrom: Date | null;
+    activeTo: Date | null;
+    contentType: string | null;
+    logoData: unknown | null;
+    createdAt: Date | null;
+    updatedAt: Date | null;
+  }>`
         SELECT
             id,
             naam_nl as name,
@@ -80,10 +124,10 @@ export async function getPartyById(id: string) {
 }
 
 export async function getVotesByPartyAndMotionIds(
-	partyId: string,
-	motionIds?: string[],
+  partyId: string,
+  motionIds?: string[],
 ) {
-	return sql<Vote>`
+  return sql<Vote>`
         SELECT
             id,
             besluit_id as "motionId",

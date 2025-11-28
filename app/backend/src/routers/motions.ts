@@ -1,95 +1,111 @@
 import { implement } from "@orpc/server";
 import { apiContract, type Party, type VoteType } from "../contracts/index.js";
-import { sql } from "../lib/db.js";
-import type { DecisionMapped, VoteMapped, PartyMapped } from "../lib/db-types.js";
+import { sql } from "../services/db/sql-tag.js";
 import {
-	getAllMotions,
-	getForCompass,
-	getForCompassCount,
-	getMotionById,
-	getMotionCategories,
-	getMotionStatistics,
-	getRecentMotions,
+  getAllMotions,
+  getForCompass,
+  getForCompassCount,
+  getMotionById,
+  getMotionCategories,
+  getMotionStatistics,
+  getRecentMotions,
 } from "../services/motions/queries.js";
 import { mapPartyToContract } from "../utils/mappers.js";
 
 function mapVoteType(dutchVoteType: string | null): VoteType {
-	switch (dutchVoteType) {
-		case "Voor":
-			return "FOR";
-		case "Tegen":
-			return "AGAINST";
-		case "Niet deelgenomen":
-			return "NEUTRAL";
-		default:
-			return "NEUTRAL";
-	}
+  switch (dutchVoteType) {
+    case "Voor":
+      return "FOR";
+    case "Tegen":
+      return "AGAINST";
+    case "Niet deelgenomen":
+      return "NEUTRAL";
+    default:
+      return "NEUTRAL";
+  }
 }
 
 const os = implement(apiContract);
 
 export const motionRouter = {
-	getAll: os.motions.getAll.handler(async ({ input }) => {
-		const { limit, offset, category, status, withVotes, search } = input;
-		const rows = await getAllMotions(
-			limit,
-			offset,
-			category,
-			status,
-			withVotes,
-			search,
-		);
-		const total = rows[0]?.total ? parseInt(rows[0].total, 10) : 0;
-		const motions = rows.map((r) => ({ ...r, total: undefined }));
+  getAll: os.motions.getAll.handler(async ({ input }) => {
+    const { limit, offset, category, status, withVotes, search } = input;
+    const rows = await getAllMotions(
+      limit,
+      offset,
+      category,
+      status,
+      withVotes,
+      search,
+    );
+    const total = rows[0]?.total ? parseInt(rows[0].total, 10) : 0;
+    const motions = rows.map((r) => ({ ...r, total: undefined }));
 
-		return {
-			motions,
-			total,
-			hasMore: offset + limit < total,
-		};
-	}),
+    return {
+      motions,
+      total,
+      hasMore: offset + limit < total,
+    };
+  }),
 
-	getById: os.motions.getById.handler(async ({ input }) => {
-		return getMotionById(input.id);
-	}),
+  getById: os.motions.getById.handler(async ({ input }) => {
+    return getMotionById(input.id);
+  }),
 
-	getForCompass: os.motions.getForCompass.handler(async ({ input }) => {
-		const { count, excludeIds, categoryIds, after } = input;
-		return getForCompass(count, excludeIds, categoryIds, after);
-	}),
+  getForCompass: os.motions.getForCompass.handler(async ({ input }) => {
+    const { count, excludeIds, categoryIds, after } = input;
+    return getForCompass(count, excludeIds, categoryIds, after);
+  }),
 
-	getForCompassCount: os.motions.getForCompassCount.handler(
-		async ({ input }) => {
-			const { categoryIds, after } = input;
-			return getForCompassCount(categoryIds, after);
-		},
-	),
+  getForCompassCount: os.motions.getForCompassCount.handler(
+    async ({ input }) => {
+      const { categoryIds, after } = input;
+      return getForCompassCount(categoryIds, after);
+    },
+  ),
 
-	getRecent: os.motions.getRecent.handler(async ({ input }) => {
-		const { limit } = input;
-		return getRecentMotions(limit);
-	}),
+  getRecent: os.motions.getRecent.handler(async ({ input }) => {
+    const { limit } = input;
+    return getRecentMotions(limit);
+  }),
 
-	getCategories: os.motions.getCategories.handler(async ({ input }) => {
-		const { type } = input;
-		return getMotionCategories(type);
-	}),
+  getCategories: os.motions.getCategories.handler(async ({ input }) => {
+    const { type } = input;
+    return getMotionCategories(type);
+  }),
 
-	getVotes: os.motions.getVotes.handler(async ({ input }) => {
-		// Get decisions for this motion
-		const decisions = await sql<DecisionMapped>`
+  getVotes: os.motions.getVotes.handler(async ({ input }) => {
+    // Get decisions for this motion
+    const decisions = await sql<{ id: string; caseId: string | null }>`
 			SELECT id, zaak_id as "caseId"
 			FROM besluiten
 			WHERE zaak_id = ${input.motionId}
 		`;
-		const decisionIds = decisions.map((d) => d.id);
+    const decisionIds = decisions.map((d) => d.id);
 
-		if (decisionIds.length === 0) {
-			return { votes: [], partyPositions: [] };
-		}
+    if (decisionIds.length === 0) {
+      return { votes: [], partyPositions: [] };
+    }
 
-		// Get votes for all decisions of this motion
-		const votesWithRelations = await sql<VoteMapped>`
+    // Get votes for all decisions of this motion
+    const votesWithRelations = await sql<{
+      id: string;
+      decisionIdRaw: string | null;
+      decisionId: string | null;
+      type: string | null;
+      partySize: string | null;
+      actorName: string | null;
+      actorParty: string | null;
+      mistake: boolean | null;
+      sidActorMember: string | null;
+      sidActorParty: string | null;
+      politicianIdRaw: string | null;
+      politicianId: string | null;
+      partyIdRaw: string | null;
+      partyId: string | null;
+      updatedAt: Date | null;
+      apiUpdatedAt: Date | null;
+    }>`
 			SELECT
 				id,
 				besluit_id_raw as "decisionIdRaw",
@@ -112,28 +128,44 @@ export const motionRouter = {
 			  AND vergissing IS DISTINCT FROM true
 		`;
 
-		// Map votes to contract format
-		const votes = votesWithRelations.map((v) => ({
-			id: v.id,
-			motionId: v.decisionId || "",
-			partyId: v.partyId || "",
-			politicianId: v.politicianId || "",
-			voteType: mapVoteType(v.type),
-			reasoning: null,
-			createdAt: v.updatedAt || new Date(),
-			updatedAt: v.apiUpdatedAt || new Date(),
-		}));
+    // Map votes to contract format
+    const votes = votesWithRelations.map((v) => ({
+      id: v.id,
+      motionId: v.decisionId || "",
+      partyId: v.partyId || "",
+      politicianId: v.politicianId || "",
+      voteType: mapVoteType(v.type),
+      reasoning: null,
+      createdAt: v.updatedAt || new Date(),
+      updatedAt: v.apiUpdatedAt || new Date(),
+    }));
 
-		// Get unique party IDs and fetch party data
-		const partyIds = votesWithRelations
-			.map((v) => v.partyId)
-			.filter((p) => p !== null) as string[];
+    // Get unique party IDs and fetch party data
+    const partyIds = votesWithRelations
+      .map((v) => v.partyId)
+      .filter((p) => p !== null) as string[];
 
-		if (partyIds.length === 0) {
-			return { votes, partyPositions: [] };
-		}
+    if (partyIds.length === 0) {
+      return { votes, partyPositions: [] };
+    }
 
-		const partiesFromDb = await sql<PartyMapped>`
+    const partiesFromDb = await sql<{
+      id: string;
+      number: string | null;
+      shortName: string | null;
+      nameNl: string | null;
+      nameEn: string | null;
+      seats: string | null;
+      votesCount: string | null;
+      activeFrom: Date | null;
+      activeTo: Date | null;
+      contentType: string | null;
+      contentLength: string | null;
+      updatedAt: Date | null;
+      apiUpdatedAt: Date | null;
+      logoData: any | null;
+      removed: boolean | null;
+    }>`
 			SELECT
 				id,
 				nummer as number,
@@ -153,66 +185,66 @@ export const motionRouter = {
 			FROM fracties
 			WHERE id = ANY(${partyIds})
 		`;
-		const parties = partiesFromDb.map(mapPartyToContract);
+    const parties = partiesFromDb.map(mapPartyToContract);
 
-		const partyVoteMap = new Map<
-			string,
-			{ party: Party; votes: VoteType[]; partySize: number }
-		>();
+    const partyVoteMap = new Map<
+      string,
+      { party: Party; votes: VoteType[]; partySize: number }
+    >();
 
-		votesWithRelations.forEach((vote) => {
-			if (vote.partyId) {
-				const party = parties.find((p) => p.id === vote.partyId);
-				if (party) {
-					if (!partyVoteMap.has(vote.partyId)) {
-						partyVoteMap.set(vote.partyId, {
-							party: party,
-							votes: [],
-							partySize: Number(vote.partySize || 0),
-						});
-					}
-					if (vote.type) {
-						partyVoteMap.get(vote.partyId)?.votes.push(mapVoteType(vote.type));
-					}
-				}
-			}
-		});
+    votesWithRelations.forEach((vote) => {
+      if (vote.partyId) {
+        const party = parties.find((p) => p.id === vote.partyId);
+        if (party) {
+          if (!partyVoteMap.has(vote.partyId)) {
+            partyVoteMap.set(vote.partyId, {
+              party: party,
+              votes: [],
+              partySize: Number(vote.partySize || 0),
+            });
+          }
+          if (vote.type) {
+            partyVoteMap.get(vote.partyId)?.votes.push(mapVoteType(vote.type));
+          }
+        }
+      }
+    });
 
-		const partyPositions = Array.from(partyVoteMap.values()).map(
-			({ party, votes: partyVotes, partySize }) => {
-				if (partyVotes.length === 0) {
-					return {
-						party: party,
-						position: "NEUTRAL" as const,
-						count: partySize,
-					};
-				}
-				const voteCounts = partyVotes.reduce(
-					(acc, vote) => {
-						acc[vote] = (acc[vote] || 0) + 1;
-						return acc;
-					},
-					{} as Record<VoteType, number>,
-				);
+    const partyPositions = Array.from(partyVoteMap.values()).map(
+      ({ party, votes: partyVotes, partySize }) => {
+        if (partyVotes.length === 0) {
+          return {
+            party: party,
+            position: "NEUTRAL" as const,
+            count: partySize,
+          };
+        }
+        const voteCounts = partyVotes.reduce(
+          (acc, vote) => {
+            acc[vote] = (acc[vote] || 0) + 1;
+            return acc;
+          },
+          {} as Record<VoteType, number>,
+        );
 
-				const majorityVoteEntry = (Object.keys(voteCounts) as VoteType[])
-					.map((vote) => [vote, voteCounts[vote]] as const)
-					.reduce((a, b) => (a[1] > b[1] ? a : b));
+        const majorityVoteEntry = (Object.keys(voteCounts) as VoteType[])
+          .map((vote) => [vote, voteCounts[vote]] as const)
+          .reduce((a, b) => (a[1] > b[1] ? a : b));
 
-				const position = majorityVoteEntry[0] as VoteType;
+        const position = majorityVoteEntry[0] as VoteType;
 
-				return {
-					party,
-					position,
-					count: partySize,
-				};
-			},
-		);
+        return {
+          party,
+          position,
+          count: partySize,
+        };
+      },
+    );
 
-		return { votes, partyPositions };
-	}),
+    return { votes, partyPositions };
+  }),
 
-	getStatistics: os.motions.getStatistics.handler(async () => {
-		return getMotionStatistics();
-	}),
+  getStatistics: os.motions.getStatistics.handler(async () => {
+    return getMotionStatistics();
+  }),
 };

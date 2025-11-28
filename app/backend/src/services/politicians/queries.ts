@@ -2,7 +2,13 @@ import type { Politician } from "../../contracts/index.js";
 import { sqlOneOrNull } from "../db/sql-tag.js";
 
 export async function getPoliticianById(id: string) {
-	return sqlOneOrNull<Politician>`
+  return sqlOneOrNull<{
+    id: string;
+    firstName: string | null;
+    lastName: string | null;
+    fullName: unknown;
+    updatedAt: Date | null;
+  }>`
         SELECT
             id,
             voornamen as "firstName",

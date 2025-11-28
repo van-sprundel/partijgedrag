@@ -1,25 +1,33 @@
 import { implement } from "@orpc/server";
 import {
-	apiContract,
-	type PartyCategoryLikeness,
-	type PartyFocusCategory,
-	type PartyLikeness,
+  apiContract,
+  type PartyCategoryLikeness,
+  type PartyFocusCategory,
+  type PartyLikeness,
 } from "../contracts/index.js";
-import { sql, sqlOneOrNull } from "../lib/db.js";
-import type { PartyMapped } from "../lib/db-types.js";
+import { sql } from "../services/db/sql-tag.js";
 import { mapPartyToContract } from "../utils/mappers.js";
 
 const os = implement(apiContract);
 
 export const statisticsRouter = {
-	getPartyLikenessMatrix: os.statistics.getPartyLikenessMatrix.handler(
-		async ({ input }) => {
-			const { dateFrom, dateTo } = input || {};
+  getPartyLikenessMatrix: os.statistics.getPartyLikenessMatrix.handler(
+    async ({ input }) => {
+      const { dateFrom, dateTo } = input || {};
 
-			// Simplified approach: directly compare votes between parties
-			// Based on the PHP implementation which looks at all stemmingen
-			const results: PartyLikeness[] = dateFrom && dateTo
-				? await sql`
+      // Simplified approach: directly compare votes between parties
+      // Based on the PHP implementation which looks at all stemmingen
+      const results: PartyLikeness[] =
+        dateFrom && dateTo
+          ? await sql<{
+              party1Id: string;
+              party1Name: string | null;
+              party2Id: string;
+              party2Name: string | null;
+              commonMotions: string | null;
+              sameVotes: string | null;
+              likenessPercentage: number | null;
+            }>`
 				WITH PartyVotes AS (
 					SELECT DISTINCT
 						b.zaak_id,
@@ -62,7 +70,15 @@ export const statisticsRouter = {
 				FROM PartyComparisons
 				ORDER BY party1_name, "likenessPercentage" DESC;
 			`
-				: await sql`
+          : await sql<{
+              party1Id: string;
+              party1Name: string | null;
+              party2Id: string;
+              party2Name: string | null;
+              commonMotions: string | null;
+              sameVotes: string | null;
+              likenessPercentage: number | null;
+            }>`
 				WITH PartyVotes AS (
 					SELECT DISTINCT
 						b.zaak_id,
@@ -105,34 +121,50 @@ export const statisticsRouter = {
 				ORDER BY party1_name, "likenessPercentage" DESC;
 			`;
 
-			// Also get the reverse relationships (party2 to party1)
-			const reverseResults: PartyLikeness[] = results.map((r) => ({
-				party1Id: r.party2Id,
-				party1Name: r.party2Name,
-				party2Id: r.party1Id,
-				party2Name: r.party1Name,
-				commonMotions: r.commonMotions,
-				sameVotes: r.sameVotes,
-				likenessPercentage: r.likenessPercentage,
-			}));
+      // Also get the reverse relationships (party2 to party1)
+      const reverseResults: PartyLikeness[] = results.map((r) => ({
+        party1Id: r.party2Id,
+        party1Name: r.party2Name,
+        party2Id: r.party1Id,
+        party2Name: r.party1Name,
+        commonMotions: r.commonMotions,
+        sameVotes: r.sameVotes,
+        likenessPercentage: r.likenessPercentage,
+      }));
 
-			const allResults = [...results, ...reverseResults];
+      const allResults = [...results, ...reverseResults];
 
-			return allResults.map((r) => ({
-				...r,
-				commonMotions: Number(r.commonMotions),
-				sameVotes: Number(r.sameVotes),
-				likenessPercentage: r.likenessPercentage
-					? Number(r.likenessPercentage)
-					: 0,
-			}));
-		},
-	),
+      return allResults.map((r) => ({
+        ...r,
+        commonMotions: Number(r.commonMotions),
+        sameVotes: Number(r.sameVotes),
+        likenessPercentage: r.likenessPercentage
+          ? Number(r.likenessPercentage)
+          : 0,
+      }));
+    },
+  ),
 
-	getPartyFocus: os.statistics.getPartyFocus.handler(async ({ input }) => {
-		const { partyId, dateFrom, dateTo } = input;
+  getPartyFocus: os.statistics.getPartyFocus.handler(async ({ input }) => {
+    const { partyId, dateFrom, dateTo } = input;
 
-		const party = await sqlOneOrNull<PartyMapped>`
+    const party = await sqlOneOrNull<{
+      id: string;
+      number: string | null;
+      shortName: string | null;
+      nameNl: string | null;
+      nameEn: string | null;
+      seats: string | null;
+      votesCount: string | null;
+      activeFrom: Date | null;
+      activeTo: Date | null;
+      contentType: string | null;
+      contentLength: string | null;
+      updatedAt: Date | null;
+      apiUpdatedAt: Date | null;
+      logoData: any | null;
+      removed: boolean | null;
+    }>`
 			SELECT
 				id,
 				nummer as number,
@@ -153,12 +185,18 @@ export const statisticsRouter = {
 			WHERE id = ${partyId}
 		`;
 
-		if (!party) {
-			return null;
-		}
+    if (!party) {
+      return null;
+    }
 
-		const results: PartyFocusCategory[] = dateFrom && dateTo
-			? await sql`
+    const results: PartyFocusCategory[] =
+      dateFrom && dateTo
+        ? await sql<{
+            categoryId: string;
+            categoryName: string;
+            categoryType: string | null;
+            motionCount: string;
+          }>`
 			SELECT
 				mc.id AS "categoryId",
 				mc.name AS "categoryName",
@@ -186,7 +224,12 @@ export const statisticsRouter = {
 			ORDER BY
 				"motionCount" DESC;
 		`
-			: await sql`
+        : await sql<{
+            categoryId: string;
+            categoryName: string;
+            categoryType: string | null;
+            motionCount: string;
+          }>`
 			SELECT
 				mc.id AS "categoryId",
 				mc.name AS "categoryName",
@@ -214,22 +257,29 @@ export const statisticsRouter = {
 				"motionCount" DESC;
 		`;
 
-		return {
-			party: mapPartyToContract(party),
-			categories: results.map((r) => ({
-				...r,
-				motionCount: Number(r.motionCount),
-			})),
-		};
-	}),
+    return {
+      party: mapPartyToContract(party),
+      categories: results.map((r) => ({
+        ...r,
+        motionCount: Number(r.motionCount),
+      })),
+    };
+  }),
 
-	getPartyCategoryLikeness: os.statistics.getPartyCategoryLikeness.handler(
-		async ({ input }) => {
-			const { partyId, dateFrom, dateTo } = input;
+  getPartyCategoryLikeness: os.statistics.getPartyCategoryLikeness.handler(
+    async ({ input }) => {
+      const { partyId, dateFrom, dateTo } = input;
 
-			// Simplified approach: directly analyze votes by category
-			const results: PartyCategoryLikeness[] = dateFrom && dateTo
-				? await sql`
+      // Simplified approach: directly analyze votes by category
+      const results: PartyCategoryLikeness[] =
+        dateFrom && dateTo
+          ? await sql<{
+              categoryId: string;
+              categoryName: string;
+              party2Id: string;
+              party2Name: string | null;
+              likenessPercentage: number | null;
+            }>`
 				WITH PartyVotesByCategory AS (
 					SELECT DISTINCT
 						b.zaak_id,
@@ -274,7 +324,13 @@ export const statisticsRouter = {
 				JOIN fracties f ON cc.other_party_id = f.id
 				ORDER BY mc.name, f.afkorting;
 			`
-				: await sql`
+          : await sql<{
+              categoryId: string;
+              categoryName: string;
+              party2Id: string;
+              party2Name: string | null;
+              likenessPercentage: number | null;
+            }>`
 				WITH PartyVotesByCategory AS (
 					SELECT DISTINCT
 						b.zaak_id,
@@ -319,12 +375,12 @@ export const statisticsRouter = {
 				ORDER BY mc.name, f.afkorting;
 			`;
 
-			return results.map((r) => ({
-				...r,
-				likenessPercentage: r.likenessPercentage
-					? Number(r.likenessPercentage)
-					: 0,
-			}));
-		},
-	),
+      return results.map((r) => ({
+        ...r,
+        likenessPercentage: r.likenessPercentage
+          ? Number(r.likenessPercentage)
+          : 0,
+      }));
+    },
+  ),
 };

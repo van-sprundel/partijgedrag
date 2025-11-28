@@ -15,42 +15,42 @@ const port = Number(process.env.PORT ?? 3001);
 
 // CORS configuration
 app.use(
-	cors({
-		origin: process.env.CORS_ORIGIN || "http://localhost:3000",
-		credentials: true,
-	}),
+  cors({
+    origin: process.env.CORS_ORIGIN || "http://localhost:3000",
+    credentials: true,
+  }),
 );
 
 export const router = os.router({
-	motions: motionRouter,
-	parties: partyRouter,
-	compass: compassRouter,
-	statistics: statisticsRouter,
+  motions: motionRouter,
+  parties: partyRouter,
+  compass: compassRouter,
+  statistics: statisticsRouter,
 });
 
 const handler = new RPCHandler(router, {
-	interceptors: [
-		onError((error) => {
-			if (error instanceof ORPCError) {
-				console.error(JSON.stringify(error.cause));
-				return;
-			}
-			console.error(error);
-		}),
-	],
+  interceptors: [
+    onError((error) => {
+      if (error instanceof ORPCError) {
+        console.error(JSON.stringify(error.cause));
+        return;
+      }
+      console.error(error);
+    }),
+  ],
 });
 
 app.use("/api*", async (req, res, next) => {
-	const { matched } = await handler.handle(req, res, {
-		prefix: "/api",
-		context: {},
-	});
+  const { matched } = await handler.handle(req, res, {
+    prefix: "/api",
+    context: {},
+  });
 
-	if (matched) {
-		return;
-	}
+  if (matched) {
+    return;
+  }
 
-	next();
+  next();
 });
 
 app.use(express.json());
@@ -61,59 +61,59 @@ app.use(express.static(path.join(__dirname, "../public")));
 
 // Health check endpoint
 app.get("/health", (_req, res) => {
-	res.json({ status: "ok", timestamp: new Date().toISOString() });
+  res.json({ status: "ok", timestamp: new Date().toISOString() });
 });
 
 app.get("/", (_req, res) => {
-	res.json({
-		message: "Partijgedrag API Server",
-		version: "1.0.0",
-		endpoints: {
-			api: "/api",
-			health: "/health",
-		},
-	});
+  res.json({
+    message: "Partijgedrag API Server",
+    version: "1.0.0",
+    endpoints: {
+      api: "/api",
+      health: "/health",
+    },
+  });
 });
 
 // Catch-all to serve index.html
 app.get("*", (_req, res) => {
-	res.sendFile(path.join(__dirname, "../public", "index.html"));
+  res.sendFile(path.join(__dirname, "../public", "index.html"));
 });
 
 // Error handling middleware
 app.use(handleUriError);
 app.use(
-	(
-		err: Error,
-		_req: express.Request,
-		res: express.Response,
-		_next: express.NextFunction,
-	) => {
-		console.error("Server error:", err);
-		res.status(500).json({
-			error: "Internal server error",
-			message:
-				process.env.NODE_ENV === "development"
-					? err.message
-					: "Something went wrong",
-		});
-	},
+  (
+    err: Error,
+    _req: express.Request,
+    res: express.Response,
+    _next: express.NextFunction,
+  ) => {
+    console.error("Server error:", err);
+    res.status(500).json({
+      error: "Internal server error",
+      message:
+        process.env.NODE_ENV === "development"
+          ? err.message
+          : "Something went wrong",
+    });
+  },
 );
 
 // Start server
 app.listen(port, host, () => {
-	console.log(`🚀 Server running on http://0.0.0.0:${port}`);
-	console.log(`📡 API available at http://0.0.0.0:${port}/api`);
-	console.log(`🔍 Health check at http://0.0.0.0:${port}/health`);
+  console.log(`🚀 Server running on http://0.0.0.0:${port}`);
+  console.log(`📡 API available at http://0.0.0.0:${port}/api`);
+  console.log(`🔍 Health check at http://0.0.0.0:${port}/health`);
 });
 
 // Graceful shutdown
 process.on("SIGINT", () => {
-	console.log("🔄 Gracefully shutting down...");
-	process.exit(0);
+  console.log("🔄 Gracefully shutting down...");
+  process.exit(0);
 });
 
 process.on("SIGTERM", () => {
-	console.log("🔄 Gracefully shutting down...");
-	process.exit(0);
+  console.log("🔄 Gracefully shutting down...");
+  process.exit(0);
 });
