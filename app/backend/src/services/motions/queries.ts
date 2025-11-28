@@ -1,10 +1,4 @@
-import type {
-	Motion,
-	MotionCategory,
-	Party,
-	Politician,
-	Vote,
-} from "../../contracts/index.js";
+import type { Motion, Party } from "../../contracts/index.js";
 import { sql, sqlOne, sqlOneOrNull } from "../db/sql-tag.js";
 
 export async function getForCompass(
@@ -109,7 +103,20 @@ export async function getAllMotions(
 }
 
 export async function getMotionById(id: string) {
-	return sqlOneOrNull<Motion>`
+	return sqlOneOrNull<{
+		id: string;
+		title: string | null;
+		shortTitle: string | null;
+		motionNumber: string | null;
+		date: Date | null;
+		status: string | null;
+		category: string | null;
+		bulletPoints: unknown | null;
+		documentURL: string | null;
+		did: string | null;
+		createdAt: Date | null;
+		updatedAt: Date | null;
+	}>`
         SELECT
             id,
             onderwerp as title,
@@ -149,7 +156,20 @@ export async function getMotionsByIds(motionIds: string[]) {
 }
 
 export async function getRecentMotions(limit: number) {
-	return sql<Motion>`
+	return sql<{
+		id: string;
+		title: string | null;
+		shortTitle: string | null;
+		motionNumber: string | null;
+		date: Date | null;
+		status: string | null;
+		category: string | null;
+		bulletPoints: unknown | null;
+		documentURL: string | null;
+		did: string | null;
+		createdAt: Date | null;
+		updatedAt: Date | null;
+	}>`
         SELECT
             id,
             onderwerp as title,
@@ -173,7 +193,15 @@ export async function getRecentMotions(limit: number) {
 export async function getMotionCategories(
 	type: "all" | "generic" | "hot_topic",
 ) {
-	return sql<MotionCategory>`
+	return sql<{
+		id: string;
+		name: string;
+		type: string | null;
+		description: string | null;
+		keywords: string[] | null;
+		createdAt: Date | null;
+		updatedAt: Date | null;
+	}>`
         SELECT
             id,
             name,
@@ -189,7 +217,16 @@ export async function getMotionCategories(
 }
 
 export async function getVotesByDecisionId(decisionId: string) {
-	return sql<Vote>`
+	return sql<{
+		id: string;
+		motionId: string | null;
+		partyId: string | null;
+		politicianId: string | null;
+		voteType: string | null;
+		partySize: string | null;
+		createdAt: Date | null;
+		updatedAt: Date | null;
+	}>`
         SELECT
             id,
             besluit_id as "motionId",
@@ -206,7 +243,16 @@ export async function getVotesByDecisionId(decisionId: string) {
 }
 
 export async function getVotesByMotionId(motionId: string) {
-	return sql<Vote>`
+	return sql<{
+		id: string;
+		motionId: string;
+		partyId: string;
+		politicianId: string;
+		voteType: string | null;
+		partySize: string | null;
+		createdAt: Date;
+		updatedAt: Date;
+	}>`
         WITH decision_ids AS (
             SELECT id FROM "besluiten"
             WHERE "zaak_id" = ${motionId}
@@ -251,8 +297,8 @@ export async function getPartiesByIds(partyIds: string[]) {
 export async function getMotionStatistics() {
 	return sqlOne<{
 		count: number;
-		firstMotionDate: Date | null;
-		lastMotionDate: Date | null;
+		firstMotionDate: string | null;
+		lastMotionDate: string | null;
 	}>`
         SELECT
             COUNT(id)::int as count,
@@ -264,7 +310,13 @@ export async function getMotionStatistics() {
 }
 
 export async function getSubmitterByMotionId(motionId: string) {
-	return sqlOneOrNull<Politician>`
+	return sqlOneOrNull<{
+		id: string;
+		firstName: string | null;
+		lastName: string | null;
+		fullName: unknown;
+		updatedAt: Date | null;
+	}>`
         SELECT p.id, p.voornamen as "firstName", p.achternaam as "lastName", CONCAT(p.voornamen, ' ', p.achternaam) as "fullName", p.bijgewerkt as "updatedAt"
         FROM personen p
         JOIN zaak_actors za ON p.id = za.persoon_id

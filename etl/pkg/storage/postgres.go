@@ -236,7 +236,8 @@ func (s *PostgresStorage) CleanDatabase(ctx context.Context) error {
 }
 
 func (s *PostgresStorage) Migrate(ctx context.Context) error {
-	return s.db.WithContext(ctx).AutoMigrate(
+	// Run GORM AutoMigrate for tables
+	if err := s.db.WithContext(ctx).AutoMigrate(
 		&models.Zaak{},
 		&models.Besluit{},
 		&models.Stemming{},
@@ -246,5 +247,87 @@ func (s *PostgresStorage) Migrate(ctx context.Context) error {
 		&models.Kamerstukdossier{},
 		&models.MotionCategory{},
 		&models.ZaakCategory{},
-	)
+		&models.UserSession{},
+		&models.Activiteit{},
+		&models.Agendapunt{},
+	); err != nil {
+		return fmt.Errorf("failed to run auto-migration: %w", err)
+	}
+
+	// Create materialized views if they don't exist
+	if err := s.createMaterializedViews(ctx); err != nil {
+		return fmt.Errorf("failed to create materialized views: %w", err)
+	}
+
+	return nil
+}
+
+func (s *PostgresStorage) createMaterializedViews(ctx context.Context) error {
+	// Create majority_party_votes materialized view
+	createMajorityPartyVotes := `
+		CREATE MATERIALIZED VIEW IF NOT EXISTS majority_party_votes AS
+		SELECT DISTINCT
+			b.zaak_id,
+			z.gestart_op,
+			f.id as fractie_id,
+			s.soort AS vote_type
+		FROM stemmingen s
+		JOIN besluiten b ON s.besluit_id = b.id
+		JOIN zaken z ON b.zaak_id = z.id
+		JOIN fracties f ON (s.actor_fractie = f.naam_nl OR s.actor_fractie = f.afkorting)
+		WHERE s.actor_fractie IS NOT NULL
+		  AND s.soort IN ('Voor', 'Tegen')
+		  AND z.soort = 'Motie'
+		  AND f.datum_inactief IS NULL;
+	`
+	if err := s.db.WithContext(ctx).Exec(createMajorityPartyVotes).Error; err != nil {
+		return fmt.Errorf("failed to create majority_party_votes view: %w", err)
+	}
+
+	// Create indexes for majority_party_votes
+	indexes := []string{
+		"CREATE INDEX IF NOT EXISTS idx_majority_party_votes_zaak_id ON majority_party_votes(zaak_id);",
+		"CREATE INDEX IF NOT EXISTS idx_majority_party_votes_fractie_id ON majority_party_votes(fractie_id);",
+		"CREATE INDEX IF NOT EXISTS idx_majority_party_votes_gestart_op ON majority_party_votes(gestart_op);",
+		"CREATE INDEX IF NOT EXISTS idx_majority_party_votes_vote_type ON majority_party_votes(vote_type);",
+	}
+	for _, idx := range indexes {
+		if err := s.db.WithContext(ctx).Exec(idx).Error; err != nil {
+			return fmt.Errorf("failed to create index: %w", err)
+		}
+	}
+
+	// Create party_likeness_per_motion materialized view
+	createPartyLikeness := `
+		CREATE MATERIALIZED VIEW IF NOT EXISTS party_likeness_per_motion AS
+		SELECT
+			mv1.fractie_id as fractie1_id,
+			mv2.fractie_id as fractie2_id,
+			mv1.zaak_id,
+			mv1.gestart_op,
+			(mv1.vote_type = mv2.vote_type) as same_vote
+		FROM majority_party_votes mv1
+		JOIN majority_party_votes mv2 ON mv1.zaak_id = mv2.zaak_id
+		WHERE mv1.fractie_id < mv2.fractie_id;
+	`
+	if err := s.db.WithContext(ctx).Exec(createPartyLikeness).Error; err != nil {
+		return fmt.Errorf("failed to create party_likeness_per_motion view: %w", err)
+	}
+
+	// Create indexes for party_likeness_per_motion
+	likenessIndexes := []string{
+		"CREATE INDEX IF NOT EXISTS idx_plpm_gestart_op ON party_likeness_per_motion(gestart_op);",
+		"CREATE INDEX IF NOT EXISTS idx_plpm_fractie1_id ON party_likeness_per_motion(fractie1_id);",
+		"CREATE INDEX IF NOT EXISTS idx_plpm_fractie2_id ON party_likeness_per_motion(fractie2_id);",
+		"CREATE INDEX IF NOT EXISTS idx_plpm_zaak_id ON party_likeness_per_motion(zaak_id);",
+		"CREATE INDEX IF NOT EXISTS idx_plpm_same_vote ON party_likeness_per_motion(same_vote);",
+	}
+	for _, idx := range likenessIndexes {
+		if err := s.db.WithContext(ctx).Exec(idx).Error; err != nil {
+			return fmt.Errorf("failed to create index: %w", err)
+		}
+	}
+
+	log.Println("Materialized views created/verified successfully")
+	return nil
 }

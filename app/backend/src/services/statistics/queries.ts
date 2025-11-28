@@ -1,12 +1,12 @@
 import type {
-	PartyCategoryLikeness,
-	PartyFocusCategory,
-	PartyLikeness,
+  PartyCategoryLikeness,
+  PartyFocusCategory,
+  PartyLikeness,
 } from "../../contracts/index.js";
 import { sql } from "../db/sql-tag.js";
 
 export async function getPartyLikenessMatrix(dateFrom?: Date, dateTo?: Date) {
-	return sql<PartyLikeness>`
+  return sql<PartyLikeness>`
         WITH PartyVotes AS (
             SELECT DISTINCT
                 b.zaak_id,
@@ -54,11 +54,11 @@ export async function getPartyLikenessMatrix(dateFrom?: Date, dateTo?: Date) {
 }
 
 export async function getPartyFocus(
-	partyId: string,
-	dateFrom?: Date,
-	dateTo?: Date,
+  partyId: string,
+  dateFrom?: Date,
+  dateTo?: Date,
 ) {
-	return sql<PartyFocusCategory>`
+  return sql<PartyFocusCategory>`
         SELECT
             mc.id AS "categoryId",
             mc.name AS "categoryName",
@@ -88,11 +88,11 @@ export async function getPartyFocus(
 }
 
 export async function getPartyCategoryLikeness(
-	partyId: string,
-	dateFrom?: Date,
-	dateTo?: Date,
+  partyId: string,
+  dateFrom?: Date,
+  dateTo?: Date,
 ) {
-	return sql<PartyCategoryLikeness>`
+  return sql<PartyCategoryLikeness>`
         WITH PartyVotesByCategory AS (
             SELECT DISTINCT
                 b.zaak_id,

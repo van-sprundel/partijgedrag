@@ -4,7 +4,7 @@ export function handleUriError(
   err: Error,
   _req: express.Request,
   res: express.Response,
-  next: express.NextFunction
+  next: express.NextFunction,
 ) {
   if (err instanceof URIError) {
     console.warn(`Malformed URI detected: ${err.message}`);

@@ -8,11 +8,12 @@ This repository is a monorepo containing three main components:
 
 - `app/`: The web application, split into a frontend and a backend.
   - `frontend/`: A React/TypeScript frontend built with Vite.
-  - `backend/`: A Node.js/TypeScript backend using Express and Prisma.
+  - `backend/`: A Node.js/TypeScript backend using Express, node-pg and SafeQL.
 - `etl/`: A Go application responsible for extracting, transforming, and loading the voting data into the database.
 - `docker-compose.yml`: Defines the services for the application, which for now is only the PostgreSQL database.
 
 ## Screenshots
+
 <details>
 
 <img width="2560" height="1330" alt="image" src="https://github.com/user-attachments/assets/acd42a7a-7705-47e3-9b50-2918aeabb3d1" />
@@ -20,7 +21,6 @@ This repository is a monorepo containing three main components:
 <img width="2560" height="1330" alt="image" src="https://github.com/user-attachments/assets/360702fd-eaed-4c7e-aed9-51e78e547e19" />
 <img width="2545" height="1330" alt="image" src="https://github.com/user-attachments/assets/85a47ef2-f668-4652-ae36-e11560bda8af" />
 </details>
-
 
 ## Development Setup
 
@@ -54,7 +54,7 @@ The `etl` service fetches and processes parliamentary data.
     ```bash
     cd etl
     ```
-2. On the first run, seed the database:
+2.  On the first run, seed the database:
     ```bash
     go run cmd/manage_categories/main.go --action=seed
     ```
@@ -81,26 +81,19 @@ The `app` is split into a backend and a frontend, which are separately for devel
     ```bash
     cd backend; cp .env.example .env; cd ../frontend; cp .env.example .env; cd ..
     ```
-    
-  > Ensure the `DATABASE_URL` in the new `.env` file is correctly configured for your environment.
-   
-4.  Run migration in the backend:
-    ```bash
-    cd backend; npx prisma migrate dev
-    ```
-5.  Generate prisma types:
-    ```bash
-    npx prisma generate
-    ```
-6.  Start the app server:
+
+> Ensure the `DATABASE_URL` in the new `.env` file is correctly configured for your environment.
+
+4.  Start the app server:
+
     ```bash
     cd -; npm run dev
     ```
+
     The backend will be running on `http://localhost:3001`.
-    
+
     The frontend will be accessible at `http://localhost:3000`.
 
- ## Acknowledgements
+## Acknowledgements
 
 This project uses open data provided by the Tweede Kamer der Staten-Generaal (Dutch House of Representatives). For more information about the data sources and API documentation, visit https://opendata.tweedekamer.nl.
-

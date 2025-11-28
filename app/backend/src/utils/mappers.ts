@@ -1,4 +1,3 @@
-import type { Case, Party, Politician, Vote } from "@prisma/client";
 import type {
 	Motion as MotionContract,
 	Party as PartyContract,
@@ -7,11 +6,22 @@ import type {
 	VoteType,
 } from "../contracts/index.js";
 
-export function mapCaseToMotion(zaak: Case): MotionContract {
+export function mapCaseToMotion(zaak: {
+	id: string;
+	subject?: string | null;
+	title?: string | null;
+	citationTitle?: string | null;
+	number?: string | null;
+	status?: string | null;
+	type?: string | null;
+	bulletPoints?: unknown;
+	startedAt?: Date | null;
+	updatedAt?: Date | null;
+}): MotionContract {
 	const bulletPoints = (zaak.bulletPoints as string[]) || [];
 
 	return {
-		...zaak,
+		id: zaak.id,
 		title: zaak.subject || zaak.title || "Untitled Motion",
 		description: zaak.title,
 		shortTitle: zaak.citationTitle,
@@ -29,26 +39,43 @@ export function mapCaseToMotion(zaak: Case): MotionContract {
 	};
 }
 
-export function mapPartyToContract(party: Party): PartyContract {
+export function mapPartyToContract(party: {
+	id: string;
+	nameNl?: string | null;
+	shortName?: string | null;
+	seats?: string | number | null;
+	contentType?: string | null;
+	activeFrom?: Date | null;
+	activeTo?: Date | null;
+	logoData?: Buffer | string | null;
+	updatedAt?: Date | null;
+	apiUpdatedAt?: Date | null;
+}): PartyContract {
 	return {
 		id: party.id,
 		name: party.nameNl ?? party.shortName ?? "",
 		shortName: party.shortName ?? "",
-		seats: Number(party.seats),
+		seats: Number(party.seats ?? 0),
 		contentType: party.contentType ?? "image/png",
-		activeFrom: party.activeFrom,
-		activeTo: party.activeTo,
+		activeFrom: party.activeFrom ?? null,
+		activeTo: party.activeTo ?? null,
 		logoData: party.logoData
-			? Buffer.from(party.logoData).toString("base64")
+			? Buffer.isBuffer(party.logoData)
+				? Buffer.from(party.logoData).toString("base64")
+				: party.logoData
 			: null,
 		createdAt: party.updatedAt ?? new Date(),
 		updatedAt: party.apiUpdatedAt ?? new Date(),
 	};
 }
 
-export function mapPoliticianToContract(
-	politician: Politician,
-): PoliticianContract {
+export function mapPoliticianToContract(politician: {
+	id: string;
+	firstNames?: string | null;
+	lastName?: string | null;
+	prefix?: string | null;
+	updatedAt?: Date | null;
+}): PoliticianContract {
 	return {
 		id: politician.id,
 		firstName: politician.firstNames || "",
@@ -78,13 +105,47 @@ function mapVoteTypeToContract(voteType: string | null): VoteType {
 	}
 }
 
-export function mapVoteToContract(
-	vote: Vote & {
-		party?: Party | null;
-		politician?: Politician | null;
-		decision?: { case?: Case | null } | null;
-	},
-): VoteContract {
+export function mapVoteToContract(vote: {
+	id: string;
+	type?: string | null;
+	partyId?: string | null;
+	politicianId?: string | null;
+	updatedAt?: Date | null;
+	apiUpdatedAt?: Date | null;
+	party?: {
+		id: string;
+		nameNl?: string | null;
+		shortName?: string | null;
+		seats?: string | number | null;
+		contentType?: string | null;
+		activeFrom?: Date | null;
+		activeTo?: Date | null;
+		logoData?: Buffer | string | null;
+		updatedAt?: Date | null;
+		apiUpdatedAt?: Date | null;
+	} | null;
+	politician?: {
+		id: string;
+		firstNames?: string | null;
+		lastName?: string | null;
+		prefix?: string | null;
+		updatedAt?: Date | null;
+	} | null;
+	decision?: {
+		case?: {
+			id: string;
+			subject?: string | null;
+			title?: string | null;
+			citationTitle?: string | null;
+			number?: string | null;
+			status?: string | null;
+			type?: string | null;
+			bulletPoints?: unknown;
+			startedAt?: Date | null;
+			updatedAt?: Date | null;
+		} | null;
+	} | null;
+}): VoteContract {
 	const motion = vote.decision?.case
 		? mapCaseToMotion(vote.decision.case)
 		: undefined;
@@ -93,7 +154,7 @@ export function mapVoteToContract(
 		motionId: motion?.id || "",
 		partyId: vote.partyId || "",
 		politicianId: vote.politicianId || "",
-		voteType: mapVoteTypeToContract(vote.type),
+		voteType: mapVoteTypeToContract(vote.type ?? null),
 		reasoning: null, // Not available in your schema
 		createdAt: vote.updatedAt || new Date(),
 		updatedAt: vote.apiUpdatedAt || new Date(),
