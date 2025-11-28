@@ -231,9 +231,9 @@ type Besluit struct {
 	GewijzigdOp                   *time.Time  `json:"GewijzigdOp" gorm:"column:gewijzigd_op"`
 	ApiGewijzigdOp                *time.Time  `json:"ApiGewijzigdOp" gorm:"column:api_gewijzigd_op"`
 
-	Stemming    []Stemming   `json:"Stemming,omitempty" gorm:"-"`
-	Zaak        *Zaak        `json:"Zaak,omitempty" gorm:"-"`
-	Agendapunt  *Agendapunt  `json:"Agendapunt,omitempty" gorm:"-"`
+	Stemming   []Stemming  `json:"Stemming,omitempty" gorm:"-"`
+	Zaak       *Zaak       `json:"Zaak,omitempty" gorm:"-"`
+	Agendapunt *Agendapunt `json:"Agendapunt,omitempty" gorm:"-"`
 }
 
 func (Besluit) TableName() string {
@@ -241,14 +241,14 @@ func (Besluit) TableName() string {
 }
 
 type Agendapunt struct {
-	ID                            string               `json:"Id" gorm:"primaryKey;column:id"`
-	ActiviteitId                  *string              `json:"Activiteit_Id" gorm:"column:activiteit_id"`
-	Nummer                        *CustomStringNumber  `json:"Nummer" gorm:"column:nummer"`
-	Onderwerp                     *string              `json:"Onderwerp" gorm:"column:onderwerp"`
-	Volgorde                      *int64               `json:"Volgorde" gorm:"column:volgorde"`
-	Status                        *string              `json:"Status" gorm:"column:status"`
-	GewijzigdOp                   *time.Time           `json:"GewijzigdOp" gorm:"column:gewijzigd_op"`
-	ApiGewijzigdOp                *time.Time           `json:"ApiGewijzigdOp" gorm:"column:api_gewijzigd_op"`
+	ID             string              `json:"Id" gorm:"primaryKey;column:id"`
+	ActiviteitId   *string             `json:"Activiteit_Id" gorm:"column:activiteit_id"`
+	Nummer         *CustomStringNumber `json:"Nummer" gorm:"column:nummer"`
+	Onderwerp      *string             `json:"Onderwerp" gorm:"column:onderwerp"`
+	Volgorde       *int64              `json:"Volgorde" gorm:"column:volgorde"`
+	Status         *string             `json:"Status" gorm:"column:status"`
+	GewijzigdOp    *time.Time          `json:"GewijzigdOp" gorm:"column:gewijzigd_op"`
+	ApiGewijzigdOp *time.Time          `json:"ApiGewijzigdOp" gorm:"column:api_gewijzigd_op"`
 
 	Activiteit *Activiteit `json:"Activiteit,omitempty" gorm:"-"`
 }
@@ -378,7 +378,7 @@ type Kamerstukdossier struct {
 	Kamer             *string             `json:"Kamer" gorm:"column:kamer"`
 	Bijgewerkt        *time.Time          `json:"Bijgewerkt" gorm:"column:bijgewerkt"`
 	ApiGewijzigdOp    *time.Time          `json:"ApiGewijzigdOp" gorm:"column:api_gewijzigd_op"`
-	BulletPoints      []string            `json:"BulletPoints" gorm:"type:jsonb;column:bullet_points"` // This should match Json in Prisma
+	BulletPoints      []string            `json:"BulletPoints" gorm:"type:jsonb;column:bullet_points"`
 	DocumentURL       *string             `json:"DocumentURL" gorm:"column:document_url"`
 
 	Document []Document `json:"Document,omitempty" gorm:"-"`
@@ -459,4 +459,16 @@ type ZaakCategory struct {
 
 func (ZaakCategory) TableName() string {
 	return "zaak_categories"
+}
+
+type UserSession struct {
+	ID        string    `json:"id" gorm:"primaryKey;column:id"`
+	Answers   string    `json:"answers" gorm:"type:jsonb;column:answers;not null"`
+	Results   *string   `json:"results,omitempty" gorm:"type:jsonb;column:results"`
+	CreatedAt time.Time `json:"createdAt" gorm:"column:createdAt;not null;default:now()"`
+	UpdatedAt time.Time `json:"updatedAt" gorm:"column:updatedAt;not null;default:now()"`
+}
+
+func (UserSession) TableName() string {
+	return "user_sessions"
 }

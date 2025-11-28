@@ -28,13 +28,7 @@ COPY --from=dependencies /app/backend/package.json ./backend/
 COPY --from=dependencies /app/frontend/package.json ./frontend/
 
 # ---
-FROM build-base AS prisma-gen
-COPY backend/prisma/ ./backend/prisma/
-
-RUN npm run db:generate --prefix backend
-
-# ---
-FROM prisma-gen AS backend-build
+FROM build-base AS backend-build
 
 COPY backend/tsconfig.json ./backend/
 COPY backend/src/ ./backend/src/
@@ -42,7 +36,7 @@ COPY backend/src/ ./backend/src/
 RUN npm run build --prefix backend
 
 # ---
-FROM prisma-gen AS frontend-build
+FROM build-base AS frontend-build
 
 COPY backend/tsconfig.json ./backend/
 COPY backend/src/ ./backend/src/
@@ -61,9 +55,6 @@ COPY --from=prod-dependencies /app/node_modules ./node_modules
 
 COPY --from=backend-build /app/backend/dist ./dist
 COPY --from=frontend-build /app/frontend/dist ./public
-
-COPY --from=prisma-gen /app/backend/prisma ./prisma
-COPY --from=prisma-gen /app/node_modules/.prisma ./node_modules/.prisma
 
 EXPOSE 3000
 CMD ["node", "dist/index.js"]

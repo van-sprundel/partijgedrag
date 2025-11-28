@@ -4,15 +4,15 @@ import pg from "pg";
 
 dotenv.config();
 
-const pool = new pg.Pool({
-  connectionString: process.env.DATABASE_URL,
-  max: 8,
+export const pool = new pg.Pool({
+	connectionString: process.env.DATABASE_URL,
+	max: 8,
 });
 
 pool.on("error", (error) => console.error(error));
 
 pool.on("connect", (client) => {
-  client.on("error", (error) => console.error(error));
+	client.on("error", (error) => console.error(error));
 });
 
 /**
@@ -27,7 +27,7 @@ type DisposablePoolClient = ManagedPoolClient & Disposable;
 
 // polyfill if needed
 if (!Object.hasOwn(Symbol, "dispose")) {
-  Object.defineProperty(Symbol, "dispose", { value: Symbol("dispose") });
+	Object.defineProperty(Symbol, "dispose", { value: Symbol("dispose") });
 }
 
 /**
@@ -38,90 +38,90 @@ if (!Object.hasOwn(Symbol, "dispose")) {
  * Direct use is discouraged unless you need to run raw queries.
  */
 export async function useClient(): Promise<DisposablePoolClient> {
-  const storedClient = getStoredClient();
+	const storedClient = getStoredClient();
 
-  if (storedClient) {
-    // the stored client is already managed, so we should do nothing on its disposal.
-    // to make sure that it can still be disposed in the end, back up the original dispose function and restore it when it is disposed locally.
-    const dispose = storedClient.client[Symbol.dispose];
+	if (storedClient) {
+		// the stored client is already managed, so we should do nothing on its disposal.
+		// to make sure that it can still be disposed in the end, back up the original dispose function and restore it when it is disposed locally.
+		const dispose = storedClient.client[Symbol.dispose];
 
-    storedClient.client[Symbol.dispose] = () => {
-      storedClient.client[Symbol.dispose] = dispose;
-    };
+		storedClient.client[Symbol.dispose] = () => {
+			storedClient.client[Symbol.dispose] = dispose;
+		};
 
-    return storedClient.client;
-  }
+		return storedClient.client;
+	}
 
-  const client = await pool.connect();
-  let released = false;
-  return Object.assign(client, {
-    [Symbol.dispose]: () => {
-      if (released) return;
-      client.release();
-      released = true;
-    },
-  });
+	const client = await pool.connect();
+	let released = false;
+	return Object.assign(client, {
+		[Symbol.dispose]: () => {
+			if (released) return;
+			client.release();
+			released = true;
+		},
+	});
 }
 
 type StoredClient = {
-  transaction: {
-    id: string;
-  } | null;
+	transaction: {
+		id: string;
+	} | null;
 
-  /**
-   * Acquired database client.
-   * Set to null if disposed.
-   */
-  client: DisposablePoolClient | null;
+	/**
+	 * Acquired database client.
+	 * Set to null if disposed.
+	 */
+	client: DisposablePoolClient | null;
 };
 
 const asyncLocalStorage = new AsyncLocalStorage<StoredClient | undefined>();
 
 export function runWithStoredClient<T>(
-  storedClient: StoredClient & { client: DisposablePoolClient },
-  fn: () => T,
+	storedClient: StoredClient & { client: DisposablePoolClient },
+	fn: () => T,
 ) {
-  const _storedClient: StoredClient = storedClient;
+	const _storedClient: StoredClient = storedClient;
 
-  return asyncLocalStorage.run(_storedClient, () =>
-    Promise.resolve()
-      .then(fn)
-      .finally(() => {
-        _storedClient.client = null;
-      }),
-  );
+	return asyncLocalStorage.run(_storedClient, () =>
+		Promise.resolve()
+			.then(fn)
+			.finally(() => {
+				_storedClient.client = null;
+			}),
+	);
 }
 
 function getStoredClient():
-  | (StoredClient & { client: DisposablePoolClient })
-  | undefined {
-  const storedClient = asyncLocalStorage.getStore();
+	| (StoredClient & { client: DisposablePoolClient })
+	| undefined {
+	const storedClient = asyncLocalStorage.getStore();
 
-  if (!storedClient) {
-    return undefined;
-  }
+	if (!storedClient) {
+		return undefined;
+	}
 
-  const { client } = storedClient;
+	const { client } = storedClient;
 
-  if (client === null) {
-    // We are in a context where a client was used, but it has already been released.
-    // This is likely a result of creating background jobs within transactions or stickyClients.
-    throw new Error("Cannot use a released client.");
-  }
+	if (client === null) {
+		// We are in a context where a client was used, but it has already been released.
+		// This is likely a result of creating background jobs within transactions or stickyClients.
+		throw new Error("Cannot use a released client.");
+	}
 
-  return { ...storedClient, client };
+	return { ...storedClient, client };
 }
 
 export function getTransaction() {
-  return getStoredClient()?.transaction ?? null;
+	return getStoredClient()?.transaction ?? null;
 }
 
 export function inTransaction(): boolean {
-  return getTransaction() !== null;
+	return getTransaction() !== null;
 }
 
 export function getTransactionId(): string | null {
-  return getTransaction()?.id ?? null;
+	return getTransaction()?.id ?? null;
 }
 
 /**
@@ -130,14 +130,14 @@ export function getTransactionId(): string | null {
  * Not really needed in most cases, but can improve performance when running a lot of queries.
  */
 export async function stickyClient<T>(fn: () => Promise<T>): Promise<T> {
-  if (inTransaction()) {
-    // this is technically possible, but would make it possible to have nested transactions due to transactional becoming false
-    // nevertheless, using a sticky client inside a transaction is probably a mistake
-    throw new Error("Cannot use stickyClient inside a transaction");
-  }
+	if (inTransaction()) {
+		// this is technically possible, but would make it possible to have nested transactions due to transactional becoming false
+		// nevertheless, using a sticky client inside a transaction is probably a mistake
+		throw new Error("Cannot use stickyClient inside a transaction");
+	}
 
-  using client = await useClient();
-  return await runWithStoredClient({ transaction: null, client }, fn);
+	using client = await useClient();
+	return await runWithStoredClient({ transaction: null, client }, fn);
 }
 
 /**
@@ -145,5 +145,5 @@ export async function stickyClient<T>(fn: () => Promise<T>): Promise<T> {
  * Useful for things that should never be rolled back, e.g. incrementing a counter.
  */
 export async function escapeTransaction<T>(fn: () => Promise<T>): Promise<T> {
-  return await asyncLocalStorage.exit(fn);
+	return await asyncLocalStorage.exit(fn);
 }

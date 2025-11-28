@@ -84,11 +84,7 @@ The `app` is split into a backend and a frontend, which are separately for devel
 
 > Ensure the `DATABASE_URL` in the new `.env` file is correctly configured for your environment.
 
-4.  Generate prisma types:
-    ```bash
-    npx prisma generate
-    ```
-5.  Start the app server:
+4.  Start the app server:
 
     ```bash
     cd -; npm run dev

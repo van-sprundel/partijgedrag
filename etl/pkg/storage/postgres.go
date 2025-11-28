@@ -247,6 +247,9 @@ func (s *PostgresStorage) Migrate(ctx context.Context) error {
 		&models.Kamerstukdossier{},
 		&models.MotionCategory{},
 		&models.ZaakCategory{},
+		&models.UserSession{},
+		&models.Activiteit{},
+		&models.Agendapunt{},
 	); err != nil {
 		return fmt.Errorf("failed to run auto-migration: %w", err)
 	}
