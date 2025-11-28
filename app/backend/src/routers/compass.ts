@@ -459,16 +459,20 @@ async function calculatePartyAlignment(answers: UserAnswer[]) {
 						)[0] as VoteType)
 					: null;
 
-			const userSupports = answer.answer === "agree";
-			const partySupports = majorityVote === "FOR";
+			// Skip neutral answers for agreement calculation
+			if (answer.answer !== "neutral") {
+				const userSupports = answer.answer === "agree";
+				const partySupports = majorityVote === "FOR";
 
-			if (
-				(userSupports && partySupports) ||
-				(!userSupports && !partySupports)
-			) {
-				partyScore.matchingVotes++;
-				partyScore.score += answer.answer === "neutral" ? 0.5 : 1;
-			} else if (answer.answer === "neutral") {
+				if (
+					(userSupports && partySupports) ||
+					(!userSupports && !partySupports)
+				) {
+					partyScore.matchingVotes++;
+					partyScore.score += 1;
+				}
+			} else {
+				// Neutral answers contribute to score but not to matching votes
 				partyScore.score += 0.5;
 			}
 
