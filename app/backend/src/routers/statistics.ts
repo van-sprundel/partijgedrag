@@ -170,7 +170,6 @@ export const statisticsRouter = {
 					WHERE s.fractie_id IS NOT NULL
 						AND s.soort IN ('Voor', 'Tegen')
 						AND z.soort = 'Motie'
-						AND f.datum_inactief IS NULL
 						${dateFilter}
 				),
 				CategoryComparisons AS (
@@ -199,7 +198,6 @@ export const statisticsRouter = {
 				FROM CategoryComparisons cc
 				JOIN motion_categories mc ON cc.category_id = mc.id
 				JOIN fracties f ON cc.other_party_id = f.id
-				WHERE f.datum_inactief IS NULL
 				ORDER BY mc.name, f.afkorting;
 			`;
 
