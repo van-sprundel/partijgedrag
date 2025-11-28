@@ -8,9 +8,6 @@
     "dev": "tsx watch src/index.ts",
     "build": "tsc",
     "start": "node dist/index.js",
-    "db:generate": "prisma generate",
-    "db:push": "prisma db push",
-    "db:studio": "prisma studio",
     "db:seed": "tsx src/scripts/seed.ts"
   },
   "keywords": [
@@ -23,10 +20,10 @@
   "license": "MIT",
   "dependencies": {
     "@orpc/server": "^1.8.2",
-    "@prisma/client": "^5.7.1",
     "@ts-safeql/sql-tag": "^0.2.1",
     "async_hooks": "^1.0.0",
     "cors": "^2.8.5",
+    "dotenv": "^17.2.3",
     "express": "^4.18.2",
     "pg": "^8.16.3",
     "zod": "^4.0.17"
@@ -38,7 +35,6 @@
     "@types/node": "^22.18.7",
     "@types/pg": "^8.15.5",
     "libpg-query": "^17.6.0",
-    "prisma": "^5.7.1",
     "tsx": "^4.7.0",
     "typescript": "^5.3.3"
   }

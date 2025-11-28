@@ -1,6 +1,7 @@
 import { implement } from "@orpc/server";
 import { apiContract, type Party, type VoteType } from "../contracts/index.js";
-import { db } from "../lib/db.js";
+import { sql } from "../lib/db.js";
+import type { DecisionMapped, VoteMapped, PartyMapped } from "../lib/db-types.js";
 import {
 	getAllMotions,
 	getForCompass,
@@ -76,19 +77,40 @@ export const motionRouter = {
 
 	getVotes: os.motions.getVotes.handler(async ({ input }) => {
 		// Get decisions for this motion
-		const decisions = await db.decision.findMany({
-			where: { caseId: { equals: input.motionId } },
-			select: { id: true },
-		});
+		const decisions = await sql<DecisionMapped>`
+			SELECT id, zaak_id as "caseId"
+			FROM besluiten
+			WHERE zaak_id = ${input.motionId}
+		`;
 		const decisionIds = decisions.map((d) => d.id);
 
+		if (decisionIds.length === 0) {
+			return { votes: [], partyPositions: [] };
+		}
+
 		// Get votes for all decisions of this motion
-		const votesWithRelations = await db.vote.findMany({
-			where: {
-				decisionId: { in: decisionIds },
-				mistake: { not: true },
-			},
-		});
+		const votesWithRelations = await sql<VoteMapped>`
+			SELECT
+				id,
+				besluit_id_raw as "decisionIdRaw",
+				besluit_id as "decisionId",
+				soort as type,
+				fractie_grootte as "partySize",
+				actor_naam as "actorName",
+				actor_fractie as "actorParty",
+				vergissing as mistake,
+				sid_actor_lid as "sidActorMember",
+				sid_actor_fractie as "sidActorParty",
+				persoon_id_raw as "politicianIdRaw",
+				persoon_id as "politicianId",
+				fractie_id_raw as "partyIdRaw",
+				fractie_id as "partyId",
+				gewijzigd_op as "updatedAt",
+				api_gewijzigd_op as "apiUpdatedAt"
+			FROM stemmingen
+			WHERE besluit_id = ANY(${decisionIds})
+			  AND vergissing IS DISTINCT FROM true
+		`;
 
 		// Map votes to contract format
 		const votes = votesWithRelations.map((v) => ({
@@ -106,9 +128,31 @@ export const motionRouter = {
 		const partyIds = votesWithRelations
 			.map((v) => v.partyId)
 			.filter((p) => p !== null) as string[];
-		const partiesFromDb = await db.party.findMany({
-			where: { id: { in: partyIds } },
-		});
+
+		if (partyIds.length === 0) {
+			return { votes, partyPositions: [] };
+		}
+
+		const partiesFromDb = await sql<PartyMapped>`
+			SELECT
+				id,
+				nummer as number,
+				afkorting as "shortName",
+				naam_nl as "nameNl",
+				naam_en as "nameEn",
+				aantal_zetels as seats,
+				aantal_stemmen as "votesCount",
+				datum_actief as "activeFrom",
+				datum_inactief as "activeTo",
+				content_type as "contentType",
+				content_length as "contentLength",
+				gewijzigd_op as "updatedAt",
+				api_gewijzigd_op as "apiUpdatedAt",
+				logo_data as "logoData",
+				verwijderd as removed
+			FROM fracties
+			WHERE id = ANY(${partyIds})
+		`;
 		const parties = partiesFromDb.map(mapPartyToContract);
 
 		const partyVoteMap = new Map<

@@ -1,13 +1,20 @@
 import { implement, ORPCError } from "@orpc/server";
-import type { Party as PartyModel } from "@prisma/client";
 import type { Party, UserAnswer, Vote, VoteType } from "../contracts/index.js";
 import { apiContract, CompassResultSchema } from "../contracts/index.js";
-import { db } from "../lib/db.js";
+import { sql, sqlOne, sqlOneOrNull } from "../lib/db.js";
+import type {
+	PartyMapped,
+	UserSession,
+	CaseMapped,
+	DecisionMapped,
+	VoteMapped,
+} from "../lib/db-types.js";
 import {
 	mapCaseToMotion,
 	mapPartyToContract,
 	mapVoteToContract,
 } from "../utils/mappers.js";
+import { randomBytes } from "crypto";
 
 const os = implement(apiContract);
 
@@ -24,34 +31,46 @@ function mapVoteType(dutchVoteType: string | null): VoteType {
 	}
 }
 
+// Helper to generate CUID-like ID
+function generateId(): string {
+	return `c${randomBytes(12).toString("base64url")}`;
+}
+
 export const compassRouter = {
 	submitAnswers: os.compass.submitAnswers.handler(async ({ input }) => {
 		const { answers } = input;
 
 		const partyResults = await calculatePartyAlignment(answers);
-		const session = await db.userSession.create({
-			data: {
-				answers: answers,
-				results: {
+		const id = generateId();
+		const now = new Date();
+
+		await sql`
+			INSERT INTO user_sessions (id, answers, results, "createdAt", "updatedAt")
+			VALUES (
+				${id},
+				${JSON.stringify(answers)},
+				${JSON.stringify({
 					totalAnswers: answers.length,
 					partyResults,
-					createdAt: new Date(),
-				},
-			},
-		});
+					createdAt: now,
+				})},
+				${now},
+				${now}
+			)
+		`;
 
 		return {
-			id: session.id,
+			id,
 			totalAnswers: answers.length,
 			partyResults,
-			createdAt: new Date(session.createdAt),
+			createdAt: now,
 		};
 	}),
 
 	getResults: os.compass.getResults.handler(async ({ input }) => {
-		const session = await db.userSession.findUnique({
-			where: { id: input.sessionId },
-		});
+		const session = await sqlOneOrNull<UserSession>`
+			SELECT * FROM user_sessions WHERE id = ${input.sessionId}
+		`;
 
 		if (!session || !session.results) {
 			return null;
@@ -77,9 +96,38 @@ export const compassRouter = {
 	getMotionDetails: os.compass.getMotionDetails.handler(async ({ input }) => {
 		const { motionId, includeVotes } = input;
 
-		const zaak = await db.case.findUnique({
-			where: { id: motionId },
-		});
+		const zaak = await sqlOneOrNull<CaseMapped>`
+			SELECT
+				id,
+				nummer as number,
+				onderwerp as subject,
+				soort as type,
+				titel as title,
+				citeertitel as "citationTitle",
+				alias,
+				status,
+				datum as date,
+				gestart_op as "startedAt",
+				organisatie as organization,
+				grondslagvoorhang as basis,
+				termijn as term,
+				vergaderjaar as "meetingYear",
+				volgnummer as "sequenceNumber",
+				huidige_behandelstatus as "currentTreatmentStatus",
+				afgedaan as completed,
+				groot_project as "largeProject",
+				gewijzigd_op as "updatedAt",
+				api_gewijzigd_op as "apiUpdatedAt",
+				verwijderd as removed,
+				kabinetsappreciatie as "cabinetAppreciation",
+				datum_afgedaan as "completedAt",
+				kamer as chamber,
+				bullet_points as "bulletPoints",
+				document_url as "documentURL",
+				did
+			FROM zaken
+			WHERE id = ${motionId}
+		`;
 
 		if (!zaak) {
 			throw new ORPCError("NOT_FOUND", { message: "Motion not found" });
@@ -95,82 +143,118 @@ export const compassRouter = {
 		}[] = [];
 
 		if (includeVotes) {
-			const decisions = await db.decision.findMany({
-				where: { caseId: { equals: motionId } },
-				select: { id: true },
-			});
+			const decisions = await sql<DecisionMapped>`
+				SELECT id, zaak_id as "caseId"
+				FROM besluiten
+				WHERE zaak_id = ${motionId}
+			`;
 			const decisionIds = decisions.map((d) => d.id);
 
-			const votesWithRelations = await db.vote.findMany({
-				where: {
-					decisionId: { in: decisionIds },
-				},
-			});
+			if (decisionIds.length > 0) {
+				const votesWithRelations = await sql<VoteMapped>`
+					SELECT
+						id,
+						besluit_id_raw as "decisionIdRaw",
+						besluit_id as "decisionId",
+						soort as type,
+						fractie_grootte as "partySize",
+						actor_naam as "actorName",
+						actor_fractie as "actorParty",
+						vergissing as mistake,
+						sid_actor_lid as "sidActorMember",
+						sid_actor_fractie as "sidActorParty",
+						persoon_id_raw as "politicianIdRaw",
+						persoon_id as "politicianId",
+						fractie_id_raw as "partyIdRaw",
+						fractie_id as "partyId",
+						gewijzigd_op as "updatedAt",
+						api_gewijzigd_op as "apiUpdatedAt"
+					FROM stemmingen
+					WHERE besluit_id = ANY(${decisionIds})
+				`;
 
-			votes = votesWithRelations.map((v) => mapVoteToContract(v));
+				votes = votesWithRelations.map((v) => mapVoteToContract(v));
 
-			const partyVoteMap = new Map<
-				string,
-				{ party: PartyModel; votes: VoteType[]; partySize: number }
-			>();
+				const partyVoteMap = new Map<
+					string,
+					{ party: PartyMapped; votes: VoteType[]; partySize: number }
+				>();
 
-			const parties = await db.party.findMany({
-				where: {
-					id: {
-						in: votesWithRelations
-							.map((v) => v.partyId)
-							.filter((p) => p !== null) as string[],
-					},
-				},
-			});
+				const partyIds = votesWithRelations
+					.map((v) => v.partyId)
+					.filter((p) => p !== null) as string[];
 
-			votesWithRelations.forEach((vote) => {
-				if (vote.partyId) {
-					const party = parties.find((p) => p.id === vote.partyId);
-					if (party) {
-						if (!partyVoteMap.has(vote.partyId)) {
-							partyVoteMap.set(vote.partyId, {
-								party: party,
-								votes: [],
-								partySize: Number(vote.partySize || 0),
-							});
+				if (partyIds.length > 0) {
+					const parties = await sql<PartyMapped>`
+						SELECT
+							id,
+							nummer as number,
+							afkorting as "shortName",
+							naam_nl as "nameNl",
+							naam_en as "nameEn",
+							aantal_zetels as seats,
+							aantal_stemmen as "votesCount",
+							datum_actief as "activeFrom",
+							datum_inactief as "activeTo",
+							content_type as "contentType",
+							content_length as "contentLength",
+							gewijzigd_op as "updatedAt",
+							api_gewijzigd_op as "apiUpdatedAt",
+							logo_data as "logoData",
+							verwijderd as removed
+						FROM fracties
+						WHERE id = ANY(${partyIds})
+					`;
+
+					votesWithRelations.forEach((vote) => {
+						if (vote.partyId) {
+							const party = parties.find((p) => p.id === vote.partyId);
+							if (party) {
+								if (!partyVoteMap.has(vote.partyId)) {
+									partyVoteMap.set(vote.partyId, {
+										party: party,
+										votes: [],
+										partySize: Number(vote.partySize || 0),
+									});
+								}
+								if (vote.type) {
+									partyVoteMap
+										.get(vote.partyId)
+										?.votes.push(mapVoteType(vote.type));
+								}
+							}
 						}
-						if (vote.type) {
-							partyVoteMap
-								.get(vote.partyId)
-								?.votes.push(mapVoteType(vote.type));
-						}
-					}
+					});
 				}
-			});
 
-			partyPositions = Array.from(partyVoteMap.values()).map(
-				({ party, votes: partyVotes, partySize }) => {
-					const voteCounts = partyVotes.reduce(
-						(acc, vote) => {
-							acc[vote] = (acc[vote] || 0) + 1;
-							return acc;
-						},
-						{} as Record<string, number>,
-					);
+				partyPositions = Array.from(partyVoteMap.values()).map(
+					({ party, votes: partyVotes, partySize }) => {
+						const voteCounts = partyVotes.reduce(
+							(acc, vote) => {
+								acc[vote] = (acc[vote] || 0) + 1;
+								return acc;
+							},
+							{} as Record<string, number>,
+						);
 
-					const majorityVoteEntry =
-						Object.keys(voteCounts).length > 0
-							? Object.entries(voteCounts).reduce((a, b) =>
-									a[1] > b[1] ? a : b,
-								)
-							: [];
+						const majorityVoteEntry =
+							Object.keys(voteCounts).length > 0
+								? Object.entries(voteCounts).reduce((a, b) =>
+										a[1] > b[1] ? a : b,
+									)
+								: [];
 
-					const majorityVote =
-						(majorityVoteEntry[0] as VoteType) ?? ("NEUTRAL" as const);
+						const majorityVote =
+							(majorityVoteEntry[0] as VoteType) ?? ("NEUTRAL" as const);
 
-					return {
-						party: mapPartyToContract(party),
-						position: majorityVote,
-						count: partySize,
-					};
-				},
-			);
+						return {
+							party: mapPartyToContract(party),
+							position: majorityVote,
+							count: partySize,
+						};
+					},
+				);
+			}
 		}
 
 		return {
@@ -184,25 +268,50 @@ export const compassRouter = {
 async function calculatePartyAlignment(answers: UserAnswer[]) {
 	const motionIds = answers.map((a) => a.motionId);
 
-	const decisions = await db.decision.findMany({
-		where: { caseId: { in: motionIds } },
-		select: { id: true, caseId: true },
-	});
+	const decisions = await sql<DecisionMapped>`
+		SELECT id, zaak_id as "caseId"
+		FROM besluiten
+		WHERE zaak_id = ANY(${motionIds})
+	`;
 	const decisionIds = decisions.map((d) => d.id);
 
-	const votes = await db.vote.findMany({
-		where: {
-			decisionId: { in: decisionIds },
-		},
-	});
+	if (decisionIds.length === 0) {
+		return [];
+	}
 
-	const parties = await db.party.findMany({
-		where: {
-			OR: [{ activeTo: null }, { activeTo: { gte: new Date() } }],
-		},
-	});
+	const votes = await sql<VoteMapped>`
+		SELECT
+			id,
+			besluit_id as "decisionId",
+			soort as type,
+			fractie_id as "partyId",
+			actor_fractie as "actorParty"
+		FROM stemmingen
+		WHERE besluit_id = ANY(${decisionIds})
+	`;
 
-	const partyNameMap = new Map<string, PartyModel>();
+	const parties = await sql<PartyMapped>`
+		SELECT
+			id,
+			nummer as number,
+			afkorting as "shortName",
+			naam_nl as "nameNl",
+			naam_en as "nameEn",
+			aantal_zetels as seats,
+			aantal_stemmen as "votesCount",
+			datum_actief as "activeFrom",
+			datum_inactief as "activeTo",
+			content_type as "contentType",
+			content_length as "contentLength",
+			gewijzigd_op as "updatedAt",
+			api_gewijzigd_op as "apiUpdatedAt",
+			logo_data as "logoData",
+			verwijderd as removed
+		FROM fracties
+		WHERE datum_inactief IS NULL OR datum_inactief >= NOW()
+	`;
+
+	const partyNameMap = new Map<string, PartyMapped>();
 	parties.forEach((p) => {
 		if (p.nameNl) partyNameMap.set(p.nameNl, p);
 	});
@@ -319,21 +428,66 @@ async function calculatePartyAlignment(answers: UserAnswer[]) {
 async function getMotionVoteDetails(answers: UserAnswer[]) {
 	const motionIds = answers.map((a) => a.motionId);
 
-	const motions = await db.case.findMany({
-		where: { id: { in: motionIds } },
-	});
+	const motions = await sql<CaseMapped>`
+		SELECT
+			id,
+			nummer as number,
+			onderwerp as subject,
+			soort as type,
+			titel as title,
+			citeertitel as "citationTitle",
+			alias,
+			status,
+			datum as date,
+			gestart_op as "startedAt",
+			organisatie as organization,
+			grondslagvoorhang as basis,
+			termijn as term,
+			vergaderjaar as "meetingYear",
+			volgnummer as "sequenceNumber",
+			huidige_behandelstatus as "currentTreatmentStatus",
+			afgedaan as completed,
+			groot_project as "largeProject",
+			gewijzigd_op as "updatedAt",
+			api_gewijzigd_op as "apiUpdatedAt",
+			verwijderd as removed,
+			kabinetsappreciatie as "cabinetAppreciation",
+			datum_afgedaan as "completedAt",
+			kamer as chamber,
+			bullet_points as "bulletPoints",
+			document_url as "documentURL",
+			did
+		FROM zaken
+		WHERE id = ANY(${motionIds})
+	`;
 
-	const decisions = await db.decision.findMany({
-		where: { caseId: { in: motionIds } },
-		select: { id: true, caseId: true },
-	});
+	const decisions = await sql<DecisionMapped>`
+		SELECT id, zaak_id as "caseId"
+		FROM besluiten
+		WHERE zaak_id = ANY(${motionIds})
+	`;
 	const decisionIds = decisions.map((d) => d.id);
 
-	const votes = await db.vote.findMany({
-		where: {
-			decisionId: { in: decisionIds },
-		},
-	});
+	if (decisionIds.length === 0) {
+		return answers.map((answer) => ({
+			motionId: answer.motionId,
+			userAnswer: answer.answer,
+			motion: null,
+			partyPositions: [],
+		}));
+	}
+
+	const votes = await sql<VoteMapped>`
+		SELECT
+			id,
+			besluit_id as "decisionId",
+			soort as type,
+			fractie_id as "partyId",
+			actor_fractie as "actorParty",
+			fractie_grootte as "partySize"
+		FROM stemmingen
+		WHERE besluit_id = ANY(${decisionIds})
+	`;
 
 	const partyIdsFromVotes = votes
 		.map((v) => v.partyId)
@@ -342,16 +496,32 @@ async function getMotionVoteDetails(answers: UserAnswer[]) {
 		.map((v) => v.actorParty)
 		.filter((p) => p !== null) as string[];
 
-	const parties = await db.party.findMany({
-		where: {
-			OR: [
-				{ id: { in: partyIdsFromVotes } },
-				{ nameNl: { in: partyNamesFromVotes } },
-			],
-		},
-	});
+	const parties =
+		partyIdsFromVotes.length > 0 || partyNamesFromVotes.length > 0
+			? await sql<PartyMapped>`
+			SELECT
+				id,
+				nummer as number,
+				afkorting as "shortName",
+				naam_nl as "nameNl",
+				naam_en as "nameEn",
+				aantal_zetels as seats,
+				aantal_stemmen as "votesCount",
+				datum_actief as "activeFrom",
+				datum_inactief as "activeTo",
+				content_type as "contentType",
+				content_length as "contentLength",
+				gewijzigd_op as "updatedAt",
+				api_gewijzigd_op as "apiUpdatedAt",
+				logo_data as "logoData",
+				verwijderd as removed
+			FROM fracties
+			WHERE id = ANY(${partyIdsFromVotes})
+			   OR naam_nl = ANY(${partyNamesFromVotes})
+		`
+			: [];
 
-	const partyNameMap = new Map<string, PartyModel>();
+	const partyNameMap = new Map<string, PartyMapped>();
 	parties.forEach((p) => {
 		if (p.nameNl) partyNameMap.set(p.nameNl, p);
 	});
@@ -367,7 +537,7 @@ async function getMotionVoteDetails(answers: UserAnswer[]) {
 		const partyVotes = new Map<
 			string,
 			{
-				party: PartyModel;
+				party: PartyMapped;
 				votes: VoteType[];
 				majorityVote: VoteType;
 				partySize: number;

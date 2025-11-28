@@ -1,4 +1,9 @@
-import type { Case, Party, Politician, Vote } from "@prisma/client";
+import type {
+	CaseMapped as Case,
+	PartyMapped as Party,
+	PoliticianMapped as Politician,
+	VoteMapped as Vote,
+} from "../lib/db-types.js";
 import type {
 	Motion as MotionContract,
 	Party as PartyContract,

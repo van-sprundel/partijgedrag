@@ -3,7 +3,6 @@ import { ORPCError, onError, os } from "@orpc/server";
 import { RPCHandler } from "@orpc/server/node";
 import cors from "cors";
 import express from "express";
-import { db } from "./lib/db.js";
 import { handleUriError } from "./middleware/handleUriError.js";
 import { compassRouter } from "./routers/compass.js";
 import { motionRouter } from "./routers/motions.js";
@@ -12,7 +11,7 @@ import { statisticsRouter } from "./routers/statistics.js";
 
 const app = express();
 const host = process.env.HOST || "0.0.0.0";
-const port = Number(process.env.PORT ?? 3000);
+const port = Number(process.env.PORT ?? 3001);
 
 // CORS configuration
 app.use(
@@ -109,14 +108,12 @@ app.listen(port, host, () => {
 });
 
 // Graceful shutdown
-process.on("SIGINT", async () => {
+process.on("SIGINT", () => {
 	console.log("🔄 Gracefully shutting down...");
-	await db.$disconnect();
 	process.exit(0);
 });
 
-process.on("SIGTERM", async () => {
+process.on("SIGTERM", () => {
 	console.log("🔄 Gracefully shutting down...");
-	await db.$disconnect();
 	process.exit(0);
 });

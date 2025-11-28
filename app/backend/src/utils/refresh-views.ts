@@ -1,4 +1,4 @@
-import { db } from "../lib/db.js";
+import { useClient } from "../services/db/client.js";
 
 /**
  * Refreshes materialized views in the correct order
@@ -6,11 +6,13 @@ import { db } from "../lib/db.js";
  */
 export async function refreshMaterializedViews(): Promise<void> {
 	try {
+		using client = await useClient();
+
 		// Refresh majority_party_votes first (no dependencies)
-		await db.$executeRaw`REFRESH MATERIALIZED VIEW majority_party_votes;`;
+		await client.query("REFRESH MATERIALIZED VIEW majority_party_votes;");
 
 		// Then refresh party_likeness_per_motion (depends on majority_party_votes)
-		await db.$executeRaw`REFRESH MATERIALIZED VIEW party_likeness_per_motion;`;
+		await client.query("REFRESH MATERIALIZED VIEW party_likeness_per_motion;");
 
 		console.log("Materialized views refreshed successfully");
 	} catch (error) {
@@ -25,9 +27,11 @@ export async function refreshMaterializedViews(): Promise<void> {
  */
 export async function refreshMaterializedViewsConcurrently(): Promise<void> {
 	try {
+		using client = await useClient();
+
 		await Promise.all([
-			db.$executeRaw`REFRESH MATERIALIZED VIEW CONCURRENTLY majority_party_votes;`,
-			db.$executeRaw`REFRESH MATERIALIZED VIEW CONCURRENTLY party_likeness_per_motion;`,
+			client.query("REFRESH MATERIALIZED VIEW CONCURRENTLY majority_party_votes;"),
+			client.query("REFRESH MATERIALIZED VIEW CONCURRENTLY party_likeness_per_motion;"),
 		]);
 
 		console.log("Materialized views refreshed concurrently");
@@ -42,12 +46,14 @@ export async function refreshMaterializedViewsConcurrently(): Promise<void> {
  */
 export async function recreateMaterializedViews(): Promise<void> {
 	try {
+		using client = await useClient();
+
 		// Drop views in reverse dependency order
-		await db.$executeRaw`DROP MATERIALIZED VIEW IF EXISTS party_likeness_per_motion;`;
-		await db.$executeRaw`DROP MATERIALIZED VIEW IF EXISTS majority_party_votes;`;
+		await client.query("DROP MATERIALIZED VIEW IF EXISTS party_likeness_per_motion;");
+		await client.query("DROP MATERIALIZED VIEW IF EXISTS majority_party_votes;");
 
 		// Recreate majority_party_votes
-		await db.$executeRaw`
+		await client.query(`
 			CREATE MATERIALIZED VIEW majority_party_votes AS
 			SELECT DISTINCT
 				b.zaak_id,
@@ -62,16 +68,16 @@ export async function recreateMaterializedViews(): Promise<void> {
 			  AND s.soort IN ('Voor', 'Tegen')
 			  AND z.soort = 'Motie'
 			  AND f.datum_inactief IS NULL;
-		`;
+		`);
 
 		// Recreate indexes for majority_party_votes
-		await db.$executeRaw`CREATE INDEX idx_majority_party_votes_zaak_id ON majority_party_votes(zaak_id);`;
-		await db.$executeRaw`CREATE INDEX idx_majority_party_votes_fractie_id ON majority_party_votes(fractie_id);`;
-		await db.$executeRaw`CREATE INDEX idx_majority_party_votes_gestart_op ON majority_party_votes(gestart_op);`;
-		await db.$executeRaw`CREATE INDEX idx_majority_party_votes_vote_type ON majority_party_votes(vote_type);`;
+		await client.query("CREATE INDEX idx_majority_party_votes_zaak_id ON majority_party_votes(zaak_id);");
+		await client.query("CREATE INDEX idx_majority_party_votes_fractie_id ON majority_party_votes(fractie_id);");
+		await client.query("CREATE INDEX idx_majority_party_votes_gestart_op ON majority_party_votes(gestart_op);");
+		await client.query("CREATE INDEX idx_majority_party_votes_vote_type ON majority_party_votes(vote_type);");
 
 		// Recreate party_likeness_per_motion
-		await db.$executeRaw`
+		await client.query(`
 			CREATE MATERIALIZED VIEW party_likeness_per_motion AS
 			SELECT
 				mv1.fractie_id as fractie1_id,
@@ -82,14 +88,14 @@ export async function recreateMaterializedViews(): Promise<void> {
 			FROM majority_party_votes mv1
 			JOIN majority_party_votes mv2 ON mv1.zaak_id = mv2.zaak_id
 			WHERE mv1.fractie_id < mv2.fractie_id;
-		`;
+		`);
 
 		// Recreate indexes for party_likeness_per_motion
-		await db.$executeRaw`CREATE INDEX idx_plpm_gestart_op ON party_likeness_per_motion(gestart_op);`;
-		await db.$executeRaw`CREATE INDEX idx_plpm_fractie1_id ON party_likeness_per_motion(fractie1_id);`;
-		await db.$executeRaw`CREATE INDEX idx_plpm_fractie2_id ON party_likeness_per_motion(fractie2_id);`;
-		await db.$executeRaw`CREATE INDEX idx_plpm_zaak_id ON party_likeness_per_motion(zaak_id);`;
-		await db.$executeRaw`CREATE INDEX idx_plpm_same_vote ON party_likeness_per_motion(same_vote);`;
+		await client.query("CREATE INDEX idx_plpm_gestart_op ON party_likeness_per_motion(gestart_op);");
+		await client.query("CREATE INDEX idx_plpm_fractie1_id ON party_likeness_per_motion(fractie1_id);");
+		await client.query("CREATE INDEX idx_plpm_fractie2_id ON party_likeness_per_motion(fractie2_id);");
+		await client.query("CREATE INDEX idx_plpm_zaak_id ON party_likeness_per_motion(zaak_id);");
+		await client.query("CREATE INDEX idx_plpm_same_vote ON party_likeness_per_motion(same_vote);");
 
 		console.log("Materialized views recreated successfully");
 	} catch (error) {
