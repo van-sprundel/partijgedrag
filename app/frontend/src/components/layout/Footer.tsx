@@ -17,7 +17,7 @@ export function Footer() {
 						>
 							Solveware
 						</a>
-						<span>. Partijgedrag wordt gehost door</span>
+						<span>Partijgedrag wordt gehost door</span>
 						<a
 							href="https://cyso.com"
 							target="_blank"
