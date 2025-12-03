@@ -205,12 +205,13 @@ function LikenessMatrix({
 	const { data: likenessData, isLoading } = usePartyLikenessMatrix(filters);
 
 	const matrix = useMemo(() => {
-		const m: { [key: string]: { [key: string]: number } } = {};
+		// Use undefined for "no data" so we can render '-' in the UI when there was no match found.
+		const m: { [key: string]: { [key: string]: number | undefined } } = {};
 		parties.forEach((p1) => {
 			m[p1.id] = {};
 			parties.forEach((p2) => {
 				if (p1.id === p2.id) m[p1.id][p2.id] = 100;
-				else m[p1.id][p2.id] = 0;
+				else m[p1.id][p2.id] = undefined;
 			});
 		});
 		likenessData?.forEach((entry) => {
@@ -224,7 +225,8 @@ function LikenessMatrix({
 		return m;
 	}, [parties, likenessData]);
 
-	const getCellColor = (value: number) => {
+	const getCellColor = (value?: number) => {
+		if (value === undefined) return "bg-gray-50";
 		if (value > 80) return "bg-green-300";
 		if (value > 60) return "bg-green-200";
 		if (value >= 40) return "bg-gray-100";
@@ -297,11 +299,13 @@ function LikenessMatrix({
 									{parties.map((p2) => (
 										<td
 											key={p2.id}
-											className={`border p-2 text-center ${p1.id === p2.id ? "bg-gray-100" : getCellColor(matrix[p1.id]?.[p2.id] ?? 0)}`}
+											className={`border p-2 text-center ${p1.id === p2.id ? "bg-gray-100" : getCellColor(matrix[p1.id]?.[p2.id])}`}
 										>
 											{p1.id === p2.id
 												? "-"
-												: formatPercentage(matrix[p1.id]?.[p2.id] ?? 0)}
+												: matrix[p1.id]?.[p2.id] === undefined
+												? "-"
+												: formatPercentage(matrix[p1.id][p2.id]!)}
 										</td>
 									))}
 								</tr>
@@ -401,11 +405,12 @@ function PartyCategoryLikenessMatrix({
 	);
 
 	const matrix = useMemo(() => {
-		const m: { [key: string]: { [key: string]: number } } = {};
+		// Use undefined for "no data" so the UI can show '-' for missing matches.
+		const m: { [key: string]: { [key: string]: number | undefined } } = {};
 		categories?.forEach((cat) => {
 			m[cat.id] = {};
 			otherParties.forEach((p) => {
-				m[cat.id][p.id] = 0;
+				m[cat.id][p.id] = undefined;
 			});
 		});
 		categoryLikenessData?.forEach((entry) => {
@@ -420,7 +425,8 @@ function PartyCategoryLikenessMatrix({
 		return <div>Loading category likeness matrix...</div>;
 	}
 
-	const getCellColor = (value: number) => {
+	const getCellColor = (value?: number) => {
+		if (value === undefined) return "bg-gray-50";
 		if (value > 80) return "bg-green-300";
 		if (value > 60) return "bg-green-200";
 		if (value >= 40) return "bg-gray-100";
@@ -471,13 +477,13 @@ function PartyCategoryLikenessMatrix({
 								<tr key={cat.id}>
 									<td className="border p-2 font-medium">{cat.name}</td>
 									{otherParties.map((p2) => {
-										const likeness = matrix[cat.id]?.[p2.id] ?? 0;
+										const likeness = matrix[cat.id]?.[p2.id];
 										return (
 											<td
 												key={p2.id}
 												className={`border p-2 text-center ${getCellColor(likeness)}`}
 											>
-												{formatPercentage(likeness)}
+												{likeness === undefined ? "-" : formatPercentage(likeness)}
 											</td>
 										);
 									})}
