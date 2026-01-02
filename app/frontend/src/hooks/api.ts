@@ -35,6 +35,7 @@ export const useCompassMotions = (
 	excludeIds?: string[],
 	categoryIds?: string[],
 	after?: Date,
+	search?: string,
 ) => {
 	return useQuery(
 		orpc.motions.getForCompass.queryOptions({
@@ -43,6 +44,7 @@ export const useCompassMotions = (
 				excludeIds,
 				categoryIds,
 				after,
+				search,
 			},
 		}),
 	);
@@ -177,12 +179,14 @@ export const usePartyFocus = (
 export const useCompassMotionsCount = (filters: {
 	categoryIds?: string[];
 	after?: Date;
+	search?: string;
 }) => {
 	return useQuery(
 		orpc.motions.getForCompassCount.queryOptions({
 			input: {
 				categoryIds: filters.categoryIds,
 				after: filters.after,
+				search: filters.search,
 			},
 		}),
 	);

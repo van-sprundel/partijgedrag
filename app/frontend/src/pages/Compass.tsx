@@ -73,10 +73,12 @@ export function CompassPage() {
 			.filter(Boolean);
 		const afterParam = searchParams.get("after");
 		const after = afterParam ? new Date(afterParam) : undefined;
+		const search = searchParams.get("search") || undefined;
 
 		return {
 			categoryIds,
 			after,
+			search,
 		};
 	}, [searchParams]);
 
@@ -95,6 +97,7 @@ export function CompassPage() {
 		motions.map((m) => m.id),
 		filterParams.categoryIds,
 		filterParams.after,
+		filterParams.search,
 	);
 
 	useEffect(() => {

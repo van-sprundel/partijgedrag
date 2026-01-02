@@ -6,6 +6,7 @@ export async function getForCompass(
 	excludeIds: string[] | undefined,
 	categoryIds: string[] | undefined,
 	after: Date | undefined,
+	search: string | undefined,
 ) {
 	return sql<Motion>`
         WITH VoteCounts AS (
@@ -43,6 +44,15 @@ export async function getForCompass(
             SELECT 1 FROM "zaak_categories"
             WHERE "zaak_id" = z.id
             AND "category_id" IN (SELECT unnest(${categoryIds}::text[]))
+        ))
+        AND (${search}::text IS NULL OR (
+            z.onderwerp ILIKE '%' || ${search} || '%'
+            OR z.citeertitel ILIKE '%' || ${search} || '%'
+            OR z.nummer ILIKE '%' || ${search} || '%'
+            OR EXISTS (
+                SELECT 1 FROM jsonb_array_elements_text(z."bullet_points") AS elem
+                WHERE elem ILIKE '%' || ${search} || '%'
+            )
         ))
         ORDER BY ABS(vc.voor_votes - vc.tegen_votes) ASC, RANDOM()
         LIMIT ${count}
@@ -327,6 +337,7 @@ export async function getSubmitterByMotionId(motionId: string) {
 export async function getForCompassCount(
 	categoryIds: string[] | undefined,
 	after: Date | undefined,
+	search: string | undefined,
 ) {
 	return sqlOne<{ count: number }>`
         SELECT
@@ -341,6 +352,15 @@ export async function getForCompassCount(
             SELECT 1 FROM "zaak_categories"
             WHERE "zaak_id" = z.id
             AND "category_id" IN (SELECT unnest(${categoryIds}::text[]))
+        ))
+        AND (${search}::text IS NULL OR (
+            z.onderwerp ILIKE '%' || ${search} || '%'
+            OR z.citeertitel ILIKE '%' || ${search} || '%'
+            OR z.nummer ILIKE '%' || ${search} || '%'
+            OR EXISTS (
+                SELECT 1 FROM jsonb_array_elements_text(z."bullet_points") AS elem
+                WHERE elem ILIKE '%' || ${search} || '%'
+            )
         ))
     `;
 }
