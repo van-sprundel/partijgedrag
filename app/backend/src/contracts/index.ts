@@ -159,6 +159,7 @@ const motionGetForCompassContract = oc
       excludeIds: z.array(z.string()).optional(),
       categoryIds: z.array(z.string()).optional(),
       after: z.coerce.date().optional(),
+      search: z.string().optional(),
     }),
   )
   .output(z.array(MotionSchema));
@@ -168,6 +169,7 @@ const motionGetForCompassCountContract = oc
     z.object({
       categoryIds: z.array(z.string()).optional(),
       after: z.coerce.date().optional(),
+      search: z.string().optional(),
     }),
   )
   .output(z.object({ count: z.number() }));

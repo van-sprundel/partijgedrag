@@ -7,6 +7,7 @@ import {
 	Flame,
 	Loader2,
 	Save,
+	Search,
 	Settings,
 	Users,
 } from "lucide-react";
@@ -25,6 +26,7 @@ import { useCompassMotionsCount, useMotionCategories } from "../hooks/api";
 interface CompassSettingsState {
 	categoryIds: string[];
 	coalitionOnly: boolean;
+	search: string;
 }
 
 // Debounce hook
@@ -56,10 +58,12 @@ export function CompassSettingsPage() {
 		const coalitionOnly = searchParams.has("after")
 			? searchParams.get("after") === "2024-07-02"
 			: true;
+		const search = searchParams.get("search") || "";
 
 		return {
 			categoryIds,
 			coalitionOnly,
+			search,
 		};
 	}, [searchParams]);
 
@@ -75,6 +79,7 @@ export function CompassSettingsPage() {
 					? debouncedSettings.categoryIds
 					: undefined,
 			after: debouncedSettings.coalitionOnly ? new Date("2024-07-02") : undefined,
+			search: debouncedSettings.search || undefined,
 		});
 
 	useEffect(() => {
@@ -115,12 +120,16 @@ export function CompassSettingsPage() {
 			params.set("after", "2024-07-02");
 		}
 
+		if (settings.search) {
+			params.set("search", settings.search);
+		}
+
 		const queryString = params.toString();
 		navigate(`/compass${queryString ? `?${queryString}` : ""}`);
 	};
 
 	const isEditingExistingFilters =
-		searchParams.has("categoryIds") || searchParams.has("after");
+		searchParams.has("categoryIds") || searchParams.has("after") || searchParams.has("search");
 
 	if (isLoading) {
 		return (
@@ -357,6 +366,43 @@ export function CompassSettingsPage() {
 												</button>
 											))}
 									</div>
+								</div>
+							</CardContent>
+						</Card>
+
+						{/* Free Text Search */}
+						<Card>
+							<CardHeader>
+								<div className="flex items-center">
+									<Search className="h-6 w-6 text-primary-600 mr-3" />
+									<div>
+										<CardTitle>Vrije tekst</CardTitle>
+										<CardDescription>
+											Zoek naar specifieke woorden of begrippen in alle
+											stellingen
+										</CardDescription>
+									</div>
+								</div>
+							</CardHeader>
+							<CardContent>
+								<div className="space-y-3">
+									<input
+										type="text"
+										placeholder="Bijv. klimaat, energietransitie, onderwijs..."
+										value={settings.search}
+										onChange={(e) =>
+											setSettings((prev) => ({
+												...prev,
+												search: e.target.value,
+											}))
+										}
+										className="w-full border-2 border-gray-200 rounded-lg p-3 focus:outline-none focus:border-primary-500 transition-colors"
+									/>
+									<p className="text-sm text-gray-600">
+										{settings.search
+											? `Zoeken naar: "${settings.search}"`
+											: "Laat leeg om op alle stellingen te zoeken"}
+									</p>
 								</div>
 							</CardContent>
 						</Card>

@@ -67,14 +67,14 @@ export const motionRouter = {
   }),
 
   getForCompass: os.motions.getForCompass.handler(async ({ input }) => {
-    const { count, excludeIds, categoryIds, after } = input;
-    return getForCompass(count, excludeIds, categoryIds, after);
+    const { count, excludeIds, categoryIds, after, search } = input;
+    return getForCompass(count, excludeIds, categoryIds, after, search);
   }),
 
   getForCompassCount: os.motions.getForCompassCount.handler(
     async ({ input }) => {
-      const { categoryIds, after } = input;
-      return getForCompassCount(categoryIds, after);
+      const { categoryIds, after, search } = input;
+      return getForCompassCount(categoryIds, after, search);
     },
   ),
 
