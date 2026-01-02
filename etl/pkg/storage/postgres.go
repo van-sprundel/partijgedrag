@@ -254,11 +254,39 @@ func (s *PostgresStorage) Migrate(ctx context.Context) error {
 		return fmt.Errorf("failed to run auto-migration: %w", err)
 	}
 
+	// Create text search indexes
+	if err := s.createTextSearchIndexes(ctx); err != nil {
+		return fmt.Errorf("failed to create text search indexes: %w", err)
+	}
+
 	// Create materialized views if they don't exist
 	if err := s.createMaterializedViews(ctx); err != nil {
 		return fmt.Errorf("failed to create materialized views: %w", err)
 	}
 
+	return nil
+}
+
+func (s *PostgresStorage) createTextSearchIndexes(ctx context.Context) error {
+	// Enable pg_trgm extension for trigram-based text search
+	if err := s.db.WithContext(ctx).Exec("CREATE EXTENSION IF NOT EXISTS pg_trgm").Error; err != nil {
+		return fmt.Errorf("failed to create pg_trgm extension: %w", err)
+	}
+
+	// Create GIN indexes for text search on zaken table
+	indexes := []string{
+		"CREATE INDEX IF NOT EXISTS idx_zaken_onderwerp_gin_trgm ON zaken USING gin (onderwerp gin_trgm_ops);",
+		"CREATE INDEX IF NOT EXISTS idx_zaken_citeertitel_gin_trgm ON zaken USING gin (citeertitel gin_trgm_ops);",
+		"CREATE INDEX IF NOT EXISTS idx_zaken_nummer_gin_trgm ON zaken USING gin (nummer gin_trgm_ops);",
+		"CREATE INDEX IF NOT EXISTS idx_zaken_bullet_points_gin ON zaken USING gin (bullet_points);",
+	}
+	for _, idx := range indexes {
+		if err := s.db.WithContext(ctx).Exec(idx).Error; err != nil {
+			return fmt.Errorf("failed to create text search index: %w", err)
+		}
+	}
+
+	log.Println("Text search indexes created/verified successfully")
 	return nil
 }
 
