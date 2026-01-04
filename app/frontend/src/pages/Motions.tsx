@@ -89,32 +89,7 @@ export function MotionsPage() {
 
 	const totalPages = data ? Math.ceil(data.total / ITEMS_PER_PAGE) : 0;
 
-	if (isLoading) {
-		return (
-			<div className="min-h-screen bg-gray-50">
-				<div className="container mx-auto px-4 py-8 max-w-7xl">
-					<Card>
-						<CardHeader>
-							<CardTitle>Moties</CardTitle>
-							<CardDescription>Moties uit de Tweede Kamer</CardDescription>
-						</CardHeader>
-						<CardContent>
-							<div className="animate-pulse space-y-4">
-								{Array.from({ length: 10 }, (_, i) => (
-									<div
-										key={`skeleton-${Date.now()}-${i}`}
-										className="h-20 bg-gray-200 rounded-md"
-									></div>
-								))}
-							</div>
-						</CardContent>
-					</Card>
-				</div>
-			</div>
-		);
-	}
-
-	if (error || !data) {
+	if (error) {
 		return (
 			<div className="min-h-screen bg-gray-50 flex items-center justify-center">
 				<Card className="max-w-md mx-auto">
@@ -155,7 +130,8 @@ export function MotionsPage() {
 			? "Moties uit de Tweede Kamer met stemresultaten"
 			: "Alle moties uit de Tweede Kamer";
 		const searchText = searchQuery ? ` - Zoekresultaten voor "${searchQuery}"` : "";
-		return `${baseText}${searchText} (${data?.total || 0} moties)`;
+		const count = isLoading ? "..." : `${data?.total || 0} moties`;
+		return `${baseText}${searchText} (${count})`;
 	};
 
 	const handleClearSearch = () => {
@@ -234,7 +210,42 @@ export function MotionsPage() {
 
 						{/* Table Rows */}
 						<div className="divide-y divide-gray-200">
-							{data.motions.map((motion) => (
+							{isLoading ? (
+								// Skeleton loading state
+								<div className="animate-pulse space-y-0">
+									{Array.from({ length: ITEMS_PER_PAGE }, (_, i) => (
+										<div
+											key={`skeleton-${i}`}
+											className="grid grid-cols-1 md:grid-cols-12 gap-4 px-6 py-4"
+										>
+											<div className="md:col-span-5 space-y-2">
+												<div className="h-5 bg-gray-200 rounded w-3/4"></div>
+												<div className="h-4 bg-gray-200 rounded w-1/2"></div>
+												<div className="h-3 bg-gray-200 rounded w-1/4"></div>
+											</div>
+											<div className="md:col-span-2">
+												<div className="h-4 bg-gray-200 rounded w-24"></div>
+											</div>
+											<div className="md:col-span-3">
+												<div className="h-4 bg-gray-200 rounded w-32"></div>
+											</div>
+											<div className="md:col-span-2 flex gap-2">
+												<div className="h-8 bg-gray-200 rounded w-16"></div>
+												<div className="h-8 bg-gray-200 rounded w-8"></div>
+											</div>
+										</div>
+									))}
+								</div>
+							) : !data || data.motions.length === 0 ? (
+								// Empty state
+								<div className="px-6 py-12 text-center text-gray-500">
+									{searchQuery
+										? `Geen moties gevonden voor "${searchQuery}"`
+										: "Geen moties beschikbaar"}
+								</div>
+							) : (
+								// Actual data
+								data.motions.map((motion) => (
 								<div
 									key={motion.id}
 									className="grid grid-cols-1 md:grid-cols-12 gap-4 px-6 py-4 hover:bg-gray-50 transition-colors"
@@ -305,14 +316,15 @@ export function MotionsPage() {
 										)}
 									</div>
 								</div>
-							))}
+								))
+							)}
 						</div>
 
 						{/* Pagination */}
-						{totalPages > 1 && (
+						{!isLoading && totalPages > 1 && (
 							<div className="flex items-center justify-between px-6 py-4 border-t bg-gray-50">
 								<div className="text-sm text-gray-600">
-									Pagina {currentPage} van {totalPages} ({data.total} moties)
+									Pagina {currentPage} van {totalPages} ({data?.total} moties)
 								</div>
 
 								<div className="flex items-center space-x-2">
