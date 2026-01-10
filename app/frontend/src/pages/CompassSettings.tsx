@@ -93,6 +93,17 @@ export function CompassSettingsPage() {
 					: undefined,
 		});
 
+	// Fetch total count without party filter for comparison
+	const { data: totalMotionCount } = useCompassMotionsCount({
+		categoryIds:
+			debouncedSettings.categoryIds.length > 0
+				? debouncedSettings.categoryIds
+				: undefined,
+		after: debouncedSettings.coalitionOnly ? new Date("2024-07-02") : undefined,
+		search: debouncedSettings.search || undefined,
+		partyIds: undefined, // No party filter for total count
+	});
+
 	useEffect(() => {
 		setSettings(initialSettings);
 	}, [initialSettings]);
@@ -133,6 +144,13 @@ export function CompassSettingsPage() {
 		setSettings((prev) => ({
 			...prev,
 			partyIds: [],
+		}));
+	};
+
+	const handleSelectAllParties = () => {
+		setSettings((prev) => ({
+			...prev,
+			partyIds: availableParties.map((party) => party.id),
 		}));
 	};
 
@@ -192,7 +210,16 @@ export function CompassSettingsPage() {
 										{isCountFetching ? (
 											<Loader2 className="h-4 w-4 animate-spin" />
 										) : (
-											<>{motionCount?.count ?? 0} stellingen beschikbaar</>
+											<>
+												{motionCount?.count ?? 0} stellingen beschikbaar
+												{settings.partyIds.length >= 2 &&
+													totalMotionCount &&
+													motionCount?.count !== totalMotionCount?.count && (
+													<span className="text-gray-500 font-normal">
+														{" "}(gefilterd van {totalMotionCount.count} totaal)
+													</span>
+												)}
+											</>
 										)}
 									</span>
 									<span className="text-xs">
@@ -453,6 +480,14 @@ export function CompassSettingsPage() {
 										</div>
 									</div>
 									<div className="flex gap-2">
+										<Button
+											variant="ghost"
+											size="sm"
+											onClick={handleSelectAllParties}
+											disabled={settings.partyIds.length === availableParties.length}
+										>
+											Alles selecteren
+										</Button>
 										<Button
 											variant="ghost"
 											size="sm"
