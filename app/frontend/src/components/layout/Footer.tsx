@@ -8,7 +8,7 @@ export function Footer() {
 				<div className="flex flex-col md:flex-row justify-between items-center gap-4">
 					{/* Left side - Copyright and CYSO */}
 					<div className="flex items-center gap-4 text-sm text-gray-600">
-						<span>© 2012-2025 Elwin Oost,</span>
+						<span>© 2012-2026 Elwin Oost,</span>
 						<a
 							href="https://solveware.nl"
 							target="_blank"
