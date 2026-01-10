@@ -331,3 +331,177 @@ func (s *PostgresStorage) createMaterializedViews(ctx context.Context) error {
 	log.Println("Materialized views created/verified successfully")
 	return nil
 }
+
+// GetCoalitionAlignments calculates how often party pairs vote together
+func (s *PostgresStorage) GetCoalitionAlignments(ctx context.Context, period string) ([]models.CoalitionAlignment, error) {
+	var results []models.CoalitionAlignment
+
+	query := `
+		SELECT
+			plpm.fractie1_id,
+			plpm.fractie2_id,
+			$1 as period,
+			ROUND(AVG(CASE WHEN same_vote THEN 1.0 ELSE 0.0 END) * 100, 2) as alignment_pct,
+			SUM(CASE WHEN same_vote THEN 1 ELSE 0 END)::int as same_votes,
+			COUNT(*)::int as total_votes,
+			NOW() as updated_at,
+			f1.afkorting as fractie1_name,
+			f2.afkorting as fractie2_name
+		FROM party_likeness_per_motion plpm
+		JOIN fracties f1 ON plpm.fractie1_id = f1.id
+		JOIN fracties f2 ON plpm.fractie2_id = f2.id
+		WHERE ($1 = 'all' OR EXTRACT(YEAR FROM plpm.gestart_op)::text = $1)
+		GROUP BY plpm.fractie1_id, plpm.fractie2_id, f1.afkorting, f2.afkorting
+		HAVING COUNT(*) >= 10
+		ORDER BY alignment_pct DESC
+	`
+
+	err := s.db.WithContext(ctx).Raw(query, period).Scan(&results).Error
+	return results, err
+}
+
+// GetMPDeviations finds MPs who vote against their party line most often
+func (s *PostgresStorage) GetMPDeviations(ctx context.Context, period string, limit int) ([]models.MPDeviation, error) {
+	var results []models.MPDeviation
+
+	query := `
+		WITH party_majority AS (
+			SELECT
+				b.id as besluit_id,
+				s.fractie_id,
+				s.soort as majority_vote
+			FROM stemmingen s
+			JOIN besluiten b ON s.besluit_id = b.id
+			JOIN zaken z ON b.zaak_id = z.id
+			WHERE s.fractie_id IS NOT NULL
+			  AND s.soort IN ('Voor', 'Tegen')
+			  AND z.soort = 'Motie'
+			  AND ($1 = 'all' OR EXTRACT(YEAR FROM z.gestart_op)::text = $1)
+		),
+		individual_votes AS (
+			SELECT
+				s.persoon_id,
+				s.fractie_id,
+				b.id as besluit_id,
+				s.soort as vote
+			FROM stemmingen s
+			JOIN besluiten b ON s.besluit_id = b.id
+			JOIN zaken z ON b.zaak_id = z.id
+			WHERE s.persoon_id IS NOT NULL
+			  AND s.fractie_id IS NOT NULL
+			  AND s.soort IN ('Voor', 'Tegen')
+			  AND z.soort = 'Motie'
+			  AND ($1 = 'all' OR EXTRACT(YEAR FROM z.gestart_op)::text = $1)
+		)
+		SELECT
+			iv.persoon_id,
+			iv.fractie_id,
+			$1 as period,
+			ROUND(AVG(CASE WHEN iv.vote != pm.majority_vote THEN 1.0 ELSE 0.0 END) * 100, 2) as deviation_pct,
+			SUM(CASE WHEN iv.vote != pm.majority_vote THEN 1 ELSE 0 END)::int as deviation_count,
+			COUNT(*)::int as total_votes,
+			NOW() as updated_at,
+			COALESCE(p.roepnaam, p.voornamen) || ' ' || COALESCE(p.tussenvoegsel || ' ', '') || p.achternaam as persoon_naam,
+			f.afkorting as fractie_naam
+		FROM individual_votes iv
+		JOIN party_majority pm ON iv.besluit_id = pm.besluit_id AND iv.fractie_id = pm.fractie_id
+		JOIN personen p ON iv.persoon_id = p.id
+		JOIN fracties f ON iv.fractie_id = f.id
+		GROUP BY iv.persoon_id, iv.fractie_id, p.roepnaam, p.voornamen, p.tussenvoegsel, p.achternaam, f.afkorting
+		HAVING COUNT(*) >= 20
+		ORDER BY deviation_pct DESC
+		LIMIT $2
+	`
+
+	err := s.db.WithContext(ctx).Raw(query, period, limit).Scan(&results).Error
+	return results, err
+}
+
+// GetTopicTrends returns motion counts by category over time
+func (s *PostgresStorage) GetTopicTrends(ctx context.Context, period string) ([]models.TopicTrend, error) {
+	var results []models.TopicTrend
+
+	query := `
+		SELECT
+			zc.category_id,
+			$1 as period,
+			COUNT(DISTINCT z.id)::int as motion_count,
+			COUNT(DISTINCT CASE WHEN b.status = 'Aangenomen' THEN z.id END)::int as accepted_count,
+			COUNT(DISTINCT CASE WHEN b.status = 'Verworpen' THEN z.id END)::int as rejected_count,
+			NOW() as updated_at,
+			mc.name as category_name
+		FROM zaak_categories zc
+		JOIN zaken z ON zc.zaak_id = z.id
+		JOIN motion_categories mc ON zc.category_id = mc.id
+		LEFT JOIN besluiten b ON b.zaak_id = z.id
+		WHERE z.soort = 'Motie'
+		  AND ($1 = 'all' OR EXTRACT(YEAR FROM z.gestart_op)::text = $1)
+		GROUP BY zc.category_id, mc.name
+		ORDER BY motion_count DESC
+	`
+
+	err := s.db.WithContext(ctx).Raw(query, period).Scan(&results).Error
+	return results, err
+}
+
+// GetPartyTopicVoting returns how a party votes on specific topics
+func (s *PostgresStorage) GetPartyTopicVoting(ctx context.Context, fractieID string, period string) ([]models.PartyTopicVoting, error) {
+	var results []models.PartyTopicVoting
+
+	query := `
+		SELECT
+			mv.fractie_id,
+			zc.category_id,
+			$2 as period,
+			SUM(CASE WHEN mv.vote_type = 'Voor' THEN 1 ELSE 0 END)::int as votes_for,
+			SUM(CASE WHEN mv.vote_type = 'Tegen' THEN 1 ELSE 0 END)::int as votes_against,
+			0 as abstentions,
+			COUNT(*)::int as total_votes,
+			ROUND(AVG(CASE WHEN mv.vote_type = 'Voor' THEN 1.0 ELSE 0.0 END) * 100, 2) as for_pct,
+			NOW() as updated_at,
+			f.afkorting as fractie_naam,
+			mc.name as category_name
+		FROM majority_party_votes mv
+		JOIN zaak_categories zc ON mv.zaak_id = zc.zaak_id
+		JOIN motion_categories mc ON zc.category_id = mc.id
+		JOIN fracties f ON mv.fractie_id = f.id
+		WHERE ($1 = '' OR mv.fractie_id = $1)
+		  AND ($2 = 'all' OR EXTRACT(YEAR FROM mv.gestart_op)::text = $2)
+		GROUP BY mv.fractie_id, zc.category_id, f.afkorting, mc.name
+		HAVING COUNT(*) >= 5
+		ORDER BY total_votes DESC
+	`
+
+	err := s.db.WithContext(ctx).Raw(query, fractieID, period).Scan(&results).Error
+	return results, err
+}
+
+// GetActiveFracties returns all currently active parties
+func (s *PostgresStorage) GetActiveFracties(ctx context.Context) ([]models.Fractie, error) {
+	var fracties []models.Fractie
+	err := s.db.WithContext(ctx).
+		Where("datum_inactief IS NULL").
+		Order("afkorting").
+		Find(&fracties).Error
+	return fracties, err
+}
+
+// RefreshMaterializedViews refreshes all materialized views used for analysis
+func (s *PostgresStorage) RefreshMaterializedViews(ctx context.Context) error {
+	log.Println("Refreshing materialized views...")
+
+	// Refresh majority_party_votes first (party_likeness_per_motion depends on it)
+	if err := s.db.WithContext(ctx).Exec("REFRESH MATERIALIZED VIEW majority_party_votes").Error; err != nil {
+		return fmt.Errorf("failed to refresh majority_party_votes: %w", err)
+	}
+	log.Println("Refreshed majority_party_votes")
+
+	// Then refresh party_likeness_per_motion
+	if err := s.db.WithContext(ctx).Exec("REFRESH MATERIALIZED VIEW party_likeness_per_motion").Error; err != nil {
+		return fmt.Errorf("failed to refresh party_likeness_per_motion: %w", err)
+	}
+	log.Println("Refreshed party_likeness_per_motion")
+
+	log.Println("Materialized views refreshed successfully")
+	return nil
+}

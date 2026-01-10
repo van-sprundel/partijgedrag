@@ -30,11 +30,19 @@ type Storage interface {
 
 	GetZakenForEnrichment(ctx context.Context) ([]models.Zaak, error)
 
+	// Analysis operations
+	GetCoalitionAlignments(ctx context.Context, period string) ([]models.CoalitionAlignment, error)
+	GetMPDeviations(ctx context.Context, period string, limit int) ([]models.MPDeviation, error)
+	GetTopicTrends(ctx context.Context, period string) ([]models.TopicTrend, error)
+	GetPartyTopicVoting(ctx context.Context, fractieID string, period string) ([]models.PartyTopicVoting, error)
+	GetActiveFracties(ctx context.Context) ([]models.Fractie, error)
+
 	// Utility operations
 	Close() error
 	Ping(ctx context.Context) error
 	CleanDatabase(ctx context.Context) error
 	Migrate(ctx context.Context) error
+	RefreshMaterializedViews(ctx context.Context) error
 }
 
 func NewStorage(config config.StorageConfig) (Storage, error) {
