@@ -120,13 +120,11 @@ export function MotionsPage() {
 
 	const handlePageChange = (page: number) => {
 		setCurrentPage(page);
-		window.scrollTo({ top: 0, behavior: "smooth" });
 	};
 
 	const handleFilterChange = () => {
 		setShowOnlyWithVotes(!showOnlyWithVotes);
 		setCurrentPage(1); // Reset to first page when filter changes
-		window.scrollTo({ top: 0, behavior: "smooth" });
 	};
 
 	const getDescription = () => {
@@ -150,8 +148,8 @@ export function MotionsPage() {
 	return (
 		<div className="bg-gray-50">
 			<div className="container mx-auto px-4 py-8 max-w-7xl">
-				<Card>
-					<CardHeader>
+				<Card className="flex flex-col max-h-[calc(100vh-8rem)] overflow-hidden">
+					<CardHeader className="sticky top-0 z-10 bg-white border-b shrink-0">
 						<div className="flex flex-col gap-4">
 							<div className="flex items-center justify-between">
 								<div>
@@ -261,9 +259,9 @@ export function MotionsPage() {
 						</div>
 					</CardHeader>
 
-					<CardContent className="p-0">
+					<CardContent className="p-0 flex-1 overflow-auto">
 						{/* Table Header */}
-						<div className="hidden md:grid md:grid-cols-12 gap-4 px-6 py-3 bg-gray-50 border-b font-medium text-sm text-gray-700">
+						<div className="hidden md:grid md:grid-cols-12 gap-4 px-6 py-3 bg-gray-50 border-b font-medium text-sm text-gray-700 sticky top-0 z-[5]">
 							<div className="col-span-5">Motie</div>
 							<div className="col-span-2">Datum</div>
 							<div className="col-span-3">Stemresultaat</div>
@@ -381,73 +379,73 @@ export function MotionsPage() {
 								))
 							)}
 						</div>
-
-						{/* Pagination */}
-						{!isLoading && totalPages > 1 && (
-							<div className="flex items-center justify-between px-6 py-4 border-t bg-gray-50">
-								<div className="text-sm text-gray-600">
-									Pagina {currentPage} van {totalPages} ({data?.total} moties)
-								</div>
-
-								<div className="flex items-center space-x-2">
-									<button
-										type="button"
-										onClick={() =>
-											handlePageChange(Math.max(1, currentPage - 1))
-										}
-										disabled={currentPage <= 1}
-										className="flex items-center px-3 py-1 text-sm bg-white border border-gray-300 rounded-md hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
-									>
-										<ChevronLeft className="h-4 w-4 mr-1" />
-										Vorige
-									</button>
-
-									{/* Page Numbers */}
-									<div className="flex items-center space-x-1">
-										{Array.from({ length: Math.min(5, totalPages) }, (_, i) => {
-											let pageNumber: number;
-											if (totalPages <= 5) {
-												pageNumber = i + 1;
-											} else if (currentPage <= 3) {
-												pageNumber = i + 1;
-											} else if (currentPage >= totalPages - 2) {
-												pageNumber = totalPages - 4 + i;
-											} else {
-												pageNumber = currentPage - 2 + i;
-											}
-
-											return (
-												<button
-													type="button"
-													key={pageNumber}
-													onClick={() => handlePageChange(pageNumber)}
-													className={`px-3 py-1 text-sm rounded-md transition-colors ${
-														currentPage === pageNumber
-															? "bg-primary-600 text-white"
-															: "bg-white border border-gray-300 hover:bg-gray-50"
-													}`}
-												>
-													{pageNumber}
-												</button>
-											);
-										})}
-									</div>
-
-									<button
-										type="button"
-										onClick={() =>
-											handlePageChange(Math.min(totalPages, currentPage + 1))
-										}
-										disabled={currentPage >= totalPages}
-										className="flex items-center px-3 py-1 text-sm bg-white border border-gray-300 rounded-md hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
-									>
-										Volgende
-										<ChevronRight className="h-4 w-4 ml-1" />
-									</button>
-								</div>
-							</div>
-						)}
 					</CardContent>
+
+					{/* Pagination - sticky at bottom */}
+					{!isLoading && totalPages > 1 && (
+						<div className="flex items-center justify-between px-6 py-4 border-t bg-gray-50 shrink-0 rounded-b-lg">
+							<div className="text-sm text-gray-600">
+								Pagina {currentPage} van {totalPages} ({data?.total} moties)
+							</div>
+
+							<div className="flex items-center space-x-2">
+								<button
+									type="button"
+									onClick={() =>
+										handlePageChange(Math.max(1, currentPage - 1))
+									}
+									disabled={currentPage <= 1}
+									className="flex items-center px-3 py-1 text-sm bg-white border border-gray-300 rounded-md hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+								>
+									<ChevronLeft className="h-4 w-4 mr-1" />
+									Vorige
+								</button>
+
+								{/* Page Numbers */}
+								<div className="flex items-center space-x-1">
+									{Array.from({ length: Math.min(5, totalPages) }, (_, i) => {
+										let pageNumber: number;
+										if (totalPages <= 5) {
+											pageNumber = i + 1;
+										} else if (currentPage <= 3) {
+											pageNumber = i + 1;
+										} else if (currentPage >= totalPages - 2) {
+											pageNumber = totalPages - 4 + i;
+										} else {
+											pageNumber = currentPage - 2 + i;
+										}
+
+										return (
+											<button
+												type="button"
+												key={pageNumber}
+												onClick={() => handlePageChange(pageNumber)}
+												className={`px-3 py-1 text-sm rounded-md transition-colors ${
+													currentPage === pageNumber
+														? "bg-primary-600 text-white"
+														: "bg-white border border-gray-300 hover:bg-gray-50"
+												}`}
+											>
+												{pageNumber}
+											</button>
+										);
+									})}
+								</div>
+
+								<button
+									type="button"
+									onClick={() =>
+										handlePageChange(Math.min(totalPages, currentPage + 1))
+									}
+									disabled={currentPage >= totalPages}
+									className="flex items-center px-3 py-1 text-sm bg-white border border-gray-300 rounded-md hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+								>
+									Volgende
+									<ChevronRight className="h-4 w-4 ml-1" />
+								</button>
+							</div>
+						</div>
+					)}
 				</Card>
 			</div>
 		</div>
