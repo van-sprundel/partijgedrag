@@ -1,5 +1,6 @@
-import type { Party, Vote } from "../../contracts/index.js";
 import { sql, sqlOneOrNull } from "../db/sql-tag.js";
+
+ 
 
 export async function getActiveParties() {
   return sql<{
@@ -127,6 +128,7 @@ export async function getVotesByPartyAndMotionIds(
   partyId: string,
   motionIds?: string[],
 ) {
+   
   return sql<Vote>`
         SELECT
             id,

@@ -71,7 +71,7 @@ const VoteSchema = z.object({
   politician: PoliticianSchema.optional(),
 });
 
-const DecisionSchema = z.object({
+export const DecisionSchema = z.object({
   id: z.string(),
   agendaPointId: z.string().nullable(),
   caseId: z.string().nullable(),

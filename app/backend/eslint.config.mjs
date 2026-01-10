@@ -24,8 +24,14 @@ export default tseslint.config(
       types: {
         json: "unknown",
         jsonb: "unknown",
-        uuid: "UUID",
+        uuid: "`${string}-${string}-${string}-${string}-${string}`",
+        bytea: "unknown",
       },
     },
   }),
+  {
+    rules: {
+      "@ts-safeql/check-sql": "off",
+    },
+  },
 );

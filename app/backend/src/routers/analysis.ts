@@ -9,15 +9,7 @@ export const analysisRouter = {
 		async ({ input }) => {
 			const period = input?.period ?? "all";
 
-			const results = await sql<{
-				fractie1Id: string;
-				fractie2Id: string;
-				fractie1Name: string;
-				fractie2Name: string;
-				alignmentPct: number;
-				sameVotes: string;
-				totalVotes: string;
-			}>`
+			const results = await sql<{ 'fractie1Id': string | null; 'fractie2Id': string | null; 'fractie1Name': string | null; 'fractie2Name': string | null; alignmentPct: string; sameVotes: string | null; totalVotes: string }>`
 				SELECT
 					plpm.fractie1_id AS "fractie1Id",
 					plpm.fractie2_id AS "fractie2Id",
@@ -51,15 +43,7 @@ export const analysisRouter = {
 		const period = input?.period ?? "all";
 		const limit = input?.limit ?? 50;
 
-		const results = await sql<{
-			persoonId: string;
-			fractieId: string;
-			persoonNaam: string;
-			fractieNaam: string;
-			deviationPct: number;
-			deviationCount: string;
-			totalVotes: string;
-		}>`
+		const results = await sql<{ persoonId: string | null; fractieId: string | null; persoonNaam: string | null; fractieNaam: string | null; deviationPct: string; deviationCount: string | null; totalVotes: string }>`
 			WITH party_majority AS (
 				SELECT
 					b.id as besluit_id,
@@ -157,16 +141,7 @@ export const analysisRouter = {
 			const period = input?.period ?? "all";
 			const fractieId = input?.fractieId ?? "";
 
-			const results = await sql<{
-				fractieId: string;
-				categoryId: string;
-				fractieNaam: string;
-				categoryName: string;
-				votesFor: string;
-				votesAgainst: string;
-				totalVotes: string;
-				forPct: number;
-			}>`
+			const results = await sql<{ fractieId: string | null; categoryId: string; fractieNaam: string | null; categoryName: string; votesFor: string | null; votesAgainst: string | null; totalVotes: string; forPct: string }>`
 				SELECT
 					mv.fractie_id AS "fractieId",
 					zc.category_id AS "categoryId",

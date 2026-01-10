@@ -5,7 +5,10 @@ import type {
 } from "../../contracts/index.js";
 import { sql } from "../db/sql-tag.js";
 
+ 
+
 export async function getPartyLikenessMatrix(dateFrom?: Date, dateTo?: Date) {
+   
   return sql<PartyLikeness>`
         WITH PartyVotes AS (
             SELECT DISTINCT
@@ -58,6 +61,7 @@ export async function getPartyFocus(
   dateFrom?: Date,
   dateTo?: Date,
 ) {
+   
   return sql<PartyFocusCategory>`
         SELECT
             mc.id AS "categoryId",
@@ -92,6 +96,7 @@ export async function getPartyCategoryLikeness(
   dateFrom?: Date,
   dateTo?: Date,
 ) {
+   
   return sql<PartyCategoryLikeness>`
         WITH PartyVotesByCategory AS (
             SELECT DISTINCT

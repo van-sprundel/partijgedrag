@@ -1,4 +1,3 @@
-import type { Politician } from "../../contracts/index.js";
 import { sqlOneOrNull } from "../db/sql-tag.js";
 
 export async function getPoliticianById(id: string) {
