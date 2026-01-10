@@ -17,7 +17,7 @@ import {
 	CardHeader,
 	CardTitle,
 } from "../components/ui/Card";
-import { useMotions, useMotionVotes } from "../hooks/api";
+import { useMotions, useMotionVotes, useParties } from "../hooks/api";
 import { formatDate } from "../lib/utils";
 
 const ITEMS_PER_PAGE = 20;
@@ -68,7 +68,10 @@ export function MotionsPage() {
 	const [showOnlyWithVotes, setShowOnlyWithVotes] = useState(false);
 	const [searchInput, setSearchInput] = useState("");
 	const [searchQuery, setSearchQuery] = useState("");
+	const [selectedPartyIds, setSelectedPartyIds] = useState<string[]>([]);
 	const offset = (currentPage - 1) * ITEMS_PER_PAGE;
+
+	const { data: parties } = useParties({ activeOnly: true });
 
 	// Debounce search input
 	useEffect(() => {
@@ -85,6 +88,7 @@ export function MotionsPage() {
 		offset,
 		withVotes: showOnlyWithVotes,
 		search: searchQuery || undefined,
+		partyIds: selectedPartyIds.length > 0 ? selectedPartyIds : undefined,
 	});
 
 	const totalPages = data ? Math.ceil(data.total / ITEMS_PER_PAGE) : 0;
@@ -130,8 +134,12 @@ export function MotionsPage() {
 			? "Moties uit de Tweede Kamer met stemresultaten"
 			: "Alle moties uit de Tweede Kamer";
 		const searchText = searchQuery ? ` - Zoekresultaten voor "${searchQuery}"` : "";
+		const partyFilterText =
+			selectedPartyIds.length > 0
+				? ` - Gefilterd op ${selectedPartyIds.length} ${selectedPartyIds.length === 1 ? "partij" : "partijen"}`
+				: "";
 		const count = isLoading ? "..." : `${data?.total || 0} moties`;
-		return `${baseText}${searchText} (${count})`;
+		return `${baseText}${searchText}${partyFilterText} (${count})`;
 	};
 
 	const handleClearSearch = () => {
@@ -196,6 +204,60 @@ export function MotionsPage() {
 									</p>
 								)}
 							</div>
+
+							{/* Party Filter */}
+							{parties && parties.length > 0 && (
+								<div className="p-4 bg-gray-50 rounded-lg border">
+									<div className="flex items-center gap-2 mb-3">
+										<Filter className="h-4 w-4 text-gray-600" />
+										<h3 className="text-sm font-medium text-gray-700">
+											Filter op partijen
+										</h3>
+										{selectedPartyIds.length > 0 && (
+											<button
+												type="button"
+												onClick={() => {
+													setSelectedPartyIds([]);
+													setCurrentPage(1);
+												}}
+												className="ml-auto text-xs text-primary-600 hover:text-primary-700 font-medium"
+											>
+												Wis filter ({selectedPartyIds.length})
+											</button>
+										)}
+									</div>
+									<p className="text-xs text-gray-600 mb-3">
+										Selecteer partijen om alleen moties te tonen waar deze partijen voor
+										of tegen hebben gestemd
+									</p>
+									<div className="flex flex-wrap gap-2">
+										{parties.map((party) => {
+											const isSelected = selectedPartyIds.includes(party.id);
+											return (
+												<button
+													key={party.id}
+													type="button"
+													onClick={() => {
+														setSelectedPartyIds((prev) =>
+															prev.includes(party.id)
+																? prev.filter((id) => id !== party.id)
+																: [...prev, party.id],
+														);
+														setCurrentPage(1);
+													}}
+													className={`px-3 py-1.5 rounded-full text-xs font-medium transition-colors ${
+														isSelected
+															? "bg-primary-600 text-white"
+															: "bg-white text-gray-700 border border-gray-300 hover:border-primary-500"
+													}`}
+												>
+													{party.shortName}
+												</button>
+											);
+										})}
+									</div>
+								</div>
+							)}
 						</div>
 					</CardHeader>
 

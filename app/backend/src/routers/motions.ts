@@ -29,7 +29,7 @@ const os = implement(apiContract);
 
 export const motionRouter = {
   getAll: os.motions.getAll.handler(async ({ input }) => {
-    const { limit, offset, category, status, withVotes, search } = input;
+    const { limit, offset, category, status, withVotes, search, partyIds } = input;
     const rows = await getAllMotions(
       limit,
       offset,
@@ -37,6 +37,7 @@ export const motionRouter = {
       status,
       withVotes,
       search,
+      partyIds,
     );
     const total = rows[0]?.total ? parseInt(rows[0].total, 10) : 0;
     const motions = rows.map((r) => ({ ...r, total: undefined }));
