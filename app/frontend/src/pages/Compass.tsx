@@ -74,11 +74,16 @@ export function CompassPage() {
 		const afterParam = searchParams.get("after");
 		const after = afterParam ? new Date(afterParam) : undefined;
 		const search = searchParams.get("search") || undefined;
+		const partyIds = searchParams
+			.get("partyIds")
+			?.split(",")
+			.filter(Boolean);
 
 		return {
 			categoryIds,
 			after,
 			search,
+			partyIds,
 		};
 	}, [searchParams]);
 
@@ -98,6 +103,7 @@ export function CompassPage() {
 		filterParams.categoryIds,
 		filterParams.after,
 		filterParams.search,
+		filterParams.partyIds,
 	);
 
 	useEffect(() => {
@@ -223,7 +229,24 @@ export function CompassPage() {
 			const result = await submitAnswers.mutateAsync({ answers });
 			// Save session ID to localStorage for later retrieval
 			saveSessionId(result.id);
-			navigate(`/results/${result.id}`);
+			
+			// Build URL with query parameters
+			const params = new URLSearchParams();
+			if (filterParams.categoryIds?.length) {
+				params.set("categoryIds", filterParams.categoryIds.join(","));
+			}
+			if (filterParams.after) {
+				params.set("after", filterParams.after.toISOString().split("T")[0]);
+			}
+			if (filterParams.search) {
+				params.set("search", filterParams.search);
+			}
+			if (filterParams.partyIds?.length) {
+				params.set("partyIds", filterParams.partyIds.join(","));
+			}
+			
+			const queryString = params.toString();
+			navigate(`/results/${result.id}${queryString ? `?${queryString}` : ""}`);
 		} catch (error) {
 			console.error("Failed to submit answers:", error);
 		}

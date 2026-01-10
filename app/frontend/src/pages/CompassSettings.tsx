@@ -21,12 +21,13 @@ import {
 	CardHeader,
 	CardTitle,
 } from "../components/ui/Card";
-import { useCompassMotionsCount, useMotionCategories } from "../hooks/api";
+import { useCompassMotionsCount, useMotionCategories, useParties } from "../hooks/api";
 
 interface CompassSettingsState {
 	categoryIds: string[];
 	coalitionOnly: boolean;
 	search: string;
+	partyIds: string[];
 }
 
 // Debounce hook
@@ -50,6 +51,9 @@ export function CompassSettingsPage() {
 	const navigate = useNavigate();
 	const [searchParams] = useSearchParams();
 	const { data: availableCategories = [], isLoading } = useMotionCategories();
+	const { data: availableParties = [], isLoading: isPartiesLoading } = useParties({
+		activeOnly: true,
+	});
 
 	// Parse current query parameters
 	const initialSettings = useMemo(() => {
@@ -59,11 +63,14 @@ export function CompassSettingsPage() {
 			? searchParams.get("after") === "2024-07-02"
 			: true;
 		const search = searchParams.get("search") || "";
+		const partyIds =
+			searchParams.get("partyIds")?.split(",").filter(Boolean) || [];
 
 		return {
 			categoryIds,
 			coalitionOnly,
 			search,
+			partyIds,
 		};
 	}, [searchParams]);
 
@@ -80,6 +87,10 @@ export function CompassSettingsPage() {
 					: undefined,
 			after: debouncedSettings.coalitionOnly ? new Date("2024-07-02") : undefined,
 			search: debouncedSettings.search || undefined,
+			partyIds:
+				debouncedSettings.partyIds.length >= 2
+					? debouncedSettings.partyIds
+					: undefined,
 		});
 
 	useEffect(() => {
@@ -109,6 +120,22 @@ export function CompassSettingsPage() {
 		}));
 	};
 
+	const handlePartyToggle = (partyId: string) => {
+		setSettings((prev) => ({
+			...prev,
+			partyIds: prev.partyIds.includes(partyId)
+				? prev.partyIds.filter((id) => id !== partyId)
+				: [...prev.partyIds, partyId],
+		}));
+	};
+
+	const handleSelectNoParties = () => {
+		setSettings((prev) => ({
+			...prev,
+			partyIds: [],
+		}));
+	};
+
 	const handleStartCompass = () => {
 		const params = new URLSearchParams();
 
@@ -124,14 +151,18 @@ export function CompassSettingsPage() {
 			params.set("search", settings.search);
 		}
 
+		if (settings.partyIds.length >= 2) {
+			params.set("partyIds", settings.partyIds.join(","));
+		}
+
 		const queryString = params.toString();
 		navigate(`/compass${queryString ? `?${queryString}` : ""}`);
 	};
 
 	const isEditingExistingFilters =
-		searchParams.has("categoryIds") || searchParams.has("after") || searchParams.has("search");
+		searchParams.has("categoryIds") || searchParams.has("after") || searchParams.has("search") || searchParams.has("partyIds");
 
-	if (isLoading) {
+	if (isLoading || isPartiesLoading) {
 		return (
 			<div className="min-h-screen bg-gray-50 flex items-center justify-center pt-16">
 				<div className="text-center">
@@ -403,6 +434,83 @@ export function CompassSettingsPage() {
 											? `Zoeken naar: "${settings.search}"`
 											: "Laat leeg om op alle stellingen te zoeken"}
 									</p>
+								</div>
+							</CardContent>
+						</Card>
+
+						{/* Party Selection */}
+						<Card>
+							<CardHeader>
+								<div className="flex items-center justify-between">
+									<div className="flex items-center">
+										<Users className="h-6 w-6 text-primary-600 mr-3" />
+										<div>
+											<CardTitle>Partijen</CardTitle>
+											<CardDescription>
+												Selecteer minstens 2 partijen om alleen stellingen te zien
+												waar ze niet identiek hebben gestemd
+											</CardDescription>
+										</div>
+									</div>
+									<div className="flex gap-2">
+										<Button
+											variant="ghost"
+											size="sm"
+											onClick={handleSelectNoParties}
+											disabled={settings.partyIds.length === 0}
+										>
+											Alles deselecteren
+										</Button>
+									</div>
+								</div>
+							</CardHeader>
+							<CardContent>
+								{settings.partyIds.length === 0 && (
+									<div className="mb-4 p-3 bg-blue-50 border border-blue-200 rounded-lg">
+										<p className="text-blue-800 text-sm">
+											<strong>Geen partijen geselecteerd:</strong> Er worden geen
+											stemfilters toegepast. Selecteer minstens 2 partijen om
+											alleen stellingen te zien waar zij niet identiek hebben
+											gestemd.
+										</p>
+									</div>
+								)}
+								{settings.partyIds.length === 1 && (
+									<div className="mb-4 p-3 bg-amber-50 border border-amber-200 rounded-lg">
+										<p className="text-amber-800 text-sm">
+											<strong>1 partij geselecteerd:</strong> Selecteer minstens 2
+											partijen om filters in te schakelen.
+										</p>
+									</div>
+								)}
+
+								<div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
+									{availableParties.map((party) => (
+										<button
+											type="button"
+											key={party.id}
+											className={`w-full border-2 rounded-lg p-3 cursor-pointer transition-all text-left ${
+												settings.partyIds.includes(party.id)
+													? "border-primary-500 bg-primary-50"
+													: "border-gray-200 hover:border-gray-300"
+											}`}
+											onClick={() => handlePartyToggle(party.id)}
+										>
+											<div className="flex items-center justify-between">
+												<div className="flex-1">
+													<span className="font-medium text-gray-900 block">
+														{party.name}
+													</span>
+													<span className="text-xs text-gray-500">
+														{party.shortName}
+													</span>
+												</div>
+												{settings.partyIds.includes(party.id) && (
+													<CheckCircle2 className="h-4 w-4 text-primary-600 ml-2 flex-shrink-0" />
+												)}
+											</div>
+										</button>
+									))}
 								</div>
 							</CardContent>
 						</Card>
