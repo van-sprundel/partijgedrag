@@ -9,6 +9,9 @@ if (!databaseUrl) {
 }
 
 export default tseslint.config(
+  {
+    ignores: ['dist/**', 'node_modules/**', '**/*.js', '**/*.mjs', '**/*.cjs']
+  },
   ...tseslint.configs.recommended,
   safeql.configs.connections({
     databaseUrl,

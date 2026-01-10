@@ -61,7 +61,6 @@ export async function getForCompass(
             JOIN besluiten b ON s.besluit_id = b.id
             WHERE b.zaak_id = z.id
             AND s.fractie_id = ANY(${partyIds}::text[])
-            AND s.soort IN ('Voor', 'Tegen')
             AND s.vergissing IS NOT TRUE
         ) > 1)
         ORDER BY ABS(vc.voor_votes - vc.tegen_votes) ASC, RANDOM()
@@ -76,6 +75,7 @@ export async function getAllMotions(
 	status?: string,
 	withVotes?: boolean,
 	search?: string,
+	partyIds?: string[],
 ) {
 	return sql<{ total: string } & Motion>`
         WITH subset AS (
@@ -112,6 +112,15 @@ export async function getAllMotions(
                     SELECT 1 FROM jsonb_array_elements_text(z."bullet_points") AS elem
                     WHERE elem ILIKE '%' || ${search} || '%'
                 )
+            ))
+            AND (${partyIds}::text[] IS NULL OR array_length(${partyIds}::text[], 1) = 0 OR EXISTS (
+                SELECT 1
+                FROM stemmingen s
+                JOIN besluiten b ON s.besluit_id = b.id
+                WHERE b.zaak_id = z.id
+                AND s.fractie_id = ANY(${partyIds}::text[])
+                AND s.soort IN ('Voor', 'Tegen')
+                AND s.vergissing IS NOT TRUE
             ))
         )
         SELECT *, (SELECT count(*) FROM subset) as total
@@ -379,7 +388,6 @@ export async function getForCompassCount(
             JOIN besluiten b ON s.besluit_id = b.id
             WHERE b.zaak_id = z.id
             AND s.fractie_id = ANY(${partyIds}::text[])
-            AND s.soort IN ('Voor', 'Tegen')
             AND s.vergissing IS NOT TRUE
         ) > 1)
     `;
