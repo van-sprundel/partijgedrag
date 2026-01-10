@@ -325,6 +325,63 @@ const statisticsGetPartyCategoryLikenessContract = oc
   .input(z.object({ partyId: z.string() }).merge(dateFilterSchema))
   .output(z.array(PartyCategoryLikenessSchema));
 
+// Analysis schemas
+export const CoalitionAlignmentSchema = z.object({
+  fractie1Id: z.string(),
+  fractie2Id: z.string(),
+  fractie1Name: z.string(),
+  fractie2Name: z.string(),
+  alignmentPct: z.number(),
+  sameVotes: z.number(),
+  totalVotes: z.number(),
+});
+
+export const MPDeviationSchema = z.object({
+  persoonId: z.string(),
+  fractieId: z.string(),
+  persoonNaam: z.string(),
+  fractieNaam: z.string(),
+  deviationPct: z.number(),
+  deviationCount: z.number(),
+  totalVotes: z.number(),
+});
+
+export const TopicTrendSchema = z.object({
+  categoryId: z.string(),
+  categoryName: z.string(),
+  motionCount: z.number(),
+  acceptedCount: z.number(),
+  rejectedCount: z.number(),
+});
+
+export const PartyTopicVotingSchema = z.object({
+  fractieId: z.string(),
+  categoryId: z.string(),
+  fractieNaam: z.string(),
+  categoryName: z.string(),
+  votesFor: z.number(),
+  votesAgainst: z.number(),
+  totalVotes: z.number(),
+  forPct: z.number(),
+});
+
+// Analysis contracts
+const analysisGetCoalitionAlignmentContract = oc
+  .input(z.object({ period: z.string().default("all") }).optional())
+  .output(z.array(CoalitionAlignmentSchema));
+
+const analysisGetMPDeviationsContract = oc
+  .input(z.object({ period: z.string().default("all"), limit: z.number().default(50) }).optional())
+  .output(z.array(MPDeviationSchema));
+
+const analysisGetTopicTrendsContract = oc
+  .input(z.object({ period: z.string().default("all") }).optional())
+  .output(z.array(TopicTrendSchema));
+
+const analysisGetPartyTopicVotingContract = oc
+  .input(z.object({ fractieId: z.string().optional(), period: z.string().default("all") }).optional())
+  .output(z.array(PartyTopicVotingSchema));
+
 export const apiContract = {
   motions: {
     getAll: motionGetAllContract,
@@ -352,6 +409,12 @@ export const apiContract = {
     getPartyFocus: statisticsGetPartyFocusContract,
     getPartyCategoryLikeness: statisticsGetPartyCategoryLikenessContract,
   },
+  analysis: {
+    getCoalitionAlignment: analysisGetCoalitionAlignmentContract,
+    getMPDeviations: analysisGetMPDeviationsContract,
+    getTopicTrends: analysisGetTopicTrendsContract,
+    getPartyTopicVoting: analysisGetPartyTopicVotingContract,
+  },
 };
 
 // Type exports
@@ -372,3 +435,7 @@ export type PartyFocus = z.infer<typeof PartyFocusSchema>;
 export type PartyFocusCategory = z.infer<typeof PartyFocusCategorySchema>;
 export type PartyCategoryLikeness = z.infer<typeof PartyCategoryLikenessSchema>;
 export type UserSession = z.infer<typeof UserSessionSchema>;
+export type CoalitionAlignment = z.infer<typeof CoalitionAlignmentSchema>;
+export type MPDeviation = z.infer<typeof MPDeviationSchema>;
+export type TopicTrend = z.infer<typeof TopicTrendSchema>;
+export type PartyTopicVoting = z.infer<typeof PartyTopicVotingSchema>;

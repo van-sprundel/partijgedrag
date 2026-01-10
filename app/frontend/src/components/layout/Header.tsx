@@ -33,6 +33,9 @@ export function Header() {
 					<Link to="/party-likeness">
 						<Button variant="ghost">Partijgelijkenis</Button>
 					</Link>
+					<Link to="/analysis">
+						<Button variant="ghost">Analyse</Button>
+					</Link>
 					<Link to="/motions">
 						<Button variant="ghost">Moties</Button>
 					</Link>

@@ -4,6 +4,7 @@ import { RPCHandler } from "@orpc/server/node";
 import cors from "cors";
 import express from "express";
 import { handleUriError } from "./middleware/handleUriError.js";
+import { analysisRouter } from "./routers/analysis.js";
 import { compassRouter } from "./routers/compass.js";
 import { motionRouter } from "./routers/motions.js";
 import { partyRouter } from "./routers/parties.js";
@@ -27,6 +28,7 @@ export const router = os.router({
 	parties: partyRouter,
 	compass: compassRouter,
 	statistics: statisticsRouter,
+	analysis: analysisRouter,
 });
 
 const handler = new RPCHandler(router, {

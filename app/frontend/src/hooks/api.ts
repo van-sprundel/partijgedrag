@@ -221,3 +221,39 @@ export const useRecentSessions = () => {
 		isLoading: queries.some((q) => q.isLoading),
 	};
 };
+
+// Analysis hooks
+export const useCoalitionAlignment = (period: string = "all") => {
+	return useQuery(
+		orpc.analysis.getCoalitionAlignment.queryOptions({
+			input: { period },
+		}),
+	);
+};
+
+export const useMPDeviations = (period: string = "all", limit: number = 50) => {
+	return useQuery(
+		orpc.analysis.getMPDeviations.queryOptions({
+			input: { period, limit },
+		}),
+	);
+};
+
+export const useTopicTrends = (period: string = "all") => {
+	return useQuery(
+		orpc.analysis.getTopicTrends.queryOptions({
+			input: { period },
+		}),
+	);
+};
+
+export const usePartyTopicVoting = (
+	fractieId?: string,
+	period: string = "all",
+) => {
+	return useQuery(
+		orpc.analysis.getPartyTopicVoting.queryOptions({
+			input: { fractieId, period },
+		}),
+	);
+};
