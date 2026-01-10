@@ -7,6 +7,7 @@ export async function getForCompass(
 	categoryIds: string[] | undefined,
 	after: Date | undefined,
 	search: string | undefined,
+	partyIds: string[] | undefined,
 ) {
 	return sql<Motion>`
         WITH VoteCounts AS (
@@ -54,6 +55,15 @@ export async function getForCompass(
                 WHERE elem ILIKE '%' || ${search} || '%'
             )
         ))
+        AND (${partyIds}::text[] IS NULL OR array_length(${partyIds}::text[], 1) < 2 OR (
+            SELECT COUNT(DISTINCT s.soort)
+            FROM stemmingen s
+            JOIN besluiten b ON s.besluit_id = b.id
+            WHERE b.zaak_id = z.id
+            AND s.fractie_id = ANY(${partyIds}::text[])
+            AND s.soort IN ('Voor', 'Tegen')
+            AND s.vergissing IS NOT TRUE
+        ) > 1)
         ORDER BY ABS(vc.voor_votes - vc.tegen_votes) ASC, RANDOM()
         LIMIT ${count}
     `;
@@ -338,6 +348,7 @@ export async function getForCompassCount(
 	categoryIds: string[] | undefined,
 	after: Date | undefined,
 	search: string | undefined,
+	partyIds: string[] | undefined,
 ) {
 	return sqlOne<{ count: number }>`
         SELECT
@@ -362,5 +373,14 @@ export async function getForCompassCount(
                 WHERE elem ILIKE '%' || ${search} || '%'
             )
         ))
+        AND (${partyIds}::text[] IS NULL OR array_length(${partyIds}::text[], 1) < 2 OR (
+            SELECT COUNT(DISTINCT s.soort)
+            FROM stemmingen s
+            JOIN besluiten b ON s.besluit_id = b.id
+            WHERE b.zaak_id = z.id
+            AND s.fractie_id = ANY(${partyIds}::text[])
+            AND s.soort IN ('Voor', 'Tegen')
+            AND s.vergissing IS NOT TRUE
+        ) > 1)
     `;
 }

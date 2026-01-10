@@ -6,8 +6,8 @@ import {
 	RotateCcw,
 	Share2,
 } from "lucide-react";
-import { useState } from "react";
-import { Link, useParams } from "react-router-dom";
+import { useMemo, useState } from "react";
+import { Link, useParams, useSearchParams } from "react-router-dom";
 import { Button } from "../components/ui/Button";
 import {
 	Card,
@@ -23,7 +23,9 @@ import { formatPercentage, getPartyColorClass } from "../lib/utils";
 
 export function ResultsPage() {
 	const { sessionId } = useParams<{ sessionId: string }>();
+	const [searchParams] = useSearchParams();
 	const [showAllParties, setShowAllParties] = useState(false);
+	const [showOnlySelectedParties, setShowOnlySelectedParties] = useState(false);
 	const [expandedMotions, setExpandedMotions] = useState<Set<string>>(
 		new Set(),
 	);
@@ -32,6 +34,12 @@ export function ResultsPage() {
 		isLoading,
 		error,
 	} = useCompassResults(sessionId || "");
+
+	// Parse selected party IDs from URL parameters
+	const selectedPartyIds = useMemo(() => {
+		const partyIds = searchParams.get("partyIds")?.split(",").filter(Boolean) || [];
+		return partyIds.length >= 2 ? partyIds : [];
+	}, [searchParams]);
 
 	if (isLoading) {
 		return (
@@ -330,19 +338,36 @@ export function ResultsPage() {
 				</Card>
 
 				{/* Motion Details */}
-				{results.motionDetails && results.motionDetails.length > 0 && (
+			{results.motionDetails && results.motionDetails.length > 0 && (
 					<Card className="mb-8">
 						<CardHeader>
 							<CardTitle>Gedetailleerde uitslagen</CardTitle>
-							<CardDescription>
-								Bekijk hoe de partijen hebben gestemd op elke stelling en
-								vergelijk met jouw antwoord.
-							</CardDescription>
-							<div className="mt-3 p-3 bg-blue-50 border border-blue-200 rounded-lg">
-								<p className="text-sm text-blue-800">
-									💡 <strong>Let op:</strong> Neutrale antwoorden worden niet
-									meegeteld in de berekening en zijn grijs weergegeven.
-								</p>
+							<div className="space-y-3">
+								<CardDescription>
+									Bekijk hoe de partijen hebben gestemd op elke stelling en
+									vergelijk met jouw antwoord.
+								</CardDescription>
+								<div className="p-3 bg-blue-50 border border-blue-200 rounded-lg">
+									<p className="text-sm text-blue-800">
+										💡 <strong>Let op:</strong> Neutrale antwoorden worden niet
+										meegeteld in de berekening en zijn grijs weergegeven.
+									</p>
+								</div>
+								{selectedPartyIds.length > 0 && (
+									<div className="p-3 bg-amber-50 border border-amber-200 rounded-lg">
+										<label className="flex items-center cursor-pointer">
+											<input
+												type="checkbox"
+												checked={showOnlySelectedParties}
+												onChange={(e) => setShowOnlySelectedParties(e.target.checked)}
+												className="mr-2 w-4 h-4"
+											/>
+											<span className="text-sm text-amber-800">
+												<strong>Toon alleen geselecteerde partijen</strong>
+											</span>
+										</label>
+									</div>
+								)}
 							</div>
 						</CardHeader>
 						<CardContent>
@@ -453,6 +478,13 @@ export function ResultsPage() {
 																return a.party.shortName.localeCompare(
 																	b.party.shortName,
 																);
+															})
+															.filter((partyPos) => {
+																// Filter to only show selected parties if checkbox is enabled
+																if (showOnlySelectedParties && selectedPartyIds.length > 0) {
+																	return selectedPartyIds.includes(partyPos.party.id);
+																}
+																return true;
 															})
 															.map((partyPos) => (
 																<div
