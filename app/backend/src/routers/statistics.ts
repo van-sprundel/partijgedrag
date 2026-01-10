@@ -14,15 +14,7 @@ export const statisticsRouter = {
 			// Based on the PHP implementation which looks at all stemmingen
 			const rawResults =
 				dateFrom && dateTo
-					? await sql<{
-							party1Id: string | null;
-							party1Name: string | null;
-							party2Id: string | null;
-							party2Name: string | null;
-							commonMotions: string | null;
-							sameVotes: string | null;
-							likenessPercentage: number | null;
-						}>`
+					? await sql<{ 'party1Id': string; 'party1Name': string | null; 'party2Id': string; 'party2Name': string | null; commonMotions: string | null; sameVotes: string | null; likenessPercentage: number | null }>`
 				WITH PartyVotes AS (
 					SELECT DISTINCT
 						b.zaak_id,
@@ -65,15 +57,7 @@ export const statisticsRouter = {
 				FROM PartyComparisons
 				ORDER BY party1_name, "likenessPercentage" DESC;
 			`
-					: await sql<{
-							party1Id: string | null;
-							party1Name: string | null;
-							party2Id: string | null;
-							party2Name: string | null;
-							commonMotions: string | null;
-							sameVotes: string | null;
-							likenessPercentage: number | null;
-						}>`
+					: await sql<{ 'party1Id': string; 'party1Name': string | null; 'party2Id': string; 'party2Name': string | null; commonMotions: string | null; sameVotes: string | null; likenessPercentage: number | null }>`
 				WITH PartyVotes AS (
 					SELECT DISTINCT
 						b.zaak_id,
@@ -158,7 +142,7 @@ export const statisticsRouter = {
 			contentLength: string | null;
 			updatedAt: Date | null;
 			apiUpdatedAt: Date | null;
-			logoData: any | null;
+			logoData: string | null;
 			removed: boolean | null;
 		}>`
 			SELECT

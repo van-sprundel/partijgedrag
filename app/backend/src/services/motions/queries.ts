@@ -1,5 +1,7 @@
-import type { Motion, Party } from "../../contracts/index.js";
+import type { Motion } from "../../contracts/index.js";
 import { sql, sqlOne, sqlOneOrNull } from "../db/sql-tag.js";
+
+ 
 
 export async function getForCompass(
 	count: number,
@@ -9,6 +11,7 @@ export async function getForCompass(
 	search: string | undefined,
 	partyIds: string[] | undefined,
 ) {
+	 
 	return sql<Motion>`
         WITH VoteCounts AS (
             SELECT
@@ -77,6 +80,7 @@ export async function getAllMotions(
 	search?: string,
 	partyIds?: string[],
 ) {
+	 
 	return sql<{ total: string } & Motion>`
         WITH subset AS (
             SELECT
@@ -165,7 +169,7 @@ export async function getMotionById(id: string) {
 }
 
 export async function getMotionsByIds(motionIds: string[]) {
-	return sql<Motion>`
+	return sql<{ id: string; title: string | null; shortTitle: string | null; motionNumber: string | null; date: Date | null; status: string | null; category: string | null; bulletPoints: unknown | null; documentURL: string | null; did: string | null; createdAt: Date | null; updatedAt: Date | null }>`
         SELECT
             id,
             onderwerp as title,
@@ -180,7 +184,7 @@ export async function getMotionsByIds(motionIds: string[]) {
             gestart_op as "createdAt",
             gewijzigd_op as "updatedAt"
         FROM "zaken"
-        WHERE id IN (${motionIds})
+        WHERE id = ANY(${motionIds})
     `;
 }
 
@@ -306,7 +310,7 @@ export async function getPartiesByIds(partyIds: string[]) {
 	if (partyIds.length === 0) {
 		return [];
 	}
-	return sql<Party>`
+	return sql<{ id: string; name: string | null; shortName: string | null; seats: string | null; activeFrom: Date | null; activeTo: Date | null; contentType: string | null; logoData: string | null; createdAt: Date | null; updatedAt: Date | null }>`
         SELECT
             id,
             naam_nl as name,
@@ -319,7 +323,7 @@ export async function getPartiesByIds(partyIds: string[]) {
             gewijzigd_op as "createdAt",
             api_gewijzigd_op as "updatedAt"
         FROM "fracties"
-        WHERE id IN (${partyIds})
+        WHERE id = ANY(${partyIds})
     `;
 }
 
@@ -359,6 +363,7 @@ export async function getForCompassCount(
 	search: string | undefined,
 	partyIds: string[] | undefined,
 ) {
+	 
 	return sqlOne<{ count: number }>`
         SELECT
             COUNT(z.id)::int as count

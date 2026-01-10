@@ -9,6 +9,8 @@ import {
 	mapVoteToContract,
 } from "../utils/mappers.js";
 
+ 
+
 const os = implement(apiContract);
 
 function mapVoteType(dutchVoteType: string | null): VoteType {
@@ -32,6 +34,7 @@ export const compassRouter = {
 		const id = randomUUID();
 		const now = new Date();
 
+		 
 		await sql`
 			INSERT INTO user_sessions (id, answers, results, "createdAt", "updatedAt")
 			VALUES (
@@ -228,7 +231,7 @@ export const compassRouter = {
 					contentLength: string | null;
 					updatedAt: Date | null;
 					apiUpdatedAt: Date | null;
-					logoData: any | null;
+					logoData: string | null;
 					removed: boolean | null;
 				};
 
@@ -256,7 +259,7 @@ export const compassRouter = {
 						contentLength: string | null;
 						updatedAt: Date | null;
 						apiUpdatedAt: Date | null;
-						logoData: any | null;
+						logoData: string | null;
 						removed: boolean | null;
 					}>`
 						SELECT
@@ -383,7 +386,7 @@ async function calculatePartyAlignment(answers: UserAnswer[]) {
 		contentLength: string | null;
 		updatedAt: Date | null;
 		apiUpdatedAt: Date | null;
-		logoData: any | null;
+		logoData: string | null;
 		removed: boolean | null;
 	}>`
 		SELECT
@@ -648,7 +651,7 @@ async function getMotionVoteDetails(answers: UserAnswer[]) {
 					contentLength: string | null;
 					updatedAt: Date | null;
 					apiUpdatedAt: Date | null;
-					logoData: any | null;
+					logoData: string | null;
 					removed: boolean | null;
 				}>`
 			SELECT
@@ -687,7 +690,7 @@ async function getMotionVoteDetails(answers: UserAnswer[]) {
 		contentLength: string | null;
 		updatedAt: Date | null;
 		apiUpdatedAt: Date | null;
-		logoData: any | null;
+		logoData: string | null;
 		removed: boolean | null;
 	};
 
@@ -735,7 +738,7 @@ async function getMotionVoteDetails(answers: UserAnswer[]) {
 			}
 		});
 
-		partyVotes.forEach((partyData, _partyId) => {
+		partyVotes.forEach((partyData) => {
 			const voteCounts = partyData.votes.reduce(
 				(acc, vote) => {
 					acc[vote as VoteType] = (acc[vote as VoteType] || 0) + 1;

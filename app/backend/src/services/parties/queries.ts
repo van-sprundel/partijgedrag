@@ -1,5 +1,7 @@
-import type { Party, Vote } from "../../contracts/index.js";
+import type { Vote } from "../../contracts/index.js";
 import { sql, sqlOneOrNull } from "../db/sql-tag.js";
+
+ 
 
 export async function getActiveParties() {
   return sql<{
@@ -10,7 +12,7 @@ export async function getActiveParties() {
     activeFrom: Date | null;
     activeTo: Date | null;
     contentType: string | null;
-    logoData: unknown | null;
+    logoData: string | null;
     createdAt: Date | null;
     updatedAt: Date | null;
   }>`
@@ -42,7 +44,7 @@ export async function getPartiesByIdsOrNames(
     activeFrom: Date | null;
     activeTo: Date | null;
     contentType: string | null;
-    logoData: unknown | null;
+    logoData: string | null;
     createdAt: Date | null;
     updatedAt: Date | null;
   }>`
@@ -72,7 +74,7 @@ export async function getAllParties(activeOnly: boolean) {
     activeFrom: Date | null;
     activeTo: Date | null;
     contentType: string | null;
-    logoData: unknown | null;
+    logoData: string | null;
     createdAt: Date | null;
     updatedAt: Date | null;
   }>`
@@ -103,7 +105,7 @@ export async function getPartyById(id: string) {
     activeFrom: Date | null;
     activeTo: Date | null;
     contentType: string | null;
-    logoData: unknown | null;
+    logoData: string | null;
     createdAt: Date | null;
     updatedAt: Date | null;
   }>`
@@ -127,6 +129,7 @@ export async function getVotesByPartyAndMotionIds(
   partyId: string,
   motionIds?: string[],
 ) {
+   
   return sql<Vote>`
         SELECT
             id,

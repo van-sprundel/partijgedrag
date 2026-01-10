@@ -102,6 +102,11 @@ func main() {
 		if err := categorisationService.EnrichZaken(ctx); err != nil {
 			log.Printf("Warning: enrichment failed: %v", err)
 		}
+
+		log.Println("Refreshing analysis views...")
+		if err := store.RefreshMaterializedViews(ctx); err != nil {
+			log.Printf("Warning: view refresh failed: %v", err)
+		}
 	}
 
 	if cfg.Import.ShowStats {

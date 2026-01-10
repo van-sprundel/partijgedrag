@@ -5,6 +5,7 @@ import { Footer } from "./components/layout/Footer";
 import { Header } from "./components/layout/Header";
 import { ScrollToTop } from "./components/layout/ScrollToTop";
 import { AboutPage } from "./pages/About";
+import { AnalysisPage } from "./pages/Analysis";
 import { CompassPage } from "./pages/Compass";
 import { CompassSettingsPage } from "./pages/CompassSettings";
 import { HomePage } from "./pages/Home";
@@ -40,6 +41,7 @@ function App() {
 							<Route path="/results/:sessionId" element={<ResultsPage />} />
 							<Route path="/about" element={<AboutPage />} />
 							<Route path="/party-likeness" element={<PartyLikenessPage />} />
+							<Route path="/analysis" element={<AnalysisPage />} />
 							<Route path="/motion/:motionId" element={<MotionDetailsPage />} />
 							<Route path="/motions" element={<MotionsPage />} />
 							<Route path="*" element={<NotFoundPage />} />

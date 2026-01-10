@@ -221,3 +221,54 @@ export const useRecentSessions = () => {
 		isLoading: queries.some((q) => q.isLoading),
 	};
 };
+
+// Analysis hooks
+export const useCoalitionAlignment = (filters?: {
+	dateFrom?: Date;
+	dateTo?: Date;
+}) => {
+	return useQuery(
+		orpc.analysis.getCoalitionAlignment.queryOptions({
+			input: filters,
+		}),
+	);
+};
+
+export const useMPDeviations = (
+	filters?: {
+		dateFrom?: Date;
+		dateTo?: Date;
+	},
+	limit: number = 50,
+) => {
+	return useQuery(
+		orpc.analysis.getMPDeviations.queryOptions({
+			input: { ...filters, limit },
+		}),
+	);
+};
+
+export const useTopicTrends = (filters?: {
+	dateFrom?: Date;
+	dateTo?: Date;
+}) => {
+	return useQuery(
+		orpc.analysis.getTopicTrends.queryOptions({
+			input: filters,
+		}),
+	);
+};
+
+export const usePartyTopicVoting = (
+	fractieId?: string,
+	filters?: {
+		dateFrom?: Date;
+		dateTo?: Date;
+	},
+) => {
+	return useQuery(
+		orpc.analysis.getPartyTopicVoting.queryOptions({
+			input: { fractieId, ...filters },
+		}),
+	);
+};

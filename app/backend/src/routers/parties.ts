@@ -23,7 +23,7 @@ export const partyRouter = {
       contentLength: string | null;
       updatedAt: Date | null;
       apiUpdatedAt: Date | null;
-      logoData: any | null;
+      logoData: string | null;
       removed: boolean | null;
     }>`
 			SELECT
@@ -70,7 +70,7 @@ export const partyRouter = {
       contentLength: string | null;
       updatedAt: Date | null;
       apiUpdatedAt: Date | null;
-      logoData: any | null;
+      logoData: string | null;
       removed: boolean | null;
     }>`
 			SELECT
@@ -123,7 +123,7 @@ export const partyRouter = {
       contentLength: string | null;
       updatedAt: Date | null;
       apiUpdatedAt: Date | null;
-      logoData: any | null;
+      logoData: string | null;
       removed: boolean | null;
     }>`
 			SELECT
@@ -169,7 +169,7 @@ export const partyRouter = {
       contentLength: string | null;
       updatedAt: Date | null;
       apiUpdatedAt: Date | null;
-      logoData: any | null;
+      logoData: string | null;
       removed: boolean | null;
     }>`
 			SELECT
