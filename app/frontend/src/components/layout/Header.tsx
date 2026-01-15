@@ -15,16 +15,6 @@ export function Header() {
 						<img src={logo} alt="Partijgedrag Logo" className="size-8" />
 						<span className="hidden sm:inline">Partijgedrag</span>
 					</Link>
-					<a
-						href="https://old.partijgedrag.nl/index.php"
-						target="_blank"
-						rel="noopener noreferrer"
-					>
-						<Button variant="ghost" size="sm" className="text-xs sm:text-sm">
-							<ExternalLink className="h-3 w-3 sm:h-4 sm:w-4 mr-1" />
-							<p className="hidden sm:inline">Bezoek oude versie</p>
-						</Button>
-					</a>
 				</div>
 				<nav className="hidden md:flex items-center space-x-2">
 					<Link to="/compass/settings">
