@@ -17,6 +17,7 @@ RUN CGO_ENABLED=0 GOOS=linux go build -a -installsuffix cgo -o /app/etl ./cmd/et
 RUN CGO_ENABLED=0 GOOS=linux go build -a -installsuffix cgo -o /app/manage_categories ./cmd/manage_categories/main.go
 
 FROM alpine:latest
+LABEL org.opencontainers.image.source=https://github.com/van-sprundel/partijgedrag
 WORKDIR /app
 
 # Install cron

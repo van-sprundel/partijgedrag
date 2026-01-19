@@ -45,6 +45,7 @@ RUN npm run build --prefix frontend
 
 # ---
 FROM node-with-ssl AS production
+LABEL org.opencontainers.image.source=https://github.com/van-sprundel/partijgedrag
 WORKDIR /app
 
 ARG DATABASE_URL
