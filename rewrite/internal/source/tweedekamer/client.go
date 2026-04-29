@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"io"
 	"net/http"
 	"net/url"
 	"strings"
@@ -147,34 +148,17 @@ type ChangedMotionsPage struct {
 	NextURL string
 }
 
-func (client *Client) FetchChangedMotions(ctx context.Context, since time.Time, top int, nextURL string) (ChangedMotionsPage, error) {
+func (client *Client) FetchChangedMotions(ctx context.Context, since time.Time, top int, skip int, nextURL string) (ChangedMotionsPage, error) {
 	requestURL := nextURL
 	if requestURL == "" {
-		requestURL = client.changedMotionsURL(since, top)
-	}
-
-	request, err := http.NewRequestWithContext(ctx, http.MethodGet, requestURL, nil)
-	if err != nil {
-		return ChangedMotionsPage{}, err
-	}
-	request.Header.Set("Accept", "application/json")
-	request.Header.Set("User-Agent", "partijgedrag-rewrite/0.1")
-
-	response, err := client.httpClient.Do(request)
-	if err != nil {
-		return ChangedMotionsPage{}, err
-	}
-	defer response.Body.Close()
-
-	if response.StatusCode != http.StatusOK {
-		return ChangedMotionsPage{}, fmt.Errorf("tweede kamer odata returned %d for %s", response.StatusCode, requestURL)
+		requestURL = client.changedMotionsURL(since, top, skip)
 	}
 
 	var body struct {
 		Value   []MotionRecord `json:"value"`
 		NextURL string         `json:"@odata.nextLink"`
 	}
-	if err := json.NewDecoder(response.Body).Decode(&body); err != nil {
+	if err := client.fetchJSON(ctx, requestURL, &body); err != nil {
 		return ChangedMotionsPage{}, err
 	}
 
@@ -224,7 +208,7 @@ func (client *Client) FetchDecisionVotes(ctx context.Context, decisionSourceID s
 	return records, nil
 }
 
-func (client *Client) changedMotionsURL(since time.Time, top int) string {
+func (client *Client) changedMotionsURL(since time.Time, top int, skip int) string {
 	u, _ := url.Parse(client.baseURL + "/Zaak")
 	query := u.Query()
 	query.Set("$filter", fmt.Sprintf("Soort eq 'Motie' and ApiGewijzigdOp ge %s", formatODataDate(since)))
@@ -244,6 +228,9 @@ func (client *Client) changedMotionsURL(since time.Time, top int) string {
 	}, ","))
 	query.Set("$orderby", "ApiGewijzigdOp asc,Id asc")
 	query.Set("$top", fmt.Sprintf("%d", top))
+	if skip > 0 {
+		query.Set("$skip", fmt.Sprintf("%d", skip))
+	}
 	query.Set("$count", "false")
 	u.RawQuery = query.Encode()
 	return u.String()
@@ -295,6 +282,24 @@ func (client *Client) decisionVotesURL(decisionSourceID string) string {
 }
 
 func (client *Client) fetchJSON(ctx context.Context, requestURL string, target any) error {
+	var lastErr error
+	for attempt := 1; attempt <= 3; attempt++ {
+		err := client.fetchJSONOnce(ctx, requestURL, target)
+		if err == nil {
+			return nil
+		}
+		lastErr = err
+
+		select {
+		case <-ctx.Done():
+			return ctx.Err()
+		case <-time.After(time.Duration(attempt) * time.Second):
+		}
+	}
+	return lastErr
+}
+
+func (client *Client) fetchJSONOnce(ctx context.Context, requestURL string, target any) error {
 	request, err := http.NewRequestWithContext(ctx, http.MethodGet, requestURL, nil)
 	if err != nil {
 		return err
@@ -309,7 +314,8 @@ func (client *Client) fetchJSON(ctx context.Context, requestURL string, target a
 	defer response.Body.Close()
 
 	if response.StatusCode != http.StatusOK {
-		return fmt.Errorf("tweede kamer odata returned %d for %s", response.StatusCode, requestURL)
+		body, _ := io.ReadAll(io.LimitReader(response.Body, 2048))
+		return fmt.Errorf("tweede kamer odata returned %d for %s: %s", response.StatusCode, requestURL, strings.TrimSpace(string(body)))
 	}
 
 	return json.NewDecoder(response.Body).Decode(target)

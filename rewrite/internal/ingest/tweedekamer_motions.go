@@ -71,10 +71,11 @@ func (ingest TweedeKamerMotionIngest) Run(ctx context.Context) error {
 	maxUpdatedAt := cursorBefore.ApiUpdatedAt
 	nextURL := ""
 	stopReason := ""
+	skip := 0
 
 	pagesProcessed := 0
 	for page := 1; ; page++ {
-		result, err := ingest.Client.FetchChangedMotions(ctx, since, ingest.BatchSize, nextURL)
+		result, err := ingest.Client.FetchChangedMotions(ctx, since, ingest.BatchSize, skip, nextURL)
 		if err != nil {
 			_ = ingest.finishRun(ctx, runID, "failed", cursorBefore, recordsSeen, recordsChanged, false, "error", err.Error())
 			return err
@@ -82,6 +83,7 @@ func (ingest TweedeKamerMotionIngest) Run(ctx context.Context) error {
 
 		nextURL = result.NextURL
 		recordsSeen += len(result.Records)
+		skip += len(result.Records)
 		pagesProcessed = page
 
 		for _, record := range result.Records {
@@ -101,9 +103,11 @@ func (ingest TweedeKamerMotionIngest) Run(ctx context.Context) error {
 			}
 		}
 
-		fmt.Printf("page=%d seen=%d changed=%d next=%t\n", page, recordsSeen, recordsChanged, nextURL != "")
+		hasMore := nextURL != "" || len(result.Records) == ingest.BatchSize
 
-		if nextURL == "" {
+		fmt.Printf("page=%d seen=%d changed=%d next=%t\n", page, recordsSeen, recordsChanged, hasMore)
+
+		if !hasMore {
 			stopReason = "complete"
 			break
 		}

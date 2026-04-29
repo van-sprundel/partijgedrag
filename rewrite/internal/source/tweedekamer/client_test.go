@@ -11,7 +11,7 @@ func TestChangedMotionsURLUsesValidLeanQuery(t *testing.T) {
 	client := NewClient("https://example.test/OData/v4/2.0")
 	since := time.Date(2024, 1, 2, 3, 4, 5, 0, time.UTC)
 
-	queryURL := client.changedMotionsURL(since, 100)
+	queryURL := client.changedMotionsURL(since, 100, 200)
 	parsed, err := url.Parse(queryURL)
 	if err != nil {
 		t.Fatal(err)
@@ -30,6 +30,9 @@ func TestChangedMotionsURLUsesValidLeanQuery(t *testing.T) {
 	}
 	if got := query.Get("$top"); got != "100" {
 		t.Fatalf("unexpected top %q", got)
+	}
+	if got := query.Get("$skip"); got != "200" {
+		t.Fatalf("unexpected skip %q", got)
 	}
 
 	selectFields := strings.Split(query.Get("$select"), ",")
