@@ -127,33 +127,44 @@ func (server Server) listMotions(response http.ResponseWriter, request *http.Req
 	if strings.TrimSpace(search) != "" {
 		searchPtr = &search
 	}
+	withVotes := query.Get("withVotes") == "true"
 
 	rows, err := server.Pool.Query(ctx, `
-		SELECT motion_key,
-		       source_id,
-		       number,
-		       title,
-		       subject,
-		       status,
-		       kind,
-		       parliamentary_year,
-		       proposed_at,
-		       source_updated_at,
-		       source_deleted,
-		       count(*) OVER ()::int AS total
-		FROM motions
-		WHERE jurisdiction_key = $1
-		  AND source_deleted = false
-		  AND (
-		    $2::text IS NULL
-		    OR title ILIKE '%' || $2 || '%'
-		    OR subject ILIKE '%' || $2 || '%'
-		    OR number ILIKE '%' || $2 || '%'
-		  )
+		WITH subset AS (
+			SELECT m.motion_key,
+			       m.source_id,
+			       m.number,
+			       m.title,
+			       m.subject,
+			       m.status,
+			       m.kind,
+			       m.parliamentary_year,
+			       m.proposed_at,
+			       m.source_updated_at,
+			       m.source_deleted,
+			       m.votes_synced_at,
+			       COALESCE(count(DISTINCT d.decision_key), 0)::int AS decision_count,
+			       COALESCE(count(v.vote_key) FILTER (WHERE v.source_deleted = false), 0)::int AS vote_count
+			FROM motions m
+			LEFT JOIN decisions d ON d.motion_key = m.motion_key AND d.source_deleted = false
+			LEFT JOIN votes v ON v.motion_key = m.motion_key AND v.source_deleted = false
+			WHERE m.jurisdiction_key = $1
+			  AND m.source_deleted = false
+			  AND (
+			    $2::text IS NULL
+			    OR m.title ILIKE '%' || $2 || '%'
+			    OR m.subject ILIKE '%' || $2 || '%'
+			    OR m.number ILIKE '%' || $2 || '%'
+			  )
+			GROUP BY m.motion_key
+			HAVING $5::boolean = false OR COALESCE(count(v.vote_key) FILTER (WHERE v.source_deleted = false), 0) > 0
+		)
+		SELECT *, count(*) OVER ()::int AS total
+		FROM subset
 		ORDER BY proposed_at DESC NULLS LAST, source_updated_at DESC NULLS LAST
 		LIMIT $3
 		OFFSET $4
-	`, jurisdiction, searchPtr, limit, offset)
+	`, jurisdiction, searchPtr, limit, offset, withVotes)
 	if err != nil {
 		writeError(response, err)
 		return
@@ -201,6 +212,9 @@ func (server Server) getMotion(response http.ResponseWriter, request *http.Reque
 		       proposed_at,
 		       source_updated_at,
 		       source_deleted,
+		       votes_synced_at,
+		       (SELECT count(*)::int FROM decisions d WHERE d.motion_key = motions.motion_key AND d.source_deleted = false) AS decision_count,
+		       (SELECT count(*)::int FROM votes v WHERE v.motion_key = motions.motion_key AND v.source_deleted = false) AS vote_count,
 		       1 AS total
 		FROM motions
 		WHERE motion_key = $1
@@ -216,6 +230,9 @@ func (server Server) getMotion(response http.ResponseWriter, request *http.Reque
 		&motion.ProposedAt,
 		&motion.SourceUpdatedAt,
 		&motion.SourceDeleted,
+		&motion.VotesSyncedAt,
+		&motion.DecisionCount,
+		&motion.VoteCount,
 		&motion.Total,
 	)
 	if err != nil {
@@ -339,6 +356,9 @@ type motionRow struct {
 	ProposedAt        *time.Time
 	SourceUpdatedAt   *time.Time
 	SourceDeleted     bool
+	VotesSyncedAt     *time.Time
+	DecisionCount     int
+	VoteCount         int
 	Total             int
 }
 
@@ -355,6 +375,9 @@ func (row *motionRow) scan(scan scanner) error {
 		&row.ProposedAt,
 		&row.SourceUpdatedAt,
 		&row.SourceDeleted,
+		&row.VotesSyncedAt,
+		&row.DecisionCount,
+		&row.VoteCount,
 		&row.Total,
 	)
 }
@@ -372,6 +395,9 @@ func (row motionRow) mapValue() map[string]any {
 		"proposedAt":        row.ProposedAt,
 		"sourceUpdatedAt":   row.SourceUpdatedAt,
 		"sourceDeleted":     row.SourceDeleted,
+		"votesSyncedAt":     row.VotesSyncedAt,
+		"decisionCount":     row.DecisionCount,
+		"voteCount":         row.VoteCount,
 	}
 }
 

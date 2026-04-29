@@ -15,6 +15,7 @@ import (
 	"partijgedrag/rewrite/internal/db"
 	"partijgedrag/rewrite/internal/httpapi"
 	"partijgedrag/rewrite/internal/ingest"
+	"partijgedrag/rewrite/internal/inspect"
 	"partijgedrag/rewrite/internal/migrate"
 	"partijgedrag/rewrite/internal/source/tweedekamer"
 	"partijgedrag/rewrite/internal/status"
@@ -54,6 +55,8 @@ func run() error {
 		return runIngest(ctx, cfg, database, args[1:])
 	case "status":
 		return runStatus(ctx, database, args[1:])
+	case "inspect":
+		return runInspect(ctx, database, args[1:])
 	case "serve":
 		address := fmt.Sprintf("%s:%d", cfg.HTTPHost, cfg.HTTPPort)
 		fmt.Printf("partijgedrag listening on http://%s\n", address)
@@ -66,6 +69,13 @@ func run() error {
 	default:
 		return usage()
 	}
+}
+
+func runInspect(ctx context.Context, database *db.DB, args []string) error {
+	if len(args) != 2 || args[0] != "motion" {
+		return usage()
+	}
+	return inspect.PrintMotion(ctx, database.Pool, os.Stdout, args[1])
 }
 
 func runIngest(ctx context.Context, cfg config.Config, database *db.DB, args []string) error {
@@ -244,11 +254,16 @@ func runStatusSummary(ctx context.Context, database *db.DB, args []string) error
 		return err
 	}
 
-	fmt.Printf("motions=%d motions_with_votes=%d decisions=%d votes=%d raw_records=%d\n",
+	fmt.Printf("motions=%d motions_with_votes=%d motions_without_votes=%d motions_with_no_decisions=%d decisions=%d decisions_without_votes=%d votes=%d mistake_votes=%d deleted_votes=%d raw_records=%d\n",
 		summary.Motions,
 		summary.MotionsWithVotes,
+		summary.MotionsWithoutVotes,
+		summary.MotionsWithNoDecisions,
 		summary.Decisions,
+		summary.DecisionsWithoutVotes,
 		summary.Votes,
+		summary.MistakeVotes,
+		summary.DeletedVotes,
 		summary.RawRecords,
 	)
 	return nil
@@ -261,5 +276,6 @@ func usage() error {
   partijgedrag ingest tweedekamer motion-votes [--limit=N]
   partijgedrag status ingestion-runs [--limit=N] [--pipeline=NAME] [--failed]
   partijgedrag status summary
+  partijgedrag inspect motion MOTION_KEY
   partijgedrag serve`)
 }
