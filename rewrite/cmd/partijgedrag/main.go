@@ -17,6 +17,7 @@ import (
 	"partijgedrag/rewrite/internal/ingest"
 	"partijgedrag/rewrite/internal/migrate"
 	"partijgedrag/rewrite/internal/source/tweedekamer"
+	"partijgedrag/rewrite/internal/status"
 )
 
 func main() {
@@ -68,17 +69,28 @@ func run() error {
 }
 
 func runIngest(ctx context.Context, cfg config.Config, database *db.DB, args []string) error {
-	if len(args) < 2 || args[0] != "tweedekamer" || args[1] != "motions" {
+	if len(args) < 2 || args[0] != "tweedekamer" {
 		return usage()
 	}
 
+	switch args[1] {
+	case "motions":
+		return runIngestMotions(ctx, cfg, database, args[2:])
+	case "motion-votes":
+		return runIngestMotionVotes(ctx, cfg, database, args[2:])
+	default:
+		return usage()
+	}
+}
+
+func runIngestMotions(ctx context.Context, cfg config.Config, database *db.DB, args []string) error {
 	flags := flag.NewFlagSet("ingest tweedekamer motions", flag.ContinueOnError)
 	flags.SetOutput(os.Stderr)
 	maxPages := flags.Int("max-pages", cfg.TweedeKamerMaxPages, "maximum OData pages to process, 0 means all")
 	batchSize := flags.Int("batch-size", cfg.TweedeKamerBatchSize, "records per OData page")
 	resetCursor := flags.Bool("reset-cursor", false, "delete the stored cursor before ingesting")
 	sinceValue := flags.String("since", "", "override cursor with an RFC3339 ApiGewijzigdOp timestamp")
-	if err := flags.Parse(args[2:]); err != nil {
+	if err := flags.Parse(args); err != nil {
 		return err
 	}
 	if *batchSize <= 0 {
@@ -110,9 +122,51 @@ func runIngest(ctx context.Context, cfg config.Config, database *db.DB, args []s
 	return job.Run(ctx)
 }
 
+func runIngestMotionVotes(ctx context.Context, cfg config.Config, database *db.DB, args []string) error {
+	flags := flag.NewFlagSet("ingest tweedekamer motion-votes", flag.ContinueOnError)
+	flags.SetOutput(os.Stderr)
+	limit := flags.Int("limit", 25, "number of motions to sync votes for")
+	if err := flags.Parse(args); err != nil {
+		return err
+	}
+	if *limit <= 0 {
+		return fmt.Errorf("--limit must be greater than 0")
+	}
+
+	job := ingest.TweedeKamerMotionVotesIngest{
+		Pool:   database.Pool,
+		Client: tweedekamer.NewClient(cfg.TweedeKamerODataBaseURL),
+		Limit:  *limit,
+	}
+	return job.Run(ctx)
+}
+
 func runStatus(ctx context.Context, database *db.DB, args []string) error {
-	if len(args) != 1 || args[0] != "ingestion-runs" {
+	if len(args) == 0 {
 		return usage()
+	}
+
+	switch args[0] {
+	case "ingestion-runs":
+		return runStatusIngestionRuns(ctx, database, args[1:])
+	case "summary":
+		return runStatusSummary(ctx, database, args[1:])
+	default:
+		return usage()
+	}
+}
+
+func runStatusIngestionRuns(ctx context.Context, database *db.DB, args []string) error {
+	flags := flag.NewFlagSet("status ingestion-runs", flag.ContinueOnError)
+	flags.SetOutput(os.Stderr)
+	limit := flags.Int("limit", 10, "number of runs to show")
+	pipeline := flags.String("pipeline", "", "filter by pipeline")
+	failedOnly := flags.Bool("failed", false, "show failed runs only")
+	if err := flags.Parse(args); err != nil {
+		return err
+	}
+	if *limit <= 0 {
+		return fmt.Errorf("--limit must be greater than 0")
 	}
 
 	rows, err := database.Pool.Query(ctx, `
@@ -128,9 +182,11 @@ func runStatus(ctx context.Context, database *db.DB, args []string) error {
 		       started_at,
 		       finished_at
 		FROM ingestion_runs
+		WHERE ($1::text = '' OR pipeline = $1)
+		  AND ($2::boolean = false OR status = 'failed')
 		ORDER BY started_at DESC
-		LIMIT 10
-	`)
+		LIMIT $3
+	`, *pipeline, *failedOnly, *limit)
 	if err != nil {
 		return err
 	}
@@ -178,10 +234,32 @@ func runStatus(ctx context.Context, database *db.DB, args []string) error {
 	return rows.Err()
 }
 
+func runStatusSummary(ctx context.Context, database *db.DB, args []string) error {
+	if len(args) != 0 {
+		return usage()
+	}
+
+	summary, err := status.LoadSummary(ctx, database.Pool)
+	if err != nil {
+		return err
+	}
+
+	fmt.Printf("motions=%d motions_with_votes=%d decisions=%d votes=%d raw_records=%d\n",
+		summary.Motions,
+		summary.MotionsWithVotes,
+		summary.Decisions,
+		summary.Votes,
+		summary.RawRecords,
+	)
+	return nil
+}
+
 func usage() error {
 	return fmt.Errorf(`usage:
   partijgedrag migrate
   partijgedrag ingest tweedekamer motions [--max-pages=N] [--batch-size=N] [--since=RFC3339] [--reset-cursor]
-  partijgedrag status ingestion-runs
+  partijgedrag ingest tweedekamer motion-votes [--limit=N]
+  partijgedrag status ingestion-runs [--limit=N] [--pipeline=NAME] [--failed]
+  partijgedrag status summary
   partijgedrag serve`)
 }

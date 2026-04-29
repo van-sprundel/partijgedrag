@@ -60,3 +60,78 @@ func TestChangedMotionsURLUsesValidLeanQuery(t *testing.T) {
 		}
 	}
 }
+
+func TestMotionDecisionsURLUsesNavigationEndpoint(t *testing.T) {
+	client := NewClient("https://example.test/OData/v4/2.0")
+
+	queryURL := client.motionDecisionsURL("motion-id")
+	parsed, err := url.Parse(queryURL)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	if parsed.Path != "/OData/v4/2.0/Zaak(motion-id)/Besluit" {
+		t.Fatalf("unexpected path %q", parsed.Path)
+	}
+
+	selectFields := strings.Split(parsed.Query().Get("$select"), ",")
+	required := map[string]bool{
+		"Id":                            false,
+		"StemmingsSoort":                false,
+		"BesluitSoort":                  false,
+		"BesluitTekst":                  false,
+		"AgendapuntZaakBesluitVolgorde": false,
+		"ApiGewijzigdOp":                false,
+		"Verwijderd":                    false,
+	}
+
+	for _, field := range selectFields {
+		if _, ok := required[field]; ok {
+			required[field] = true
+		}
+	}
+
+	for field, seen := range required {
+		if !seen {
+			t.Fatalf("query is missing required field %q", field)
+		}
+	}
+}
+
+func TestDecisionVotesURLUsesNavigationEndpoint(t *testing.T) {
+	client := NewClient("https://example.test/OData/v4/2.0")
+
+	queryURL := client.decisionVotesURL("decision-id")
+	parsed, err := url.Parse(queryURL)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	if parsed.Path != "/OData/v4/2.0/Besluit(decision-id)/Stemming" {
+		t.Fatalf("unexpected path %q", parsed.Path)
+	}
+
+	selectFields := strings.Split(parsed.Query().Get("$select"), ",")
+	required := map[string]bool{
+		"Id":             false,
+		"Besluit_Id":     false,
+		"Soort":          false,
+		"ActorFractie":   false,
+		"Fractie_Id":     false,
+		"Vergissing":     false,
+		"ApiGewijzigdOp": false,
+		"Verwijderd":     false,
+	}
+
+	for _, field := range selectFields {
+		if _, ok := required[field]; ok {
+			required[field] = true
+		}
+	}
+
+	for field, seen := range required {
+		if !seen {
+			t.Fatalf("query is missing required field %q", field)
+		}
+	}
+}

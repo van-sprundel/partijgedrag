@@ -11,6 +11,8 @@ import (
 
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
+
+	"partijgedrag/rewrite/internal/status"
 )
 
 const shutdownTimeout = 10 * time.Second
@@ -22,8 +24,10 @@ type Server struct {
 func (server Server) Handler() http.Handler {
 	mux := http.NewServeMux()
 	mux.HandleFunc("GET /health", server.health)
+	mux.HandleFunc("GET /api/summary", server.summary)
 	mux.HandleFunc("GET /api/ingestion-runs", server.listIngestionRuns)
 	mux.HandleFunc("GET /api/motions", server.listMotions)
+	mux.HandleFunc("GET /api/motions/{motionKey}/party-positions", server.getMotionPartyPositions)
 	mux.HandleFunc("GET /api/motions/{motionKey}", server.getMotion)
 	return mux
 }
@@ -32,9 +36,21 @@ func (server Server) health(response http.ResponseWriter, request *http.Request)
 	writeJSON(response, http.StatusOK, map[string]string{"status": "ok"})
 }
 
+func (server Server) summary(response http.ResponseWriter, request *http.Request) {
+	summary, err := status.LoadSummary(request.Context(), server.Pool)
+	if err != nil {
+		writeError(response, err)
+		return
+	}
+
+	writeJSON(response, http.StatusOK, summary)
+}
+
 func (server Server) listIngestionRuns(response http.ResponseWriter, request *http.Request) {
 	query := request.URL.Query()
 	limit := clamp(parseInt(query.Get("limit"), 10), 1, 100)
+	pipeline := query.Get("pipeline")
+	failedOnly := query.Get("failed") == "true"
 
 	rows, err := server.Pool.Query(request.Context(), `
 		SELECT id,
@@ -51,9 +67,11 @@ func (server Server) listIngestionRuns(response http.ResponseWriter, request *ht
 		       started_at,
 		       finished_at
 		FROM ingestion_runs
+		WHERE ($1::text = '' OR pipeline = $1)
+		  AND ($2::boolean = false OR status = 'failed')
 		ORDER BY started_at DESC
-		LIMIT $1
-	`, limit)
+		LIMIT $3
+	`, pipeline, failedOnly, limit)
 	if err != nil {
 		writeError(response, err)
 		return
@@ -210,6 +228,67 @@ func (server Server) getMotion(response http.ResponseWriter, request *http.Reque
 	}
 
 	writeJSON(response, http.StatusOK, motion.mapValue())
+}
+
+func (server Server) getMotionPartyPositions(response http.ResponseWriter, request *http.Request) {
+	motionKey := request.PathValue("motionKey")
+
+	rows, err := server.Pool.Query(request.Context(), `
+		SELECT party_source_id,
+		       COALESCE(party_name, actor_name, party_source_id, 'unknown') AS party_name,
+		       SUM(CASE WHEN vote_type = 'Voor' THEN 1 ELSE 0 END)::int AS votes_for,
+		       SUM(CASE WHEN vote_type = 'Tegen' THEN 1 ELSE 0 END)::int AS votes_against,
+		       COUNT(*)::int AS total_votes
+		FROM votes
+		WHERE motion_key = $1
+		  AND source_deleted = false
+		  AND mistake = false
+		  AND vote_type IN ('Voor', 'Tegen')
+		GROUP BY party_source_id, COALESCE(party_name, actor_name, party_source_id, 'unknown')
+		ORDER BY party_name
+	`, motionKey)
+	if err != nil {
+		writeError(response, err)
+		return
+	}
+	defer rows.Close()
+
+	positions := []map[string]any{}
+	for rows.Next() {
+		var partySourceID *string
+		var partyName string
+		var votesFor, votesAgainst, totalVotes int
+		if err := rows.Scan(&partySourceID, &partyName, &votesFor, &votesAgainst, &totalVotes); err != nil {
+			writeError(response, err)
+			return
+		}
+
+		position := "NEUTRAL"
+		if votesFor > votesAgainst {
+			position = "FOR"
+		}
+		if votesAgainst > votesFor {
+			position = "AGAINST"
+		}
+
+		positions = append(positions, map[string]any{
+			"partySourceId": partySourceID,
+			"partyName":     partyName,
+			"position":      position,
+			"votesFor":      votesFor,
+			"votesAgainst":  votesAgainst,
+			"totalVotes":    totalVotes,
+		})
+	}
+	if err := rows.Err(); err != nil {
+		writeError(response, err)
+		return
+	}
+
+	writeJSON(response, http.StatusOK, map[string]any{
+		"motionKey":      motionKey,
+		"partyPositions": positions,
+	})
 }
 
 type scanner func(dest ...any) error
