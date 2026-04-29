@@ -53,6 +53,8 @@ func run() error {
 		return migrate.Run(ctx, database.Pool)
 	case "ingest":
 		return runIngest(ctx, cfg, database, args[1:])
+	case "sync":
+		return runSync(ctx, cfg, database, args[1:])
 	case "status":
 		return runStatus(ctx, database, args[1:])
 	case "inspect":
@@ -149,6 +151,69 @@ func runIngestMotionVotes(ctx context.Context, cfg config.Config, database *db.D
 		Limit:  *limit,
 	}
 	return job.Run(ctx)
+}
+
+func runSync(ctx context.Context, cfg config.Config, database *db.DB, args []string) error {
+	if len(args) == 0 || args[0] != "tweedekamer" {
+		return usage()
+	}
+
+	flags := flag.NewFlagSet("sync tweedekamer", flag.ContinueOnError)
+	flags.SetOutput(os.Stderr)
+	motionMaxPages := flags.Int("motion-max-pages", cfg.TweedeKamerMaxPages, "maximum motion OData pages to process, 0 means all")
+	motionBatchSize := flags.Int("motion-batch-size", cfg.TweedeKamerBatchSize, "motion records per OData page")
+	motionVoteLimit := flags.Int("motion-vote-limit", 100, "number of known motions to sync votes for")
+	skipMotions := flags.Bool("skip-motions", false, "skip motion ingestion")
+	skipMotionVotes := flags.Bool("skip-motion-votes", false, "skip motion vote ingestion")
+	if err := flags.Parse(args[1:]); err != nil {
+		return err
+	}
+	if flags.NArg() != 0 {
+		return usage()
+	}
+	if *motionMaxPages < 0 {
+		return fmt.Errorf("--motion-max-pages must be 0 or greater")
+	}
+	if *motionBatchSize <= 0 {
+		return fmt.Errorf("--motion-batch-size must be greater than 0")
+	}
+	if *motionVoteLimit <= 0 {
+		return fmt.Errorf("--motion-vote-limit must be greater than 0")
+	}
+	if *skipMotions && *skipMotionVotes {
+		return fmt.Errorf("sync has nothing to do when both --skip-motions and --skip-motion-votes are set")
+	}
+
+	client := tweedekamer.NewClient(cfg.TweedeKamerODataBaseURL)
+	if !*skipMotions {
+		fmt.Println("sync step=motions")
+		job := ingest.TweedeKamerMotionIngest{
+			Pool:          database.Pool,
+			Client:        client,
+			BatchSize:     *motionBatchSize,
+			MaxPages:      *motionMaxPages,
+			InitialSince:  cfg.TweedeKamerInitialSince,
+			CursorOverlap: cfg.CursorOverlap,
+		}
+		if err := job.Run(ctx); err != nil {
+			return err
+		}
+	}
+
+	if !*skipMotionVotes {
+		fmt.Println("sync step=motion-votes")
+		job := ingest.TweedeKamerMotionVotesIngest{
+			Pool:   database.Pool,
+			Client: client,
+			Limit:  *motionVoteLimit,
+		}
+		if err := job.Run(ctx); err != nil {
+			return err
+		}
+	}
+
+	fmt.Println("sync complete source=tweedekamer")
+	return nil
 }
 
 func runStatus(ctx context.Context, database *db.DB, args []string) error {
@@ -274,6 +339,7 @@ func usage() error {
   partijgedrag migrate
   partijgedrag ingest tweedekamer motions [--max-pages=N] [--batch-size=N] [--since=RFC3339] [--reset-cursor]
   partijgedrag ingest tweedekamer motion-votes [--limit=N]
+  partijgedrag sync tweedekamer [--motion-max-pages=N] [--motion-batch-size=N] [--motion-vote-limit=N] [--skip-motions] [--skip-motion-votes]
   partijgedrag status ingestion-runs [--limit=N] [--pipeline=NAME] [--failed]
   partijgedrag status summary
   partijgedrag inspect motion MOTION_KEY
