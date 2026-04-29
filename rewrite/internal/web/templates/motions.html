@@ -1,0 +1,42 @@
+{{ define "title" }}Motions - Partijgedrag{{ end }}
+{{ define "content" }}
+  <section class="section">
+    <div class="section-heading">
+      <h1>Motions</h1>
+      <span class="muted">{{ .Total }} results</span>
+    </div>
+
+    <form class="filters" method="get" action="/motions">
+      <input type="search" name="search" value="{{ .Search }}" placeholder="Search motions">
+      <label class="checkbox">
+        <input type="checkbox" name="withVotes" value="true" {{ if .WithVotes }}checked{{ end }}>
+        With votes
+      </label>
+      <button type="submit">Filter</button>
+    </form>
+
+    <div class="motion-list">
+      {{ range .Motions }}
+        <article class="motion-row">
+          <div>
+            <a class="motion-title" href="/motions/{{ .MotionKey }}">{{ fallback .Title .Subject }}</a>
+            <p>{{ .Subject }}</p>
+          </div>
+          <dl>
+            <div><dt>Status</dt><dd>{{ .Status }}</dd></div>
+            <div><dt>Proposed</dt><dd>{{ date .ProposedAt }}</dd></div>
+            <div><dt>Decisions</dt><dd>{{ .DecisionCount }}</dd></div>
+            <div><dt>Votes</dt><dd>{{ .VoteCount }}</dd></div>
+          </dl>
+        </article>
+      {{ else }}
+        <p>No motions found.</p>
+      {{ end }}
+    </div>
+
+    <nav class="pagination">
+      {{ if .PrevURL }}<a href="{{ .PrevURL }}">Previous</a>{{ end }}
+      {{ if .NextURL }}<a href="{{ .NextURL }}">Next</a>{{ end }}
+    </nav>
+  </section>
+{{ end }}

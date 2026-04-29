@@ -1,0 +1,23 @@
+{{ define "base" }}
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>{{ template "title" . }}</title>
+    <link rel="stylesheet" href="/static/styles.css">
+  </head>
+  <body>
+    <header class="topbar">
+      <a class="brand" href="/">Partijgedrag</a>
+      <nav>
+        <a href="/motions">Motions</a>
+        <a href="/motions?withVotes=true">With votes</a>
+      </nav>
+    </header>
+    <main class="page">
+      {{ template "content" . }}
+    </main>
+  </body>
+</html>
+{{ end }}

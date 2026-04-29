@@ -1,0 +1,48 @@
+{{ define "title" }}Partijgedrag{{ end }}
+{{ define "content" }}
+  <section class="section">
+    <h1>Partijgedrag</h1>
+    <div class="metric-grid">
+      <div class="metric"><span>Motions</span><strong>{{ .Summary.Motions }}</strong></div>
+      <div class="metric"><span>With votes</span><strong>{{ .Summary.MotionsWithVotes }}</strong></div>
+      <div class="metric"><span>Decisions</span><strong>{{ .Summary.Decisions }}</strong></div>
+      <div class="metric"><span>Votes</span><strong>{{ .Summary.Votes }}</strong></div>
+      <div class="metric"><span>No votes yet</span><strong>{{ .Summary.MotionsWithoutVotes }}</strong></div>
+      <div class="metric"><span>Decision gaps</span><strong>{{ .Summary.DecisionsWithoutVotes }}</strong></div>
+    </div>
+  </section>
+
+  <section class="section">
+    <div class="section-heading">
+      <h2>Recent Ingestion Runs</h2>
+    </div>
+    <table>
+      <thead>
+        <tr>
+          <th>ID</th>
+          <th>Pipeline</th>
+          <th>Status</th>
+          <th>Seen</th>
+          <th>Changed</th>
+          <th>Stop</th>
+          <th>Started</th>
+        </tr>
+      </thead>
+      <tbody>
+        {{ range .Runs }}
+          <tr>
+            <td>#{{ .ID }}</td>
+            <td>{{ .Pipeline }}</td>
+            <td><span class="status status-{{ .Status }}">{{ .Status }}</span></td>
+            <td>{{ .RecordsSeen }}</td>
+            <td>{{ .RecordsChanged }}</td>
+            <td>{{ .StopReason }}</td>
+            <td>{{ time .StartedAt }}</td>
+          </tr>
+        {{ else }}
+          <tr><td colspan="7">No runs yet.</td></tr>
+        {{ end }}
+      </tbody>
+    </table>
+  </section>
+{{ end }}

@@ -13,6 +13,7 @@ import (
 	"github.com/jackc/pgx/v5/pgxpool"
 
 	"partijgedrag/rewrite/internal/status"
+	"partijgedrag/rewrite/internal/web"
 )
 
 const shutdownTimeout = 10 * time.Second
@@ -23,6 +24,7 @@ type Server struct {
 
 func (server Server) Handler() http.Handler {
 	mux := http.NewServeMux()
+	web.MustNew(server.Pool).Register(mux)
 	mux.HandleFunc("GET /health", server.health)
 	mux.HandleFunc("GET /api/summary", server.summary)
 	mux.HandleFunc("GET /api/ingestion-runs", server.listIngestionRuns)

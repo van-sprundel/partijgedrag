@@ -1,0 +1,72 @@
+{{ define "title" }}{{ fallback .Motion.Title .Motion.Subject }} - Partijgedrag{{ end }}
+{{ define "content" }}
+  <section class="section">
+    <a class="back-link" href="/motions">Back to motions</a>
+    <h1>{{ fallback .Motion.Title .Motion.Subject }}</h1>
+    <p class="lead">{{ .Motion.Subject }}</p>
+    <dl class="detail-grid">
+      <div><dt>Status</dt><dd>{{ .Motion.Status }}</dd></div>
+      <div><dt>Proposed</dt><dd>{{ date .Motion.ProposedAt }}</dd></div>
+      <div><dt>Decisions</dt><dd>{{ .Motion.DecisionCount }}</dd></div>
+      <div><dt>Votes</dt><dd>{{ .Motion.VoteCount }}</dd></div>
+      <div><dt>Vote sync</dt><dd>{{ time .Motion.VotesSyncedAt }}</dd></div>
+      <div><dt>Source ID</dt><dd>{{ .Motion.SourceID }}</dd></div>
+    </dl>
+  </section>
+
+  <section class="section">
+    <h2>Decisions</h2>
+    <table>
+      <thead>
+        <tr>
+          <th>Type</th>
+          <th>Status</th>
+          <th>Votes</th>
+          <th>Mistakes</th>
+          <th>Text</th>
+        </tr>
+      </thead>
+      <tbody>
+        {{ range .Decisions }}
+          <tr>
+            <td>{{ .DecisionType }}</td>
+            <td>{{ .Status }}</td>
+            <td>{{ .VoteCount }}</td>
+            <td>{{ .MistakeCount }}</td>
+            <td>{{ .DecisionText }}</td>
+          </tr>
+        {{ else }}
+          <tr><td colspan="5">No decisions synced.</td></tr>
+        {{ end }}
+      </tbody>
+    </table>
+  </section>
+
+  <section class="section">
+    <h2>Party Positions</h2>
+    <table>
+      <thead>
+        <tr>
+          <th>Party</th>
+          <th>Position</th>
+          <th>For</th>
+          <th>Against</th>
+          <th>Total</th>
+        </tr>
+      </thead>
+      <tbody>
+        {{ range .Positions }}
+          <tr>
+            <td>{{ .PartyName }}</td>
+            <td><span class="position position-{{ .Position }}">{{ .Position }}</span></td>
+            <td>{{ .VotesFor }}</td>
+            <td>{{ .VotesAgainst }}</td>
+            <td>{{ .TotalVotes }}</td>
+          </tr>
+        {{ else }}
+          <tr><td colspan="5">No party positions synced.</td></tr>
+        {{ end }}
+      </tbody>
+    </table>
+  </section>
+{{ end }}
