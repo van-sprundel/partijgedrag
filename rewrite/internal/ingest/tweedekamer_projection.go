@@ -32,6 +32,24 @@ type motionProjection struct {
 	RawCollection     string
 }
 
+type partyProjection struct {
+	PartyKey        string
+	SourceKey       string
+	JurisdictionKey string
+	SourceID        string
+	Number          *int
+	ShortName       *string
+	Name            *string
+	NameEN          *string
+	Seats           *int
+	ElectoralVotes  *int
+	ActiveFrom      *time.Time
+	ActiveTo        *time.Time
+	SourceUpdatedAt *time.Time
+	SourceDeleted   bool
+	RawCollection   string
+}
+
 type decisionProjection struct {
 	DecisionKey         string
 	SourceKey           string
@@ -85,6 +103,30 @@ func projectMotion(jurisdictionKey string, record tweedekamer.MotionRecord) moti
 		SourceUpdatedAt:   timePtr(record.ApiGewijzigdOp),
 		SourceDeleted:     boolValue(record.Verwijderd),
 		RawCollection:     zaakCollection,
+	}
+}
+
+func projectPartyRaw(record tweedekamer.PartyRecord) rawRecordProjection {
+	return projectRawRecord(fractieCollection, record.ID, record.ApiGewijzigdOp, record.Verwijderd, record.Raw)
+}
+
+func projectParty(jurisdictionKey string, record tweedekamer.PartyRecord) partyProjection {
+	return partyProjection{
+		PartyKey:        partyKey(record.ID),
+		SourceKey:       tweedeKamerSourceKey,
+		JurisdictionKey: jurisdictionKey,
+		SourceID:        record.ID,
+		Number:          record.Nummer,
+		ShortName:       record.Afkorting,
+		Name:            record.NaamNL,
+		NameEN:          record.NaamEN,
+		Seats:           record.AantalZetels,
+		ElectoralVotes:  record.AantalStemmen,
+		ActiveFrom:      timePtr(record.DatumActief),
+		ActiveTo:        timePtr(record.DatumInactief),
+		SourceUpdatedAt: timePtr(record.ApiGewijzigdOp),
+		SourceDeleted:   boolValue(record.Verwijderd),
+		RawCollection:   fractieCollection,
 	}
 }
 
@@ -146,4 +188,8 @@ func projectRawRecord(collection string, sourceID string, sourceUpdatedAt *tweed
 
 func boolValue(value *bool) bool {
 	return value != nil && *value
+}
+
+func partyKey(sourceID string) string {
+	return tweedeKamerSourceKey + ":party:" + sourceID
 }

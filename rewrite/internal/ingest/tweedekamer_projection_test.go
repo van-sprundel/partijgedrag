@@ -46,6 +46,41 @@ func TestProjectMotionFromFixture(t *testing.T) {
 	}
 }
 
+func TestProjectPartyFromFixture(t *testing.T) {
+	record := readFixture[tweedekamer.PartyRecord](t, "testdata/tweedekamer_party.json")
+
+	raw := projectPartyRaw(record)
+	if raw.Collection != fractieCollection {
+		t.Fatalf("raw.Collection = %q, want %q", raw.Collection, fractieCollection)
+	}
+	if raw.SourceID != record.ID {
+		t.Fatalf("raw.SourceID = %q, want %q", raw.SourceID, record.ID)
+	}
+	if raw.PayloadHash != hashBytes(record.Raw) {
+		t.Fatalf("raw.PayloadHash = %q, want hash of fixture", raw.PayloadHash)
+	}
+
+	party := projectParty("nl-tweede-kamer", record)
+	assertString(t, party.PartyKey, "tweedekamer-odata-v2:party:8d46d23c-4f20-49be-b279-5439a2ef8d17")
+	assertString(t, party.SourceKey, tweedeKamerSourceKey)
+	assertString(t, party.JurisdictionKey, "nl-tweede-kamer")
+	assertIntPtr(t, party.Number, 4)
+	assertStringPtr(t, party.ShortName, "D66")
+	assertStringPtr(t, party.Name, "Democraten 66")
+	assertStringPtr(t, party.NameEN, "Democrats 66")
+	assertIntPtr(t, party.Seats, 26)
+	assertIntPtr(t, party.ElectoralVotes, 1670234)
+	if got := party.ActiveFrom.Format("2006-01-02"); got != "2026-02-23" {
+		t.Fatalf("party.ActiveFrom = %q", got)
+	}
+	if party.ActiveTo != nil {
+		t.Fatalf("party.ActiveTo = %v, want nil", party.ActiveTo)
+	}
+	if party.SourceDeleted {
+		t.Fatal("party.SourceDeleted = true, want false")
+	}
+}
+
 func TestProjectDecisionAndVoteFromFixtures(t *testing.T) {
 	decisionRecord := readFixture[tweedekamer.DecisionRecord](t, "testdata/tweedekamer_decision.json")
 	voteRecord := readFixture[tweedekamer.VoteRecord](t, "testdata/tweedekamer_vote.json")

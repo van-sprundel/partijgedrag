@@ -305,7 +305,11 @@ func acquirePipelineLock(ctx context.Context, pool *pgxpool.Pool, pipeline strin
 }
 
 func startPipelineRun(ctx context.Context, pool *pgxpool.Pool, pipeline string) (int64, error) {
-	raw, err := json.Marshal(Cursor{})
+	return startPipelineRunWithCursor(ctx, pool, pipeline, Cursor{})
+}
+
+func startPipelineRunWithCursor(ctx context.Context, pool *pgxpool.Pool, pipeline string, cursorBefore Cursor) (int64, error) {
+	raw, err := json.Marshal(cursorBefore)
 	if err != nil {
 		return 0, err
 	}
@@ -331,11 +335,26 @@ func finishPipelineRun(
 	stopReason string,
 	errorMessage string,
 ) error {
-	raw, err := json.Marshal(Cursor{})
+	return finishPipelineRunWithCursor(ctx, pool, runID, pipeline, status, Cursor{}, recordsSeen, recordsChanged, cursorSaved, stopReason, errorMessage)
+}
+
+func finishPipelineRunWithCursor(
+	ctx context.Context,
+	pool *pgxpool.Pool,
+	runID int64,
+	pipeline string,
+	status string,
+	cursorAfter Cursor,
+	recordsSeen int,
+	recordsChanged int,
+	cursorSaved bool,
+	stopReason string,
+	errorMessage string,
+) error {
+	raw, err := json.Marshal(cursorAfter)
 	if err != nil {
 		return err
 	}
-
 	var nullableError *string
 	if errorMessage != "" {
 		nullableError = &errorMessage

@@ -74,6 +74,34 @@ type MotionRecord struct {
 	Raw            json.RawMessage
 }
 
+type PartyRecord struct {
+	ID             string  `json:"Id"`
+	Nummer         *int    `json:"Nummer"`
+	Afkorting      *string `json:"Afkorting"`
+	NaamNL         *string `json:"NaamNL"`
+	NaamEN         *string `json:"NaamEN"`
+	AantalZetels   *int    `json:"AantalZetels"`
+	AantalStemmen  *int    `json:"AantalStemmen"`
+	DatumActief    *Time   `json:"DatumActief"`
+	DatumInactief  *Time   `json:"DatumInactief"`
+	GewijzigdOp    *Time   `json:"GewijzigdOp"`
+	ApiGewijzigdOp *Time   `json:"ApiGewijzigdOp"`
+	Verwijderd     *bool   `json:"Verwijderd"`
+	Raw            json.RawMessage
+}
+
+func (record *PartyRecord) UnmarshalJSON(data []byte) error {
+	type alias PartyRecord
+	var decoded alias
+	if err := json.Unmarshal(data, &decoded); err != nil {
+		return err
+	}
+
+	*record = PartyRecord(decoded)
+	record.Raw = append(record.Raw[:0], data...)
+	return nil
+}
+
 type DecisionRecord struct {
 	ID                            string  `json:"Id"`
 	AgendapuntID                  *string `json:"Agendapunt_Id"`
@@ -148,6 +176,11 @@ type ChangedMotionsPage struct {
 	NextURL string
 }
 
+type ChangedPartiesPage struct {
+	Records []PartyRecord
+	NextURL string
+}
+
 func (client *Client) FetchChangedMotions(ctx context.Context, since time.Time, top int, skip int, nextURL string) (ChangedMotionsPage, error) {
 	requestURL := nextURL
 	if requestURL == "" {
@@ -163,6 +196,26 @@ func (client *Client) FetchChangedMotions(ctx context.Context, since time.Time, 
 	}
 
 	return ChangedMotionsPage{
+		Records: body.Value,
+		NextURL: body.NextURL,
+	}, nil
+}
+
+func (client *Client) FetchChangedParties(ctx context.Context, since time.Time, top int, skip int, nextURL string) (ChangedPartiesPage, error) {
+	requestURL := nextURL
+	if requestURL == "" {
+		requestURL = client.changedPartiesURL(since, top, skip)
+	}
+
+	var body struct {
+		Value   []PartyRecord `json:"value"`
+		NextURL string        `json:"@odata.nextLink"`
+	}
+	if err := client.fetchJSON(ctx, requestURL, &body); err != nil {
+		return ChangedPartiesPage{}, err
+	}
+
+	return ChangedPartiesPage{
 		Records: body.Value,
 		NextURL: body.NextURL,
 	}, nil
@@ -222,6 +275,34 @@ func (client *Client) changedMotionsURL(since time.Time, top int, skip int) stri
 		"Status",
 		"GestartOp",
 		"Vergaderjaar",
+		"GewijzigdOp",
+		"ApiGewijzigdOp",
+		"Verwijderd",
+	}, ","))
+	query.Set("$orderby", "ApiGewijzigdOp asc,Id asc")
+	query.Set("$top", fmt.Sprintf("%d", top))
+	if skip > 0 {
+		query.Set("$skip", fmt.Sprintf("%d", skip))
+	}
+	query.Set("$count", "false")
+	u.RawQuery = query.Encode()
+	return u.String()
+}
+
+func (client *Client) changedPartiesURL(since time.Time, top int, skip int) string {
+	u, _ := url.Parse(client.baseURL + "/Fractie")
+	query := u.Query()
+	query.Set("$filter", fmt.Sprintf("ApiGewijzigdOp ge %s", formatODataDate(since)))
+	query.Set("$select", strings.Join([]string{
+		"Id",
+		"Nummer",
+		"Afkorting",
+		"NaamNL",
+		"NaamEN",
+		"AantalZetels",
+		"AantalStemmen",
+		"DatumActief",
+		"DatumInactief",
 		"GewijzigdOp",
 		"ApiGewijzigdOp",
 		"Verwijderd",

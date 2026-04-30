@@ -101,6 +101,58 @@ func TestMotionDecisionsURLUsesNavigationEndpoint(t *testing.T) {
 	}
 }
 
+func TestChangedPartiesURLUsesValidLeanQuery(t *testing.T) {
+	client := NewClient("https://example.test/OData/v4/2.0")
+	since := time.Date(2026, 2, 23, 12, 0, 0, 0, time.UTC)
+
+	queryURL := client.changedPartiesURL(since, 50, 100)
+	parsed, err := url.Parse(queryURL)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	if parsed.Path != "/OData/v4/2.0/Fractie" {
+		t.Fatalf("unexpected path %q", parsed.Path)
+	}
+
+	query := parsed.Query()
+	if got := query.Get("$filter"); got != "ApiGewijzigdOp ge 2026-02-23T12:00:00Z" {
+		t.Fatalf("unexpected filter %q", got)
+	}
+	if got := query.Get("$orderby"); got != "ApiGewijzigdOp asc,Id asc" {
+		t.Fatalf("unexpected orderby %q", got)
+	}
+	if got := query.Get("$top"); got != "50" {
+		t.Fatalf("unexpected top %q", got)
+	}
+	if got := query.Get("$skip"); got != "100" {
+		t.Fatalf("unexpected skip %q", got)
+	}
+
+	selectFields := strings.Split(query.Get("$select"), ",")
+	required := map[string]bool{
+		"Id":             false,
+		"Afkorting":      false,
+		"NaamNL":         false,
+		"AantalZetels":   false,
+		"DatumActief":    false,
+		"ApiGewijzigdOp": false,
+		"Verwijderd":     false,
+	}
+
+	for _, field := range selectFields {
+		if _, ok := required[field]; ok {
+			required[field] = true
+		}
+	}
+
+	for field, seen := range required {
+		if !seen {
+			t.Fatalf("query is missing required field %q", field)
+		}
+	}
+}
+
 func TestDecisionVotesURLUsesNavigationEndpoint(t *testing.T) {
 	client := NewClient("https://example.test/OData/v4/2.0")
 

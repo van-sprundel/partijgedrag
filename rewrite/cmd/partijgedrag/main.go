@@ -86,6 +86,8 @@ func runIngest(ctx context.Context, cfg config.Config, database *db.DB, args []s
 	}
 
 	switch args[1] {
+	case "parties":
+		return runIngestParties(ctx, cfg, database, args[2:])
 	case "motions":
 		return runIngestMotions(ctx, cfg, database, args[2:])
 	case "motion-votes":
@@ -93,6 +95,45 @@ func runIngest(ctx context.Context, cfg config.Config, database *db.DB, args []s
 	default:
 		return usage()
 	}
+}
+
+func runIngestParties(ctx context.Context, cfg config.Config, database *db.DB, args []string) error {
+	flags := flag.NewFlagSet("ingest tweedekamer parties", flag.ContinueOnError)
+	flags.SetOutput(os.Stderr)
+	maxPages := flags.Int("max-pages", cfg.TweedeKamerMaxPages, "maximum OData pages to process, 0 means all")
+	batchSize := flags.Int("batch-size", cfg.TweedeKamerBatchSize, "records per OData page")
+	resetCursor := flags.Bool("reset-cursor", false, "delete the stored cursor before ingesting")
+	sinceValue := flags.String("since", "", "override cursor with an RFC3339 ApiGewijzigdOp timestamp")
+	if err := flags.Parse(args); err != nil {
+		return err
+	}
+	if *batchSize <= 0 {
+		return fmt.Errorf("--batch-size must be greater than 0")
+	}
+	if *maxPages < 0 {
+		return fmt.Errorf("--max-pages must be 0 or greater")
+	}
+
+	var sinceOverride *time.Time
+	if *sinceValue != "" {
+		parsed, err := time.Parse(time.RFC3339, *sinceValue)
+		if err != nil {
+			return fmt.Errorf("parse --since: %w", err)
+		}
+		sinceOverride = &parsed
+	}
+
+	job := ingest.TweedeKamerPartyIngest{
+		Pool:          database.Pool,
+		Client:        tweedekamer.NewClient(cfg.TweedeKamerODataBaseURL),
+		BatchSize:     *batchSize,
+		MaxPages:      *maxPages,
+		InitialSince:  cfg.TweedeKamerInitialSince,
+		CursorOverlap: cfg.CursorOverlap,
+		SinceOverride: sinceOverride,
+		ResetCursor:   *resetCursor,
+	}
+	return job.Run(ctx)
 }
 
 func runIngestMotions(ctx context.Context, cfg config.Config, database *db.DB, args []string) error {
@@ -162,7 +203,10 @@ func runSync(ctx context.Context, cfg config.Config, database *db.DB, args []str
 	flags.SetOutput(os.Stderr)
 	motionMaxPages := flags.Int("motion-max-pages", cfg.TweedeKamerMaxPages, "maximum motion OData pages to process, 0 means all")
 	motionBatchSize := flags.Int("motion-batch-size", cfg.TweedeKamerBatchSize, "motion records per OData page")
+	partyMaxPages := flags.Int("party-max-pages", cfg.TweedeKamerMaxPages, "maximum party OData pages to process, 0 means all")
+	partyBatchSize := flags.Int("party-batch-size", cfg.TweedeKamerBatchSize, "party records per OData page")
 	motionVoteLimit := flags.Int("motion-vote-limit", 100, "number of known motions to sync votes for")
+	skipParties := flags.Bool("skip-parties", false, "skip party ingestion")
 	skipMotions := flags.Bool("skip-motions", false, "skip motion ingestion")
 	skipMotionVotes := flags.Bool("skip-motion-votes", false, "skip motion vote ingestion")
 	if err := flags.Parse(args[1:]); err != nil {
@@ -177,14 +221,35 @@ func runSync(ctx context.Context, cfg config.Config, database *db.DB, args []str
 	if *motionBatchSize <= 0 {
 		return fmt.Errorf("--motion-batch-size must be greater than 0")
 	}
+	if *partyMaxPages < 0 {
+		return fmt.Errorf("--party-max-pages must be 0 or greater")
+	}
+	if *partyBatchSize <= 0 {
+		return fmt.Errorf("--party-batch-size must be greater than 0")
+	}
 	if *motionVoteLimit <= 0 {
 		return fmt.Errorf("--motion-vote-limit must be greater than 0")
 	}
-	if *skipMotions && *skipMotionVotes {
-		return fmt.Errorf("sync has nothing to do when both --skip-motions and --skip-motion-votes are set")
+	if *skipParties && *skipMotions && *skipMotionVotes {
+		return fmt.Errorf("sync has nothing to do when --skip-parties, --skip-motions, and --skip-motion-votes are set")
 	}
 
 	client := tweedekamer.NewClient(cfg.TweedeKamerODataBaseURL)
+	if !*skipParties {
+		fmt.Println("sync step=parties")
+		job := ingest.TweedeKamerPartyIngest{
+			Pool:          database.Pool,
+			Client:        client,
+			BatchSize:     *partyBatchSize,
+			MaxPages:      *partyMaxPages,
+			InitialSince:  cfg.TweedeKamerInitialSince,
+			CursorOverlap: cfg.CursorOverlap,
+		}
+		if err := job.Run(ctx); err != nil {
+			return err
+		}
+	}
+
 	if !*skipMotions {
 		fmt.Println("sync step=motions")
 		job := ingest.TweedeKamerMotionIngest{
@@ -319,7 +384,8 @@ func runStatusSummary(ctx context.Context, database *db.DB, args []string) error
 		return err
 	}
 
-	fmt.Printf("motions=%d motions_with_votes=%d motions_without_votes=%d motions_with_no_decisions=%d decisions=%d decisions_without_votes=%d votes=%d mistake_votes=%d deleted_votes=%d raw_records=%d\n",
+	fmt.Printf("parties=%d motions=%d motions_with_votes=%d motions_without_votes=%d motions_with_no_decisions=%d decisions=%d decisions_without_votes=%d votes=%d mistake_votes=%d deleted_votes=%d raw_records=%d\n",
+		summary.Parties,
 		summary.Motions,
 		summary.MotionsWithVotes,
 		summary.MotionsWithoutVotes,
@@ -337,9 +403,10 @@ func runStatusSummary(ctx context.Context, database *db.DB, args []string) error
 func usage() error {
 	return fmt.Errorf(`usage:
   partijgedrag migrate
+  partijgedrag ingest tweedekamer parties [--max-pages=N] [--batch-size=N] [--since=RFC3339] [--reset-cursor]
   partijgedrag ingest tweedekamer motions [--max-pages=N] [--batch-size=N] [--since=RFC3339] [--reset-cursor]
   partijgedrag ingest tweedekamer motion-votes [--limit=N]
-  partijgedrag sync tweedekamer [--motion-max-pages=N] [--motion-batch-size=N] [--motion-vote-limit=N] [--skip-motions] [--skip-motion-votes]
+  partijgedrag sync tweedekamer [--party-max-pages=N] [--party-batch-size=N] [--motion-max-pages=N] [--motion-batch-size=N] [--motion-vote-limit=N] [--skip-parties] [--skip-motions] [--skip-motion-votes]
   partijgedrag status ingestion-runs [--limit=N] [--pipeline=NAME] [--failed]
   partijgedrag status summary
   partijgedrag inspect motion MOTION_KEY
