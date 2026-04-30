@@ -39,7 +39,7 @@ func MustNew(pool *pgxpool.Pool) Server {
 
 func New(pool *pgxpool.Pool) (Server, error) {
 	templates := make(map[string]*template.Template)
-	for _, name := range []string{"home", "motions", "motion", "party_likeness", "coalition_analysis", "coalition_motions"} {
+	for _, name := range []string{"home", "motions", "motion", "party_likeness", "coalition_analysis", "coalition_motions", "voting_compass"} {
 		parsed, err := parseTemplate(name)
 		if err != nil {
 			return Server{}, err
@@ -59,6 +59,7 @@ func (server Server) Register(mux *http.ServeMux) {
 	mux.HandleFunc("GET /party-likeness", server.partyLikeness)
 	mux.HandleFunc("GET /coalition-analysis", server.coalitionAnalysis)
 	mux.HandleFunc("GET /coalition-analysis/motions", server.coalitionMotions)
+	mux.HandleFunc("GET /voting-compass", server.votingCompass)
 	mux.HandleFunc("GET /motions", server.motions)
 	mux.HandleFunc("GET /motions/{motionKey}", server.motion)
 }
@@ -323,6 +324,18 @@ func (server Server) coalitionMotions(response http.ResponseWriter, request *htt
 		Limit:     limit,
 		Offset:    offset,
 		MinCommon: minCommon,
+	})
+}
+
+func (server Server) votingCompass(response http.ResponseWriter, request *http.Request) {
+	periods, err := analysis.LoadCabinetPeriods(request.Context(), server.Pool, "nl-tweede-kamer")
+	if err != nil {
+		writeError(response, err)
+		return
+	}
+
+	server.render(response, "voting_compass", votingCompassPage{
+		Periods: periods,
 	})
 }
 
@@ -615,6 +628,10 @@ type coalitionMotionsPage struct {
 	Limit     int
 	Offset    int
 	MinCommon int
+}
+
+type votingCompassPage struct {
+	Periods []analysis.CabinetPeriod
 }
 
 type coalitionPartyAlignmentView struct {

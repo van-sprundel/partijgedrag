@@ -1,0 +1,196 @@
+{{ define "title" }}Voting Compass - Partijgedrag{{ end }}
+{{ define "content" }}
+  <section class="section">
+    <div class="section-heading">
+      <h1>Voting Compass</h1>
+      <span class="muted" id="compass-count">0 answered</span>
+    </div>
+
+    <form class="filters" id="compass-filters">
+      <label>
+        Cabinet period
+        <select name="period" id="compass-period">
+          <option value="">All synced motions</option>
+          {{ range .Periods }}
+            <option value="{{ .PeriodKey }}">{{ .Name }}</option>
+          {{ end }}
+        </select>
+      </label>
+      <label>
+        Motions
+        <input type="number" name="limit" id="compass-limit" value="12" min="1" max="50">
+      </label>
+      <label>
+        Minimum overlap
+        <input type="number" name="minOverlap" id="compass-min-overlap" value="5" min="1" max="50">
+      </label>
+      <button type="submit">Load</button>
+    </form>
+  </section>
+
+  <section class="section compass-layout">
+    <div id="compass-motions" class="compass-motion-list"></div>
+    <aside class="compass-results">
+      <h2>Matches</h2>
+      <p class="muted" id="compass-threshold">Minimum overlap: 5</p>
+      <table>
+        <thead>
+          <tr>
+            <th>Party</th>
+            <th>Match</th>
+            <th>Same</th>
+            <th>Overlap</th>
+          </tr>
+        </thead>
+        <tbody id="compass-results">
+          <tr><td colspan="4">No answers yet.</td></tr>
+        </tbody>
+      </table>
+      <details class="inconclusive" id="compass-inconclusive" hidden>
+        <summary>Inconclusive</summary>
+        <table>
+          <thead>
+            <tr>
+              <th>Party</th>
+              <th>Same</th>
+              <th>Overlap</th>
+            </tr>
+          </thead>
+          <tbody id="compass-inconclusive-results"></tbody>
+        </table>
+      </details>
+    </aside>
+  </section>
+
+  <script>
+    (() => {
+      const form = document.querySelector("#compass-filters");
+      const period = document.querySelector("#compass-period");
+      const limit = document.querySelector("#compass-limit");
+      const minOverlap = document.querySelector("#compass-min-overlap");
+      const count = document.querySelector("#compass-count");
+      const threshold = document.querySelector("#compass-threshold");
+      const motionsNode = document.querySelector("#compass-motions");
+      const resultsNode = document.querySelector("#compass-results");
+      const inconclusive = document.querySelector("#compass-inconclusive");
+      const inconclusiveResults = document.querySelector("#compass-inconclusive-results");
+      let motions = [];
+      const answers = new Map();
+
+      const label = (value) => value || "";
+      const escapeHTML = (value) => String(value ?? "").replace(/[&<>"']/g, (character) => ({
+        "&": "&amp;",
+        "<": "&lt;",
+        ">": "&gt;",
+        "\"": "&quot;",
+        "'": "&#39;"
+      })[character]);
+
+      const loadMotions = async () => {
+        const params = new URLSearchParams();
+        if (period.value) params.set("period", period.value);
+        params.set("limit", limit.value || "12");
+        const response = await fetch(`/api/voting-compass/motions?${params.toString()}`);
+        if (!response.ok) throw new Error("failed to load motions");
+        const data = await response.json();
+        motions = data.motions || [];
+        answers.clear();
+        renderMotions();
+        renderResults();
+      };
+
+      const renderMotions = () => {
+        if (motions.length === 0) {
+          motionsNode.innerHTML = `<p class="muted">No synced motions found for this selection.</p>`;
+          return;
+        }
+
+        motionsNode.innerHTML = motions.map((motion, index) => `
+          <article class="compass-motion" data-motion-key="${escapeHTML(motion.motionKey)}">
+            <div>
+              <span class="muted">${index + 1} / ${motions.length}</span>
+              <h2><a href="/motions/${encodeURIComponent(motion.motionKey)}">${escapeHTML(label(motion.title) || label(motion.subject) || motion.motionKey)}</a></h2>
+              <p>${escapeHTML(label(motion.subject))}</p>
+            </div>
+            <div class="segmented" role="group">
+              <button type="button" data-answer="FOR">Voor</button>
+              <button type="button" data-answer="AGAINST">Tegen</button>
+              <button type="button" data-answer="SKIP">Skip</button>
+            </div>
+          </article>
+        `).join("");
+
+        motionsNode.querySelectorAll("[data-answer]").forEach((button) => {
+          button.addEventListener("click", () => {
+            const card = button.closest("[data-motion-key]");
+            const motionKey = card.dataset.motionKey;
+            const answer = button.dataset.answer;
+            if (answer === "SKIP") {
+              answers.delete(motionKey);
+            } else {
+              answers.set(motionKey, answer);
+            }
+            card.querySelectorAll("[data-answer]").forEach((candidate) => candidate.classList.remove("active"));
+            if (answer !== "SKIP") button.classList.add("active");
+            renderResults();
+          });
+        });
+      };
+
+      const renderResults = () => {
+        count.textContent = `${answers.size} answered`;
+        const overlapThreshold = Math.max(1, Math.min(Number(minOverlap.value || 5), answers.size || 1));
+        threshold.textContent = `Minimum overlap: ${overlapThreshold}`;
+        const scores = new Map();
+        for (const motion of motions) {
+          const answer = answers.get(motion.motionKey);
+          if (!answer) continue;
+          for (const position of motion.positions || []) {
+            if (!position.partySourceId) continue;
+            const score = scores.get(position.partySourceId) || { party: position.partyName, same: 0, overlap: 0 };
+            score.overlap += 1;
+            if (position.position === answer) score.same += 1;
+            scores.set(position.partySourceId, score);
+          }
+        }
+
+        const scoredRows = Array.from(scores.values())
+          .filter((score) => score.overlap > 0)
+          .sort((a, b) => (b.same / b.overlap) - (a.same / a.overlap) || b.overlap - a.overlap || a.party.localeCompare(b.party))
+
+        const rows = scoredRows
+          .filter((score) => score.overlap >= overlapThreshold)
+          .slice(0, 20);
+
+        const inconclusiveRows = scoredRows
+          .filter((score) => score.overlap < overlapThreshold)
+          .sort((a, b) => b.overlap - a.overlap || a.party.localeCompare(b.party));
+
+        if (rows.length === 0) {
+          resultsNode.innerHTML = `<tr><td colspan="4">${answers.size === 0 ? "No answers yet." : "No parties have enough overlap yet."}</td></tr>`;
+        } else {
+          resultsNode.innerHTML = rows.map((score) => {
+            const match = Math.round((score.same / score.overlap) * 1000) / 10;
+            return `<tr><td>${escapeHTML(score.party)}</td><td>${match.toFixed(1)}%</td><td>${score.same}</td><td>${score.overlap}</td></tr>`;
+          }).join("");
+        }
+
+        inconclusive.hidden = inconclusiveRows.length === 0;
+        inconclusiveResults.innerHTML = inconclusiveRows.map((score) => `
+          <tr><td>${escapeHTML(score.party)}</td><td>${score.same}</td><td>${score.overlap}</td></tr>
+        `).join("");
+      };
+
+      form.addEventListener("submit", (event) => {
+        event.preventDefault();
+        loadMotions().catch(() => {
+          motionsNode.innerHTML = `<p class="muted">Could not load motions.</p>`;
+        });
+      });
+
+      loadMotions().catch(() => {
+        motionsNode.innerHTML = `<p class="muted">Could not load motions.</p>`;
+      });
+    })();
+  </script>
+{{ end }}

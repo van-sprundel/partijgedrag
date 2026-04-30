@@ -257,6 +257,76 @@ dd {
   margin-top: 16px;
 }
 
+.compass-layout {
+  align-items: start;
+  display: grid;
+  gap: 18px;
+  grid-template-columns: minmax(0, 1fr) minmax(280px, 360px);
+}
+
+.compass-motion-list {
+  display: grid;
+  gap: 12px;
+}
+
+.compass-motion {
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  display: grid;
+  gap: 14px;
+  padding: 16px;
+}
+
+.compass-motion h2 {
+  font-size: 18px;
+  margin: 4px 0 8px;
+}
+
+.compass-motion p {
+  color: var(--muted);
+  line-height: 1.45;
+  margin: 0;
+}
+
+.compass-results {
+  position: sticky;
+  top: 16px;
+}
+
+.compass-results .muted {
+  font-size: 13px;
+  margin: -8px 0 10px;
+}
+
+.inconclusive {
+  margin-top: 14px;
+}
+
+.inconclusive summary {
+  cursor: pointer;
+  font-weight: 700;
+  margin-bottom: 8px;
+}
+
+.segmented {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.segmented button {
+  background: var(--surface);
+  border: 1px solid var(--line);
+  color: var(--text);
+}
+
+.segmented button.active {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: white;
+}
+
 .matrix-scroll {
   overflow-x: auto;
 }
@@ -328,5 +398,13 @@ dd {
   table {
     display: block;
     overflow-x: auto;
+  }
+
+  .compass-layout {
+    grid-template-columns: 1fr;
+  }
+
+  .compass-results {
+    position: static;
   }
 }

@@ -35,6 +35,7 @@ func (server Server) Handler() http.Handler {
 	mux.HandleFunc("GET /api/ingestion-runs", server.listIngestionRuns)
 	mux.HandleFunc("GET /api/parties", server.listParties)
 	mux.HandleFunc("GET /api/party-likeness", server.listPartyLikeness)
+	mux.HandleFunc("GET /api/voting-compass/motions", server.listVotingCompassMotions)
 	mux.HandleFunc("GET /api/motions", server.listMotions)
 	mux.HandleFunc("GET /api/motions/{motionKey}/party-positions", server.getMotionPartyPositions)
 	mux.HandleFunc("GET /api/motions/{motionKey}", server.getMotion)
@@ -385,6 +386,72 @@ func (server Server) listPartyLikeness(response http.ResponseWriter, request *ht
 		"period":        periodKey,
 		"dateFrom":      dateString(dateFrom),
 		"dateTo":        dateString(dateTo),
+	})
+}
+
+func (server Server) listVotingCompassMotions(response http.ResponseWriter, request *http.Request) {
+	query := request.URL.Query()
+	jurisdiction := query.Get("jurisdiction")
+	if jurisdiction == "" {
+		jurisdiction = "nl-tweede-kamer"
+	}
+
+	var dateFrom *time.Time
+	var dateTo *time.Time
+	periodKey := query.Get("period")
+	if periodKey != "" {
+		period, err := analysis.LoadCabinetPeriod(request.Context(), server.Pool, jurisdiction, periodKey)
+		if err != nil {
+			if analysis.IsNotFound(err) {
+				writeJSON(response, http.StatusBadRequest, map[string]string{"error": "invalid_period"})
+				return
+			}
+			writeError(response, err)
+			return
+		}
+		dateFrom = &period.StartedOn
+		dateTo = period.EndedOn
+	}
+
+	limit := clamp(parseInt(query.Get("limit"), 12), 1, 50)
+	minParties := clamp(parseInt(query.Get("minParties"), 8), 1, 50)
+	motions, err := analysis.LoadVotingCompassMotions(request.Context(), server.Pool, analysis.VotingCompassOptions{
+		Jurisdiction: jurisdiction,
+		DateFrom:     dateFrom,
+		DateTo:       dateTo,
+		Limit:        limit,
+		MinParties:   minParties,
+	})
+	if err != nil {
+		writeError(response, err)
+		return
+	}
+
+	items := make([]map[string]any, 0, len(motions))
+	for _, motion := range motions {
+		positions := make([]map[string]any, 0, len(motion.Positions))
+		for _, position := range motion.Positions {
+			positions = append(positions, map[string]any{
+				"partySourceId": position.PartySourceID,
+				"partyName":     position.PartyName,
+				"position":      position.Position,
+			})
+		}
+		items = append(items, map[string]any{
+			"motionKey":  motion.MotionKey,
+			"number":     motion.Number,
+			"title":      motion.Title,
+			"subject":    motion.Subject,
+			"proposedAt": motion.ProposedAt,
+			"positions":  positions,
+		})
+	}
+
+	writeJSON(response, http.StatusOK, map[string]any{
+		"period":     periodKey,
+		"limit":      limit,
+		"minParties": minParties,
+		"motions":    items,
 	})
 }
 
