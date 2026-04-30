@@ -68,6 +68,7 @@ func loadCoalitionSummary(ctx context.Context, pool *pgxpool.Pool, period Cabine
 		       COUNT(*) FILTER (WHERE coalition_against > 0 AND coalition_for = 0)::int AS unanimous_against,
 		       COUNT(*) FILTER (WHERE coalition_for > 0 AND coalition_against > 0)::int AS split
 		FROM coalition_by_motion
+		WHERE coalition_parties_seen >= 2
 	`, period.Jurisdiction, period.StartedOn, period.EndedOn, coalitionParties).Scan(
 		&summary.MotionsWithCoalitionVotes,
 		&summary.ClearBlocPosition,
@@ -101,6 +102,7 @@ func loadCoalitionPartyAlignment(ctx context.Context, pool *pgxpool.Pool, period
 		FROM party_positions pp
 		JOIN coalition_by_motion cbm ON cbm.motion_key = pp.motion_key
 		WHERE cbm.coalition_for <> cbm.coalition_against
+		  AND cbm.coalition_parties_seen >= 2
 		GROUP BY pp.party_source_id, pp.party_name
 		HAVING COUNT(*) >= $5
 		ORDER BY coalition_party DESC, alignment DESC, common_motions DESC, pp.party_name
@@ -169,12 +171,30 @@ func coalitionPositionSQL() string {
 }
 
 func normalizedPartyNames(names []string) []string {
-	normalized := make([]string, 0, len(names))
+	seen := map[string]bool{}
+	normalized := []string{}
 	for _, name := range names {
 		name = strings.ToUpper(strings.TrimSpace(name))
-		if name != "" {
-			normalized = append(normalized, name)
+		if name == "" {
+			continue
+		}
+		for _, alias := range partyNameAliases(name) {
+			if alias != "" && !seen[alias] {
+				seen[alias] = true
+				normalized = append(normalized, alias)
+			}
 		}
 	}
 	return normalized
+}
+
+func partyNameAliases(name string) []string {
+	switch name {
+	case "CU":
+		return []string{"CU", "CHRISTENUNIE"}
+	case "NSC":
+		return []string{"NSC", "NIEUW SOCIAAL CONTRACT"}
+	default:
+		return []string{name}
+	}
 }
