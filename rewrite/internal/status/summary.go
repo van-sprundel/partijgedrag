@@ -2,6 +2,7 @@ package status
 
 import (
 	"context"
+	"time"
 
 	"github.com/jackc/pgx/v5/pgxpool"
 )
@@ -18,6 +19,17 @@ type Summary struct {
 	MistakeVotes           int64 `json:"mistakeVotes"`
 	DeletedVotes           int64 `json:"deletedVotes"`
 	RawRecords             int64 `json:"rawRecords"`
+}
+
+type VoteBackfill struct {
+	TotalMotions       int64      `json:"totalMotions"`
+	SyncedMotions      int64      `json:"syncedMotions"`
+	UnsyncedMotions    int64      `json:"unsyncedMotions"`
+	EligibleMotions    int64      `json:"eligibleMotions"`
+	OldestVotesSynced  *time.Time `json:"oldestVotesSynced"`
+	NewestVotesSynced  *time.Time `json:"newestVotesSynced"`
+	ResyncBefore       *time.Time `json:"resyncBefore"`
+	ResyncAfterSeconds int64      `json:"resyncAfterSeconds"`
 }
 
 func LoadSummary(ctx context.Context, pool *pgxpool.Pool) (Summary, error) {
@@ -49,4 +61,36 @@ func LoadSummary(ctx context.Context, pool *pgxpool.Pool) (Summary, error) {
 		&summary.RawRecords,
 	)
 	return summary, err
+}
+
+func LoadVoteBackfill(ctx context.Context, pool *pgxpool.Pool, resyncAfter time.Duration) (VoteBackfill, error) {
+	var result VoteBackfill
+	var resyncBefore *time.Time
+	if resyncAfter > 0 {
+		value := time.Now().Add(-resyncAfter)
+		resyncBefore = &value
+		result.ResyncBefore = resyncBefore
+		result.ResyncAfterSeconds = int64(resyncAfter.Seconds())
+	}
+
+	err := pool.QueryRow(ctx, `
+		SELECT
+		  count(*)::bigint AS total_motions,
+		  count(*) FILTER (WHERE votes_synced_at IS NOT NULL)::bigint AS synced_motions,
+		  count(*) FILTER (WHERE votes_synced_at IS NULL)::bigint AS unsynced_motions,
+		  count(*) FILTER (WHERE votes_synced_at IS NULL OR ($1::timestamptz IS NOT NULL AND votes_synced_at < $1))::bigint AS eligible_motions,
+		  min(votes_synced_at) FILTER (WHERE votes_synced_at IS NOT NULL) AS oldest_votes_synced,
+		  max(votes_synced_at) FILTER (WHERE votes_synced_at IS NOT NULL) AS newest_votes_synced
+		FROM motions
+		WHERE source_key = 'tweedekamer-odata-v2'
+		  AND source_deleted = false
+	`, resyncBefore).Scan(
+		&result.TotalMotions,
+		&result.SyncedMotions,
+		&result.UnsyncedMotions,
+		&result.EligibleMotions,
+		&result.OldestVotesSynced,
+		&result.NewestVotesSynced,
+	)
+	return result, err
 }

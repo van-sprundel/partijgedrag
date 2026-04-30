@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"time"
 
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
@@ -18,9 +19,10 @@ const (
 )
 
 type TweedeKamerMotionVotesIngest struct {
-	Pool   *pgxpool.Pool
-	Client *tweedekamer.Client
-	Limit  int
+	Pool        *pgxpool.Pool
+	Client      *tweedekamer.Client
+	Limit       int
+	ResyncAfter time.Duration
 }
 
 func (ingest TweedeKamerMotionVotesIngest) Run(ctx context.Context) error {
@@ -35,7 +37,14 @@ func (ingest TweedeKamerMotionVotesIngest) Run(ctx context.Context) error {
 		return err
 	}
 
-	motions, err := ingest.motionCandidates(ctx)
+	resyncBefore := ingest.resyncBefore()
+	pendingBefore, err := ingest.pendingCount(ctx, resyncBefore)
+	if err != nil {
+		_ = finishPipelineRun(ctx, ingest.Pool, runID, motionVotesPipeline, "failed", 0, 0, false, "error", err.Error())
+		return err
+	}
+
+	motions, err := ingest.motionCandidates(ctx, resyncBefore)
 	if err != nil {
 		_ = finishPipelineRun(ctx, ingest.Pool, runID, motionVotesPipeline, "failed", 0, 0, false, "error", err.Error())
 		return err
@@ -67,7 +76,12 @@ func (ingest TweedeKamerMotionVotesIngest) Run(ctx context.Context) error {
 		return err
 	}
 
-	fmt.Printf("motion vote ingestion complete run_id=%d motions=%d seen=%d changed=%d\n", runID, len(motions), recordsSeen, recordsChanged)
+	pendingAfter, err := ingest.pendingCount(ctx, resyncBefore)
+	if err != nil {
+		return err
+	}
+
+	fmt.Printf("motion vote ingestion complete run_id=%d motions=%d seen=%d changed=%d pending_before=%d pending_after=%d\n", runID, len(motions), recordsSeen, recordsChanged, pendingBefore, pendingAfter)
 	return nil
 }
 
@@ -76,15 +90,16 @@ type motionCandidate struct {
 	SourceID  string
 }
 
-func (ingest TweedeKamerMotionVotesIngest) motionCandidates(ctx context.Context) ([]motionCandidate, error) {
+func (ingest TweedeKamerMotionVotesIngest) motionCandidates(ctx context.Context, resyncBefore *time.Time) ([]motionCandidate, error) {
 	rows, err := ingest.Pool.Query(ctx, `
 		SELECT motion_key, source_id
 		FROM motions
 		WHERE source_key = $1
 		  AND source_deleted = false
+		  AND (votes_synced_at IS NULL OR ($3::timestamptz IS NOT NULL AND votes_synced_at < $3))
 		ORDER BY votes_synced_at ASC NULLS FIRST, proposed_at DESC NULLS LAST
 		LIMIT $2
-	`, tweedeKamerSourceKey, ingest.Limit)
+	`, tweedeKamerSourceKey, ingest.Limit, resyncBefore)
 	if err != nil {
 		return nil, err
 	}
@@ -99,6 +114,26 @@ func (ingest TweedeKamerMotionVotesIngest) motionCandidates(ctx context.Context)
 		motions = append(motions, motion)
 	}
 	return motions, rows.Err()
+}
+
+func (ingest TweedeKamerMotionVotesIngest) pendingCount(ctx context.Context, resyncBefore *time.Time) (int, error) {
+	var count int
+	err := ingest.Pool.QueryRow(ctx, `
+		SELECT count(*)::int
+		FROM motions
+		WHERE source_key = $1
+		  AND source_deleted = false
+		  AND (votes_synced_at IS NULL OR ($2::timestamptz IS NOT NULL AND votes_synced_at < $2))
+	`, tweedeKamerSourceKey, resyncBefore).Scan(&count)
+	return count, err
+}
+
+func (ingest TweedeKamerMotionVotesIngest) resyncBefore() *time.Time {
+	if ingest.ResyncAfter <= 0 {
+		return nil
+	}
+	value := time.Now().Add(-ingest.ResyncAfter)
+	return &value
 }
 
 func (ingest TweedeKamerMotionVotesIngest) storeMotionDecisionsAndVotes(

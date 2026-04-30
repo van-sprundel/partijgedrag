@@ -179,17 +179,22 @@ func runIngestMotionVotes(ctx context.Context, cfg config.Config, database *db.D
 	flags := flag.NewFlagSet("ingest tweedekamer motion-votes", flag.ContinueOnError)
 	flags.SetOutput(os.Stderr)
 	limit := flags.Int("limit", 25, "number of motions to sync votes for")
+	resyncAfter := flags.Duration("resync-after", 0, "also resync motions whose votes were synced before this duration, e.g. 168h; 0 means only unsynced")
 	if err := flags.Parse(args); err != nil {
 		return err
 	}
 	if *limit <= 0 {
 		return fmt.Errorf("--limit must be greater than 0")
 	}
+	if *resyncAfter < 0 {
+		return fmt.Errorf("--resync-after must be 0 or greater")
+	}
 
 	job := ingest.TweedeKamerMotionVotesIngest{
-		Pool:   database.Pool,
-		Client: tweedekamer.NewClient(cfg.TweedeKamerODataBaseURL),
-		Limit:  *limit,
+		Pool:        database.Pool,
+		Client:      tweedekamer.NewClient(cfg.TweedeKamerODataBaseURL),
+		Limit:       *limit,
+		ResyncAfter: *resyncAfter,
 	}
 	return job.Run(ctx)
 }
@@ -206,6 +211,7 @@ func runSync(ctx context.Context, cfg config.Config, database *db.DB, args []str
 	partyMaxPages := flags.Int("party-max-pages", cfg.TweedeKamerMaxPages, "maximum party OData pages to process, 0 means all")
 	partyBatchSize := flags.Int("party-batch-size", cfg.TweedeKamerBatchSize, "party records per OData page")
 	motionVoteLimit := flags.Int("motion-vote-limit", 100, "number of known motions to sync votes for")
+	motionVoteResyncAfter := flags.Duration("motion-vote-resync-after", 0, "also resync motions whose votes were synced before this duration, e.g. 168h; 0 means only unsynced")
 	skipParties := flags.Bool("skip-parties", false, "skip party ingestion")
 	skipMotions := flags.Bool("skip-motions", false, "skip motion ingestion")
 	skipMotionVotes := flags.Bool("skip-motion-votes", false, "skip motion vote ingestion")
@@ -229,6 +235,9 @@ func runSync(ctx context.Context, cfg config.Config, database *db.DB, args []str
 	}
 	if *motionVoteLimit <= 0 {
 		return fmt.Errorf("--motion-vote-limit must be greater than 0")
+	}
+	if *motionVoteResyncAfter < 0 {
+		return fmt.Errorf("--motion-vote-resync-after must be 0 or greater")
 	}
 	if *skipParties && *skipMotions && *skipMotionVotes {
 		return fmt.Errorf("sync has nothing to do when --skip-parties, --skip-motions, and --skip-motion-votes are set")
@@ -268,9 +277,10 @@ func runSync(ctx context.Context, cfg config.Config, database *db.DB, args []str
 	if !*skipMotionVotes {
 		fmt.Println("sync step=motion-votes")
 		job := ingest.TweedeKamerMotionVotesIngest{
-			Pool:   database.Pool,
-			Client: client,
-			Limit:  *motionVoteLimit,
+			Pool:        database.Pool,
+			Client:      client,
+			Limit:       *motionVoteLimit,
+			ResyncAfter: *motionVoteResyncAfter,
 		}
 		if err := job.Run(ctx); err != nil {
 			return err
@@ -291,6 +301,8 @@ func runStatus(ctx context.Context, database *db.DB, args []string) error {
 		return runStatusIngestionRuns(ctx, database, args[1:])
 	case "summary":
 		return runStatusSummary(ctx, database, args[1:])
+	case "vote-backfill":
+		return runStatusVoteBackfill(ctx, database, args[1:])
 	default:
 		return usage()
 	}
@@ -400,15 +412,54 @@ func runStatusSummary(ctx context.Context, database *db.DB, args []string) error
 	return nil
 }
 
+func runStatusVoteBackfill(ctx context.Context, database *db.DB, args []string) error {
+	flags := flag.NewFlagSet("status vote-backfill", flag.ContinueOnError)
+	flags.SetOutput(os.Stderr)
+	resyncAfter := flags.Duration("resync-after", 0, "include motions whose votes were synced before this duration, e.g. 168h")
+	if err := flags.Parse(args); err != nil {
+		return err
+	}
+	if flags.NArg() != 0 {
+		return usage()
+	}
+	if *resyncAfter < 0 {
+		return fmt.Errorf("--resync-after must be 0 or greater")
+	}
+
+	backfill, err := status.LoadVoteBackfill(ctx, database.Pool, *resyncAfter)
+	if err != nil {
+		return err
+	}
+
+	fmt.Printf("total=%d synced=%d unsynced=%d eligible=%d oldest_synced=%s newest_synced=%s resync_before=%s\n",
+		backfill.TotalMotions,
+		backfill.SyncedMotions,
+		backfill.UnsyncedMotions,
+		backfill.EligibleMotions,
+		formatOptionalTime(backfill.OldestVotesSynced),
+		formatOptionalTime(backfill.NewestVotesSynced),
+		formatOptionalTime(backfill.ResyncBefore),
+	)
+	return nil
+}
+
+func formatOptionalTime(value *time.Time) string {
+	if value == nil {
+		return ""
+	}
+	return value.Format(time.RFC3339)
+}
+
 func usage() error {
 	return fmt.Errorf(`usage:
   partijgedrag migrate
   partijgedrag ingest tweedekamer parties [--max-pages=N] [--batch-size=N] [--since=RFC3339] [--reset-cursor]
   partijgedrag ingest tweedekamer motions [--max-pages=N] [--batch-size=N] [--since=RFC3339] [--reset-cursor]
-  partijgedrag ingest tweedekamer motion-votes [--limit=N]
-  partijgedrag sync tweedekamer [--party-max-pages=N] [--party-batch-size=N] [--motion-max-pages=N] [--motion-batch-size=N] [--motion-vote-limit=N] [--skip-parties] [--skip-motions] [--skip-motion-votes]
+  partijgedrag ingest tweedekamer motion-votes [--limit=N] [--resync-after=168h]
+  partijgedrag sync tweedekamer [--party-max-pages=N] [--party-batch-size=N] [--motion-max-pages=N] [--motion-batch-size=N] [--motion-vote-limit=N] [--motion-vote-resync-after=168h] [--skip-parties] [--skip-motions] [--skip-motion-votes]
   partijgedrag status ingestion-runs [--limit=N] [--pipeline=NAME] [--failed]
   partijgedrag status summary
+  partijgedrag status vote-backfill [--resync-after=168h]
   partijgedrag inspect motion MOTION_KEY
   partijgedrag serve`)
 }
