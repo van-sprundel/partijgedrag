@@ -1,0 +1,82 @@
+{{ define "title" }}Party Similarity - Partijgedrag{{ end }}
+{{ define "content" }}
+  <section class="section">
+    <div class="section-heading">
+      <h1>Party Similarity</h1>
+      <span class="muted">{{ len .Rows }} pairs</span>
+    </div>
+
+    <form class="filters" method="get" action="/party-likeness">
+      <label>
+        From
+        <input type="date" name="dateFrom" value="{{ .DateFrom }}">
+      </label>
+      <label>
+        To
+        <input type="date" name="dateTo" value="{{ .DateTo }}">
+      </label>
+      <label>
+        Minimum overlap
+        <input type="number" name="minCommon" value="{{ .MinCommon }}" min="1" max="1000">
+      </label>
+      <button type="submit">Filter</button>
+    </form>
+  </section>
+
+  <section class="section">
+    <h2>Matrix</h2>
+    <div class="matrix-scroll">
+      <table class="matrix">
+        <thead>
+          <tr>
+            <th></th>
+            {{ range .Parties }}
+              <th title="{{ .ShortName }}">{{ .ShortName }}</th>
+            {{ end }}
+          </tr>
+        </thead>
+        <tbody>
+          {{ range .Parties }}
+            {{$row := .}}
+            <tr>
+              <th title="{{ .ShortName }}">{{ .ShortName }}</th>
+              {{ range $.Parties }}
+                <td>{{ likeness $.Matrix $row.SourceID .SourceID }}</td>
+              {{ end }}
+            </tr>
+          {{ else }}
+            <tr><td>No party similarity data yet.</td></tr>
+          {{ end }}
+        </tbody>
+      </table>
+    </div>
+  </section>
+
+  <section class="section">
+    <h2>Top Pairs</h2>
+    <table>
+      <thead>
+        <tr>
+          <th>Party 1</th>
+          <th>Party 2</th>
+          <th>Similarity</th>
+          <th>Same</th>
+          <th>Overlap</th>
+        </tr>
+      </thead>
+      <tbody>
+        {{ range .Rows }}
+          <tr>
+            <td>{{ .Party1Name }}</td>
+            <td>{{ .Party2Name }}</td>
+            <td>{{ printf "%.1f%%" .Similarity }}</td>
+            <td>{{ .SameVotes }}</td>
+            <td>{{ .CommonMotions }}</td>
+          </tr>
+        {{ else }}
+          <tr><td colspan="5">No party similarity data yet.</td></tr>
+        {{ end }}
+      </tbody>
+    </table>
+  </section>
+{{ end }}

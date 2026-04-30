@@ -8,6 +8,7 @@ import (
 	"html/template"
 	"net/http"
 	"net/url"
+	"sort"
 	"strconv"
 	"strings"
 	"time"
@@ -15,6 +16,7 @@ import (
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
 
+	"partijgedrag/rewrite/internal/analysis"
 	"partijgedrag/rewrite/internal/politics"
 	"partijgedrag/rewrite/internal/status"
 )
@@ -37,7 +39,7 @@ func MustNew(pool *pgxpool.Pool) Server {
 
 func New(pool *pgxpool.Pool) (Server, error) {
 	templates := make(map[string]*template.Template)
-	for _, name := range []string{"home", "motions", "motion"} {
+	for _, name := range []string{"home", "motions", "motion", "party_likeness"} {
 		parsed, err := parseTemplate(name)
 		if err != nil {
 			return Server{}, err
@@ -54,6 +56,7 @@ func New(pool *pgxpool.Pool) (Server, error) {
 func (server Server) Register(mux *http.ServeMux) {
 	mux.HandleFunc("GET /static/styles.css", server.styles)
 	mux.HandleFunc("GET /", server.home)
+	mux.HandleFunc("GET /party-likeness", server.partyLikeness)
 	mux.HandleFunc("GET /motions", server.motions)
 	mux.HandleFunc("GET /motions/{motionKey}", server.motion)
 }
@@ -71,6 +74,7 @@ func parseTemplate(name string) (*template.Template, error) {
 	tmpl := template.New(name).Funcs(template.FuncMap{
 		"date":     dateValue,
 		"fallback": fallback,
+		"likeness": likenessValue,
 		"time":     timeValue,
 	})
 	return tmpl.Parse(string(base) + "\n" + string(page))
@@ -173,6 +177,41 @@ func (server Server) motion(response http.ResponseWriter, request *http.Request)
 		Motion:    motion,
 		Decisions: decisions,
 		Positions: positions,
+	})
+}
+
+func (server Server) partyLikeness(response http.ResponseWriter, request *http.Request) {
+	query := request.URL.Query()
+	dateFrom, err := parseDate(query.Get("dateFrom"))
+	if err != nil {
+		http.Error(response, "invalid dateFrom", http.StatusBadRequest)
+		return
+	}
+	dateTo, err := parseDate(query.Get("dateTo"))
+	if err != nil {
+		http.Error(response, "invalid dateTo", http.StatusBadRequest)
+		return
+	}
+	minCommon := clamp(parseInt(query.Get("minCommon"), 10), 1, 1000)
+
+	rows, err := analysis.LoadPartyLikeness(request.Context(), server.Pool, analysis.PartyLikenessOptions{
+		Jurisdiction: "nl-tweede-kamer",
+		DateFrom:     dateFrom,
+		DateTo:       dateTo,
+		MinCommon:    minCommon,
+	})
+	if err != nil {
+		writeError(response, err)
+		return
+	}
+
+	server.render(response, "party_likeness", partyLikenessPage{
+		Parties:   likenessParties(rows),
+		Rows:      rows,
+		Matrix:    likenessMatrix(rows),
+		DateFrom:  query.Get("dateFrom"),
+		DateTo:    query.Get("dateTo"),
+		MinCommon: minCommon,
 	})
 }
 
@@ -433,6 +472,20 @@ type motionPage struct {
 	Positions []partyPosition
 }
 
+type partyLikenessPage struct {
+	Parties   []likenessParty
+	Rows      []analysis.PartyLikeness
+	Matrix    map[string]map[string]analysis.PartyLikeness
+	DateFrom  string
+	DateTo    string
+	MinCommon int
+}
+
+type likenessParty struct {
+	SourceID  string
+	ShortName string
+}
+
 type ingestionRun struct {
 	ID             int64
 	Pipeline       string
@@ -509,6 +562,64 @@ func motionsURL(search string, withVotes bool, limit int, offset int) string {
 	return "/motions"
 }
 
+func likenessParties(rows []analysis.PartyLikeness) []likenessParty {
+	seen := map[string]string{}
+	for _, row := range rows {
+		seen[row.Party1SourceID] = row.Party1Name
+		seen[row.Party2SourceID] = row.Party2Name
+	}
+
+	parties := make([]likenessParty, 0, len(seen))
+	for sourceID, name := range seen {
+		parties = append(parties, likenessParty{
+			SourceID:  sourceID,
+			ShortName: name,
+		})
+	}
+	sort.Slice(parties, func(i, j int) bool {
+		return strings.ToLower(parties[i].ShortName) < strings.ToLower(parties[j].ShortName)
+	})
+	return parties
+}
+
+func likenessMatrix(rows []analysis.PartyLikeness) map[string]map[string]analysis.PartyLikeness {
+	matrix := map[string]map[string]analysis.PartyLikeness{}
+	for _, row := range rows {
+		if matrix[row.Party1SourceID] == nil {
+			matrix[row.Party1SourceID] = map[string]analysis.PartyLikeness{}
+		}
+		if matrix[row.Party2SourceID] == nil {
+			matrix[row.Party2SourceID] = map[string]analysis.PartyLikeness{}
+		}
+		matrix[row.Party1SourceID][row.Party2SourceID] = row
+		matrix[row.Party2SourceID][row.Party1SourceID] = analysis.PartyLikeness{
+			Party1SourceID: row.Party2SourceID,
+			Party1Name:     row.Party2Name,
+			Party2SourceID: row.Party1SourceID,
+			Party2Name:     row.Party1Name,
+			CommonMotions:  row.CommonMotions,
+			SameVotes:      row.SameVotes,
+			Similarity:     row.Similarity,
+		}
+	}
+	return matrix
+}
+
+func likenessValue(matrix map[string]map[string]analysis.PartyLikeness, rowID string, columnID string) string {
+	if rowID == columnID {
+		return "-"
+	}
+	row := matrix[rowID]
+	if row == nil {
+		return ""
+	}
+	cell, ok := row[columnID]
+	if !ok {
+		return ""
+	}
+	return fmt.Sprintf("%.0f%%", cell.Similarity)
+}
+
 func fallback(values ...any) string {
 	for _, value := range values {
 		switch typed := value.(type) {
@@ -553,6 +664,17 @@ func timeValue(value any) string {
 	default:
 		return fmt.Sprint(value)
 	}
+}
+
+func parseDate(value string) (*time.Time, error) {
+	if value == "" {
+		return nil, nil
+	}
+	parsed, err := time.Parse("2006-01-02", value)
+	if err != nil {
+		return nil, err
+	}
+	return &parsed, nil
 }
 
 func writeError(response http.ResponseWriter, err error) {

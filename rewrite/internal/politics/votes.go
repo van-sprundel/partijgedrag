@@ -17,3 +17,10 @@ func PartyPosition(votesFor int, votesAgainst int) Position {
 	}
 	return PositionNeutral
 }
+
+func SimilarityPercentage(sameVotes int, totalVotes int) float64 {
+	if totalVotes <= 0 {
+		return 0
+	}
+	return (float64(sameVotes) / float64(totalVotes)) * 100
+}

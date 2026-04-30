@@ -12,6 +12,7 @@ import (
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
 
+	"partijgedrag/rewrite/internal/analysis"
 	"partijgedrag/rewrite/internal/politics"
 	"partijgedrag/rewrite/internal/status"
 	"partijgedrag/rewrite/internal/web"
@@ -29,6 +30,8 @@ func (server Server) Handler() http.Handler {
 	mux.HandleFunc("GET /health", server.health)
 	mux.HandleFunc("GET /api/summary", server.summary)
 	mux.HandleFunc("GET /api/ingestion-runs", server.listIngestionRuns)
+	mux.HandleFunc("GET /api/parties", server.listParties)
+	mux.HandleFunc("GET /api/party-likeness", server.listPartyLikeness)
 	mux.HandleFunc("GET /api/motions", server.listMotions)
 	mux.HandleFunc("GET /api/motions/{motionKey}/party-positions", server.getMotionPartyPositions)
 	mux.HandleFunc("GET /api/motions/{motionKey}", server.getMotion)
@@ -112,6 +115,92 @@ func (server Server) listIngestionRuns(response http.ResponseWriter, request *ht
 	writeJSON(response, http.StatusOK, map[string]any{
 		"runs":  runs,
 		"limit": limit,
+	})
+}
+
+func (server Server) listParties(response http.ResponseWriter, request *http.Request) {
+	query := request.URL.Query()
+	activeOnly := query.Get("activeOnly") != "false"
+	jurisdiction := query.Get("jurisdiction")
+	if jurisdiction == "" {
+		jurisdiction = "nl-tweede-kamer"
+	}
+
+	parties, err := analysis.LoadParties(request.Context(), server.Pool, analysis.PartyListOptions{
+		Jurisdiction: jurisdiction,
+		ActiveOnly:   activeOnly,
+	})
+	if err != nil {
+		writeError(response, err)
+		return
+	}
+
+	items := make([]map[string]any, 0, len(parties))
+	for _, party := range parties {
+		items = append(items, map[string]any{
+			"partyKey":   party.PartyKey,
+			"sourceId":   party.SourceID,
+			"shortName":  party.ShortName,
+			"name":       party.Name,
+			"seats":      party.Seats,
+			"activeFrom": party.ActiveFrom,
+			"activeTo":   party.ActiveTo,
+		})
+	}
+
+	writeJSON(response, http.StatusOK, map[string]any{
+		"parties": items,
+	})
+}
+
+func (server Server) listPartyLikeness(response http.ResponseWriter, request *http.Request) {
+	query := request.URL.Query()
+	jurisdiction := query.Get("jurisdiction")
+	if jurisdiction == "" {
+		jurisdiction = "nl-tweede-kamer"
+	}
+
+	dateFrom, err := parseDate(query.Get("dateFrom"))
+	if err != nil {
+		writeJSON(response, http.StatusBadRequest, map[string]string{"error": "invalid_date_from"})
+		return
+	}
+	dateTo, err := parseDate(query.Get("dateTo"))
+	if err != nil {
+		writeJSON(response, http.StatusBadRequest, map[string]string{"error": "invalid_date_to"})
+		return
+	}
+	minCommon := clamp(parseInt(query.Get("minCommon"), 10), 1, 1000)
+
+	rows, err := analysis.LoadPartyLikeness(request.Context(), server.Pool, analysis.PartyLikenessOptions{
+		Jurisdiction: jurisdiction,
+		DateFrom:     dateFrom,
+		DateTo:       dateTo,
+		MinCommon:    minCommon,
+	})
+	if err != nil {
+		writeError(response, err)
+		return
+	}
+
+	items := make([]map[string]any, 0, len(rows))
+	for _, row := range rows {
+		items = append(items, map[string]any{
+			"party1SourceId": row.Party1SourceID,
+			"party1Name":     row.Party1Name,
+			"party2SourceId": row.Party2SourceID,
+			"party2Name":     row.Party2Name,
+			"commonMotions":  row.CommonMotions,
+			"sameVotes":      row.SameVotes,
+			"similarity":     row.Similarity,
+		})
+	}
+
+	writeJSON(response, http.StatusOK, map[string]any{
+		"partyLikeness": items,
+		"minCommon":     minCommon,
+		"dateFrom":      dateFrom,
+		"dateTo":        dateTo,
 	})
 }
 
@@ -440,6 +529,17 @@ func parseInt(value string, fallback int) int {
 		return fallback
 	}
 	return parsed
+}
+
+func parseDate(value string) (*time.Time, error) {
+	if value == "" {
+		return nil, nil
+	}
+	parsed, err := time.Parse("2006-01-02", value)
+	if err != nil {
+		return nil, err
+	}
+	return &parsed, nil
 }
 
 func clamp(value int, minValue int, maxValue int) int {

@@ -159,6 +159,14 @@ input[type="search"] {
   padding: 10px 12px;
 }
 
+input[type="date"],
+input[type="number"] {
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  font: inherit;
+  padding: 8px 10px;
+}
+
 button {
   background: var(--accent);
   border: 0;
@@ -229,6 +237,30 @@ dd {
   display: flex;
   gap: 12px;
   margin-top: 16px;
+}
+
+.matrix-scroll {
+  overflow-x: auto;
+}
+
+.matrix {
+  table-layout: fixed;
+  width: max-content;
+}
+
+.matrix th,
+.matrix td {
+  font-size: 12px;
+  min-width: 68px;
+  padding: 8px;
+  text-align: center;
+}
+
+.matrix tbody th {
+  background: var(--surface);
+  left: 0;
+  position: sticky;
+  text-align: left;
 }
 
 .back-link {

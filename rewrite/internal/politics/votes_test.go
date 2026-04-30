@@ -44,3 +44,15 @@ func TestPartyPosition(t *testing.T) {
 		})
 	}
 }
+
+func TestSimilarityPercentage(t *testing.T) {
+	got := SimilarityPercentage(3, 4)
+	if got != 75 {
+		t.Fatalf("SimilarityPercentage(3, 4) = %f, want 75", got)
+	}
+
+	got = SimilarityPercentage(3, 0)
+	if got != 0 {
+		t.Fatalf("SimilarityPercentage(3, 0) = %f, want 0", got)
+	}
+}
