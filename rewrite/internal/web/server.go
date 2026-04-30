@@ -182,6 +182,12 @@ func (server Server) motion(response http.ResponseWriter, request *http.Request)
 
 func (server Server) partyLikeness(response http.ResponseWriter, request *http.Request) {
 	query := request.URL.Query()
+	periods, err := analysis.LoadCabinetPeriods(request.Context(), server.Pool, "nl-tweede-kamer")
+	if err != nil {
+		writeError(response, err)
+		return
+	}
+
 	dateFrom, err := parseDate(query.Get("dateFrom"))
 	if err != nil {
 		http.Error(response, "invalid dateFrom", http.StatusBadRequest)
@@ -193,6 +199,20 @@ func (server Server) partyLikeness(response http.ResponseWriter, request *http.R
 		return
 	}
 	minCommon := clamp(parseInt(query.Get("minCommon"), 10), 1, 1000)
+	periodKey := query.Get("period")
+	if periodKey != "" {
+		period, err := analysis.LoadCabinetPeriod(request.Context(), server.Pool, "nl-tweede-kamer", periodKey)
+		if err != nil {
+			if analysis.IsNotFound(err) {
+				http.Error(response, "invalid period", http.StatusBadRequest)
+				return
+			}
+			writeError(response, err)
+			return
+		}
+		dateFrom = &period.StartedOn
+		dateTo = period.EndedOn
+	}
 
 	rows, err := analysis.LoadPartyLikeness(request.Context(), server.Pool, analysis.PartyLikenessOptions{
 		Jurisdiction: "nl-tweede-kamer",
@@ -209,6 +229,8 @@ func (server Server) partyLikeness(response http.ResponseWriter, request *http.R
 		Parties:   likenessParties(rows),
 		Rows:      rows,
 		Matrix:    likenessMatrix(rows),
+		Periods:   periods,
+		Period:    periodKey,
 		DateFrom:  query.Get("dateFrom"),
 		DateTo:    query.Get("dateTo"),
 		MinCommon: minCommon,
@@ -476,6 +498,8 @@ type partyLikenessPage struct {
 	Parties   []likenessParty
 	Rows      []analysis.PartyLikeness
 	Matrix    map[string]map[string]analysis.PartyLikeness
+	Periods   []analysis.CabinetPeriod
+	Period    string
 	DateFrom  string
 	DateTo    string
 	MinCommon int

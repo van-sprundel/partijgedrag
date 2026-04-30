@@ -8,6 +8,15 @@
 
     <form class="filters" method="get" action="/party-likeness">
       <label>
+        Cabinet period
+        <select name="period">
+          <option value="">Custom dates</option>
+          {{ range .Periods }}
+            <option value="{{ .PeriodKey }}" {{ if eq $.Period .PeriodKey }}selected{{ end }}>{{ .Name }}</option>
+          {{ end }}
+        </select>
+      </label>
+      <label>
         From
         <input type="date" name="dateFrom" value="{{ .DateFrom }}">
       </label>

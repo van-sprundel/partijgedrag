@@ -29,6 +29,7 @@ func (server Server) Handler() http.Handler {
 	web.MustNew(server.Pool).Register(mux)
 	mux.HandleFunc("GET /health", server.health)
 	mux.HandleFunc("GET /api/summary", server.summary)
+	mux.HandleFunc("GET /api/cabinet-periods", server.listCabinetPeriods)
 	mux.HandleFunc("GET /api/ingestion-runs", server.listIngestionRuns)
 	mux.HandleFunc("GET /api/parties", server.listParties)
 	mux.HandleFunc("GET /api/party-likeness", server.listPartyLikeness)
@@ -118,6 +119,35 @@ func (server Server) listIngestionRuns(response http.ResponseWriter, request *ht
 	})
 }
 
+func (server Server) listCabinetPeriods(response http.ResponseWriter, request *http.Request) {
+	jurisdiction := request.URL.Query().Get("jurisdiction")
+	if jurisdiction == "" {
+		jurisdiction = "nl-tweede-kamer"
+	}
+
+	periods, err := analysis.LoadCabinetPeriods(request.Context(), server.Pool, jurisdiction)
+	if err != nil {
+		writeError(response, err)
+		return
+	}
+
+	items := make([]map[string]any, 0, len(periods))
+	for _, period := range periods {
+		items = append(items, map[string]any{
+			"periodKey":    period.PeriodKey,
+			"jurisdiction": period.Jurisdiction,
+			"name":         period.Name,
+			"startedOn":    period.StartedOn.Format("2006-01-02"),
+			"endedOn":      dateString(period.EndedOn),
+			"parties":      period.Parties,
+		})
+	}
+
+	writeJSON(response, http.StatusOK, map[string]any{
+		"cabinetPeriods": items,
+	})
+}
+
 func (server Server) listParties(response http.ResponseWriter, request *http.Request) {
 	query := request.URL.Query()
 	activeOnly := query.Get("activeOnly") != "false"
@@ -171,6 +201,20 @@ func (server Server) listPartyLikeness(response http.ResponseWriter, request *ht
 		return
 	}
 	minCommon := clamp(parseInt(query.Get("minCommon"), 10), 1, 1000)
+	periodKey := query.Get("period")
+	if periodKey != "" {
+		period, err := analysis.LoadCabinetPeriod(request.Context(), server.Pool, jurisdiction, periodKey)
+		if err != nil {
+			if analysis.IsNotFound(err) {
+				writeJSON(response, http.StatusBadRequest, map[string]string{"error": "invalid_period"})
+				return
+			}
+			writeError(response, err)
+			return
+		}
+		dateFrom = &period.StartedOn
+		dateTo = period.EndedOn
+	}
 
 	rows, err := analysis.LoadPartyLikeness(request.Context(), server.Pool, analysis.PartyLikenessOptions{
 		Jurisdiction: jurisdiction,
@@ -199,8 +243,9 @@ func (server Server) listPartyLikeness(response http.ResponseWriter, request *ht
 	writeJSON(response, http.StatusOK, map[string]any{
 		"partyLikeness": items,
 		"minCommon":     minCommon,
-		"dateFrom":      dateFrom,
-		"dateTo":        dateTo,
+		"period":        periodKey,
+		"dateFrom":      dateString(dateFrom),
+		"dateTo":        dateString(dateTo),
 	})
 }
 
@@ -540,6 +585,14 @@ func parseDate(value string) (*time.Time, error) {
 		return nil, err
 	}
 	return &parsed, nil
+}
+
+func dateString(value *time.Time) *string {
+	if value == nil {
+		return nil
+	}
+	formatted := value.Format("2006-01-02")
+	return &formatted
 }
 
 func clamp(value int, minValue int, maxValue int) int {

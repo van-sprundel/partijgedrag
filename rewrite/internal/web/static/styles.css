@@ -160,7 +160,8 @@ input[type="search"] {
 }
 
 input[type="date"],
-input[type="number"] {
+input[type="number"],
+select {
   border: 1px solid var(--line);
   border-radius: 6px;
   font: inherit;
