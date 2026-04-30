@@ -1,0 +1,71 @@
+{{ define "title" }}Coalition Analysis - Partijgedrag{{ end }}
+{{ define "content" }}
+  <section class="section">
+    <div class="section-heading">
+      <h1>Coalition Analysis</h1>
+      <span class="muted">{{ .Period.Name }}</span>
+    </div>
+
+    <form class="filters" method="get" action="/coalition-analysis">
+      <label>
+        Cabinet period
+        <select name="period">
+          {{ range .Periods }}
+            <option value="{{ .PeriodKey }}" {{ if eq $.Period.PeriodKey .PeriodKey }}selected{{ end }}>{{ .Name }}</option>
+          {{ end }}
+        </select>
+      </label>
+      <label>
+        Minimum overlap
+        <input type="number" name="minCommon" value="{{ .MinCommon }}" min="1" max="1000">
+      </label>
+      <button type="submit">Filter</button>
+    </form>
+
+    <div class="tag-list">
+      {{ range .Period.Parties }}
+        <span class="tag">{{ . }}</span>
+      {{ end }}
+    </div>
+  </section>
+
+  <section class="section">
+    <div class="metric-grid">
+      <div class="metric"><span>Coalition-voted motions</span><strong>{{ .Analysis.Summary.MotionsWithCoalitionVotes }}</strong></div>
+      <div class="metric"><span>Clear bloc position</span><strong>{{ .Analysis.Summary.ClearBlocPosition }}</strong></div>
+      <div class="metric"><span>Unanimous for</span><strong>{{ .Analysis.Summary.UnanimousFor }}</strong></div>
+      <div class="metric"><span>Unanimous against</span><strong>{{ .Analysis.Summary.UnanimousAgainst }}</strong></div>
+      <div class="metric"><span>Split bloc</span><strong>{{ .Analysis.Summary.Split }}</strong></div>
+    </div>
+  </section>
+
+  <section class="section">
+    <h2>Party Alignment With Coalition Bloc</h2>
+    <table>
+      <thead>
+        <tr>
+          <th>Party</th>
+          <th>Role</th>
+          <th>Alignment</th>
+          <th>With bloc</th>
+          <th>Against bloc</th>
+          <th>Overlap</th>
+        </tr>
+      </thead>
+      <tbody>
+        {{ range .Analysis.Parties }}
+          <tr>
+            <td>{{ .PartyName }}</td>
+            <td>{{ if .CoalitionParty }}Coalition{{ else }}Other{{ end }}</td>
+            <td>{{ printf "%.1f%%" .Alignment }}</td>
+            <td>{{ .WithCoalition }}</td>
+            <td>{{ .AgainstCoalition }}</td>
+            <td>{{ .CommonMotions }}</td>
+          </tr>
+        {{ else }}
+          <tr><td colspan="6">No coalition analysis data for this period yet.</td></tr>
+        {{ end }}
+      </tbody>
+    </table>
+  </section>
+{{ end }}

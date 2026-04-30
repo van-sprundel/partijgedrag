@@ -234,6 +234,23 @@ dd {
   margin: 2px 0 0;
 }
 
+.tag-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.tag {
+  background: var(--accent-soft);
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  color: var(--accent);
+  display: inline-block;
+  font-size: 13px;
+  font-weight: 700;
+  padding: 4px 10px;
+}
+
 .pagination {
   display: flex;
   gap: 12px;

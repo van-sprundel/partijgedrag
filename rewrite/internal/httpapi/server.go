@@ -30,6 +30,7 @@ func (server Server) Handler() http.Handler {
 	mux.HandleFunc("GET /health", server.health)
 	mux.HandleFunc("GET /api/summary", server.summary)
 	mux.HandleFunc("GET /api/cabinet-periods", server.listCabinetPeriods)
+	mux.HandleFunc("GET /api/coalition-analysis", server.getCoalitionAnalysis)
 	mux.HandleFunc("GET /api/ingestion-runs", server.listIngestionRuns)
 	mux.HandleFunc("GET /api/parties", server.listParties)
 	mux.HandleFunc("GET /api/party-likeness", server.listPartyLikeness)
@@ -180,6 +181,67 @@ func (server Server) listParties(response http.ResponseWriter, request *http.Req
 
 	writeJSON(response, http.StatusOK, map[string]any{
 		"parties": items,
+	})
+}
+
+func (server Server) getCoalitionAnalysis(response http.ResponseWriter, request *http.Request) {
+	query := request.URL.Query()
+	jurisdiction := query.Get("jurisdiction")
+	if jurisdiction == "" {
+		jurisdiction = "nl-tweede-kamer"
+	}
+	minCommon := clamp(parseInt(query.Get("minCommon"), 5), 1, 1000)
+
+	period, err := selectedCabinetPeriod(request.Context(), server.Pool, jurisdiction, query.Get("period"))
+	if err != nil {
+		if analysis.IsNotFound(err) {
+			writeJSON(response, http.StatusBadRequest, map[string]string{"error": "invalid_period"})
+			return
+		}
+		writeError(response, err)
+		return
+	}
+
+	coalition, err := analysis.LoadCoalitionAnalysis(request.Context(), server.Pool, analysis.CoalitionAnalysisOptions{
+		Period:    period,
+		MinCommon: minCommon,
+	})
+	if err != nil {
+		writeError(response, err)
+		return
+	}
+
+	parties := make([]map[string]any, 0, len(coalition.Parties))
+	for _, party := range coalition.Parties {
+		parties = append(parties, map[string]any{
+			"partySourceId":    party.PartySourceID,
+			"partyName":        party.PartyName,
+			"coalitionParty":   party.CoalitionParty,
+			"commonMotions":    party.CommonMotions,
+			"withCoalition":    party.WithCoalition,
+			"againstCoalition": party.AgainstCoalition,
+			"alignment":        party.Alignment,
+		})
+	}
+
+	writeJSON(response, http.StatusOK, map[string]any{
+		"period": map[string]any{
+			"periodKey":    period.PeriodKey,
+			"jurisdiction": period.Jurisdiction,
+			"name":         period.Name,
+			"startedOn":    period.StartedOn.Format("2006-01-02"),
+			"endedOn":      dateString(period.EndedOn),
+			"parties":      period.Parties,
+		},
+		"minCommon": minCommon,
+		"summary": map[string]any{
+			"motionsWithCoalitionVotes": coalition.Summary.MotionsWithCoalitionVotes,
+			"clearBlocPosition":         coalition.Summary.ClearBlocPosition,
+			"unanimousFor":              coalition.Summary.UnanimousFor,
+			"unanimousAgainst":          coalition.Summary.UnanimousAgainst,
+			"split":                     coalition.Summary.Split,
+		},
+		"parties": parties,
 	})
 }
 
@@ -593,6 +655,20 @@ func dateString(value *time.Time) *string {
 	}
 	formatted := value.Format("2006-01-02")
 	return &formatted
+}
+
+func selectedCabinetPeriod(ctx context.Context, pool *pgxpool.Pool, jurisdiction string, periodKey string) (analysis.CabinetPeriod, error) {
+	if periodKey != "" {
+		return analysis.LoadCabinetPeriod(ctx, pool, jurisdiction, periodKey)
+	}
+	periods, err := analysis.LoadCabinetPeriods(ctx, pool, jurisdiction)
+	if err != nil {
+		return analysis.CabinetPeriod{}, err
+	}
+	if len(periods) == 0 {
+		return analysis.CabinetPeriod{}, pgx.ErrNoRows
+	}
+	return periods[0], nil
 }
 
 func clamp(value int, minValue int, maxValue int) int {

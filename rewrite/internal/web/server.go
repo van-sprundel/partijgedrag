@@ -39,7 +39,7 @@ func MustNew(pool *pgxpool.Pool) Server {
 
 func New(pool *pgxpool.Pool) (Server, error) {
 	templates := make(map[string]*template.Template)
-	for _, name := range []string{"home", "motions", "motion", "party_likeness"} {
+	for _, name := range []string{"home", "motions", "motion", "party_likeness", "coalition_analysis"} {
 		parsed, err := parseTemplate(name)
 		if err != nil {
 			return Server{}, err
@@ -57,6 +57,7 @@ func (server Server) Register(mux *http.ServeMux) {
 	mux.HandleFunc("GET /static/styles.css", server.styles)
 	mux.HandleFunc("GET /", server.home)
 	mux.HandleFunc("GET /party-likeness", server.partyLikeness)
+	mux.HandleFunc("GET /coalition-analysis", server.coalitionAnalysis)
 	mux.HandleFunc("GET /motions", server.motions)
 	mux.HandleFunc("GET /motions/{motionKey}", server.motion)
 }
@@ -233,6 +234,37 @@ func (server Server) partyLikeness(response http.ResponseWriter, request *http.R
 		Period:    periodKey,
 		DateFrom:  query.Get("dateFrom"),
 		DateTo:    query.Get("dateTo"),
+		MinCommon: minCommon,
+	})
+}
+
+func (server Server) coalitionAnalysis(response http.ResponseWriter, request *http.Request) {
+	query := request.URL.Query()
+	periods, err := analysis.LoadCabinetPeriods(request.Context(), server.Pool, "nl-tweede-kamer")
+	if err != nil {
+		writeError(response, err)
+		return
+	}
+	period, err := selectedCabinetPeriod(periods, query.Get("period"))
+	if err != nil {
+		http.Error(response, "invalid period", http.StatusBadRequest)
+		return
+	}
+
+	minCommon := clamp(parseInt(query.Get("minCommon"), 5), 1, 1000)
+	coalition, err := analysis.LoadCoalitionAnalysis(request.Context(), server.Pool, analysis.CoalitionAnalysisOptions{
+		Period:    period,
+		MinCommon: minCommon,
+	})
+	if err != nil {
+		writeError(response, err)
+		return
+	}
+
+	server.render(response, "coalition_analysis", coalitionAnalysisPage{
+		Periods:   periods,
+		Period:    period,
+		Analysis:  coalition,
 		MinCommon: minCommon,
 	})
 }
@@ -505,6 +537,13 @@ type partyLikenessPage struct {
 	MinCommon int
 }
 
+type coalitionAnalysisPage struct {
+	Periods   []analysis.CabinetPeriod
+	Period    analysis.CabinetPeriod
+	Analysis  analysis.CoalitionAnalysis
+	MinCommon int
+}
+
 type likenessParty struct {
 	SourceID  string
 	ShortName string
@@ -642,6 +681,21 @@ func likenessValue(matrix map[string]map[string]analysis.PartyLikeness, rowID st
 		return ""
 	}
 	return fmt.Sprintf("%.0f%%", cell.Similarity)
+}
+
+func selectedCabinetPeriod(periods []analysis.CabinetPeriod, periodKey string) (analysis.CabinetPeriod, error) {
+	if periodKey == "" {
+		if len(periods) == 0 {
+			return analysis.CabinetPeriod{}, pgx.ErrNoRows
+		}
+		return periods[0], nil
+	}
+	for _, period := range periods {
+		if period.PeriodKey == periodKey {
+			return period, nil
+		}
+	}
+	return analysis.CabinetPeriod{}, pgx.ErrNoRows
 }
 
 func fallback(values ...any) string {
