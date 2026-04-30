@@ -58,16 +58,22 @@ func (ingest TweedeKamerMotionVotesIngest) Run(ctx context.Context) error {
 		return err
 	}
 
-	if err := finishPipelineRun(ctx, ingest.Pool, runID, motionVotesPipeline, "succeeded", recordsSeen, recordsChanged, false, "complete", ""); err != nil {
-		return err
-	}
-
 	pendingAfter, err := ingest.pendingCount(ctx, resyncBefore)
 	if err != nil {
+		_ = finishPipelineRun(ctx, ingest.Pool, runID, motionVotesPipeline, "failed", recordsSeen, recordsChanged, false, "error", err.Error())
 		return err
 	}
 
-	fmt.Printf("motion vote ingestion complete run_id=%d motions=%d seen=%d changed=%d pending_before=%d pending_after=%d\n", runID, len(motions), recordsSeen, recordsChanged, pendingBefore, pendingAfter)
+	stopReason := "complete"
+	if pendingAfter > 0 {
+		stopReason = "batch_limit"
+	}
+
+	if err := finishPipelineRun(ctx, ingest.Pool, runID, motionVotesPipeline, "succeeded", recordsSeen, recordsChanged, false, stopReason, ""); err != nil {
+		return err
+	}
+
+	fmt.Printf("motion vote batch complete run_id=%d motions=%d seen=%d changed=%d pending_before=%d pending_after=%d stop=%s\n", runID, len(motions), recordsSeen, recordsChanged, pendingBefore, pendingAfter, stopReason)
 	return nil
 }
 

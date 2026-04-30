@@ -14,8 +14,11 @@
       <div class="metric"><span>Synced motions</span><strong>{{ .Backfill.SyncedMotions }}</strong></div>
       <div class="metric"><span>Unsynced motions</span><strong>{{ .Backfill.UnsyncedMotions }}</strong></div>
       <div class="metric"><span>Eligible backfill</span><strong>{{ .Backfill.EligibleMotions }}</strong></div>
+      <div class="metric"><span>500-motion batches left</span><strong>{{ .BackfillBatchesEstimate }}</strong></div>
       <div class="metric"><span>Decision gaps</span><strong>{{ .Summary.DecisionsWithoutVotes }}</strong></div>
-      <div class="metric"><span>Failed runs 24h</span><strong>{{ .FailedRunsLastDay }}</strong></div>
+      <div class="metric"><span>Running runs</span><strong>{{ .RunHealth.RunningRuns }}</strong></div>
+      <div class="metric"><span>Stale running runs</span><strong>{{ .RunHealth.StaleRunningRuns }}</strong></div>
+      <div class="metric"><span>Failed runs 24h</span><strong>{{ .RunHealth.FailedRunsLastDay }}</strong></div>
     </div>
   </section>
 
@@ -50,6 +53,16 @@
           <td>{{ .Summary.MistakeVotes }}</td>
           <td>Ignored in current vote math; useful to track if correction handling changes.</td>
         </tr>
+        <tr>
+          <td>Stale running ingestion runs</td>
+          <td>{{ .RunHealth.StaleRunningRuns }}</td>
+          <td>Runs marked running for over an hour. Usually interrupted local jobs or killed deploys.</td>
+        </tr>
+        <tr>
+          <td>Finished runs without stop reason</td>
+          <td>{{ .RunHealth.FinishedWithoutStopRuns }}</td>
+          <td>Older run metadata before stop reasons were added; harmless but less informative.</td>
+        </tr>
       </tbody>
     </table>
   </section>
@@ -57,7 +70,7 @@
   <section class="section">
     <h2>Backfill Command</h2>
     <pre class="command">go run ./cmd/partijgedrag ingest tweedekamer motion-votes --limit=500 --concurrency=4</pre>
-    <p class="muted">Check progress with <code>go run ./cmd/partijgedrag status vote-backfill</code>.</p>
+    <p class="muted">This processes one bounded batch. Check progress with <code>go run ./cmd/partijgedrag status vote-backfill</code>.</p>
   </section>
 
   <section class="section">

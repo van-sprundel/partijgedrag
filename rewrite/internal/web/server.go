@@ -357,17 +357,19 @@ func (server Server) dataQuality(response http.ResponseWriter, request *http.Req
 		writeError(response, err)
 		return
 	}
-	failedRunsLastDay, err := loadFailedRunsLastDay(request.Context(), server.Pool)
+	runHealth, err := status.LoadIngestionRunHealth(request.Context(), server.Pool, time.Hour)
 	if err != nil {
 		writeError(response, err)
 		return
 	}
 
 	server.render(response, "data_quality", dataQualityPage{
-		Summary:           summary,
-		Backfill:          backfill,
-		Runs:              runs,
-		FailedRunsLastDay: failedRunsLastDay,
+		Summary:                 summary,
+		Backfill:                backfill,
+		RunHealth:               runHealth,
+		Runs:                    runs,
+		BackfillBatchSize:       500,
+		BackfillBatchesEstimate: ceilDiv(backfill.EligibleMotions, 500),
 	})
 }
 
@@ -408,17 +410,6 @@ func loadIngestionRuns(ctx context.Context, pool *pgxpool.Pool, limit int) ([]in
 		runs = append(runs, run)
 	}
 	return runs, rows.Err()
-}
-
-func loadFailedRunsLastDay(ctx context.Context, pool *pgxpool.Pool) (int64, error) {
-	var count int64
-	err := pool.QueryRow(ctx, `
-		SELECT count(*)::bigint
-		FROM ingestion_runs
-		WHERE status = 'failed'
-		  AND started_at >= now() - interval '24 hours'
-	`).Scan(&count)
-	return count, err
 }
 
 func loadMotions(ctx context.Context, pool *pgxpool.Pool, options motionListOptions) ([]motion, int, error) {
@@ -678,10 +669,12 @@ type votingCompassPage struct {
 }
 
 type dataQualityPage struct {
-	Summary           status.Summary
-	Backfill          status.VoteBackfill
-	Runs              []ingestionRun
-	FailedRunsLastDay int64
+	Summary                 status.Summary
+	Backfill                status.VoteBackfill
+	RunHealth               status.IngestionRunHealth
+	Runs                    []ingestionRun
+	BackfillBatchSize       int64
+	BackfillBatchesEstimate int64
 }
 
 type coalitionPartyAlignmentView struct {
@@ -939,6 +932,13 @@ func percentValue(numerator int64, denominator int64) string {
 		return "0.0%"
 	}
 	return fmt.Sprintf("%.1f%%", (float64(numerator)/float64(denominator))*100)
+}
+
+func ceilDiv(numerator int64, denominator int64) int64 {
+	if denominator <= 0 || numerator <= 0 {
+		return 0
+	}
+	return (numerator + denominator - 1) / denominator
 }
 
 func parseDate(value string) (*time.Time, error) {

@@ -32,6 +32,14 @@ type VoteBackfill struct {
 	ResyncAfterSeconds int64      `json:"resyncAfterSeconds"`
 }
 
+type IngestionRunHealth struct {
+	RunningRuns             int64 `json:"runningRuns"`
+	StaleRunningRuns        int64 `json:"staleRunningRuns"`
+	StaleAfterSeconds       int64 `json:"staleAfterSeconds"`
+	FailedRunsLastDay       int64 `json:"failedRunsLastDay"`
+	FinishedWithoutStopRuns int64 `json:"finishedWithoutStopRuns"`
+}
+
 func LoadSummary(ctx context.Context, pool *pgxpool.Pool) (Summary, error) {
 	var summary Summary
 	err := pool.QueryRow(ctx, `
@@ -93,4 +101,29 @@ func LoadVoteBackfill(ctx context.Context, pool *pgxpool.Pool, resyncAfter time.
 		&result.NewestVotesSynced,
 	)
 	return result, err
+}
+
+func LoadIngestionRunHealth(ctx context.Context, pool *pgxpool.Pool, staleAfter time.Duration) (IngestionRunHealth, error) {
+	if staleAfter <= 0 {
+		staleAfter = time.Hour
+	}
+
+	staleBefore := time.Now().Add(-staleAfter)
+	var health IngestionRunHealth
+	health.StaleAfterSeconds = int64(staleAfter.Seconds())
+
+	err := pool.QueryRow(ctx, `
+		SELECT
+		  count(*) FILTER (WHERE status = 'running')::bigint AS running_runs,
+		  count(*) FILTER (WHERE status = 'running' AND started_at < $1)::bigint AS stale_running_runs,
+		  count(*) FILTER (WHERE status = 'failed' AND started_at >= now() - interval '24 hours')::bigint AS failed_runs_last_day,
+		  count(*) FILTER (WHERE status <> 'running' AND COALESCE(stop_reason, '') = '')::bigint AS finished_without_stop_runs
+		FROM ingestion_runs
+	`, staleBefore).Scan(
+		&health.RunningRuns,
+		&health.StaleRunningRuns,
+		&health.FailedRunsLastDay,
+		&health.FinishedWithoutStopRuns,
+	)
+	return health, err
 }
