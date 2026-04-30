@@ -15,6 +15,7 @@ import (
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
 
+	"partijgedrag/rewrite/internal/politics"
 	"partijgedrag/rewrite/internal/status"
 )
 
@@ -382,13 +383,7 @@ func loadPartyPositions(ctx context.Context, pool *pgxpool.Pool, motionKey strin
 		if err := rows.Scan(&position.PartyName, &position.PartySourceID, &position.VotesFor, &position.VotesAgainst, &position.TotalVotes); err != nil {
 			return nil, err
 		}
-		position.Position = "NEUTRAL"
-		if position.VotesFor > position.VotesAgainst {
-			position.Position = "FOR"
-		}
-		if position.VotesAgainst > position.VotesFor {
-			position.Position = "AGAINST"
-		}
+		position.Position = string(politics.PartyPosition(position.VotesFor, position.VotesAgainst))
 		positions = append(positions, position)
 	}
 	return positions, rows.Err()

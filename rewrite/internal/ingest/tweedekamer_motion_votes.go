@@ -4,7 +4,6 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"time"
 
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
@@ -155,9 +154,10 @@ func (ingest TweedeKamerMotionVotesIngest) storeMotionDecisionsAndVotes(
 }
 
 func storeDecision(ctx context.Context, tx pgx.Tx, motion motionCandidate, decision tweedekamer.DecisionRecord) (bool, error) {
-	sourceDeleted := decision.Verwijderd != nil && *decision.Verwijderd
+	raw := projectDecisionRaw(decision)
+	projected := projectDecision(motion, decision)
 
-	rawChanged, err := storeRawRecord(ctx, tx, besluitCollection, decision.ID, timePtr(decision.ApiGewijzigdOp), sourceDeleted, decision.Raw)
+	rawChanged, err := storeRawRecord(ctx, tx, raw)
 	if err != nil {
 		return false, err
 	}
@@ -192,7 +192,7 @@ func storeDecision(ctx context.Context, tx pgx.Tx, motion motionCandidate, decis
 		              source_updated_at = EXCLUDED.source_updated_at,
 		              source_deleted = EXCLUDED.source_deleted,
 		              updated_at = now()
-	`, decisionKey(decision.ID), tweedeKamerSourceKey, motion.MotionKey, decision.ID, decision.AgendapuntID, decision.StemmingsSoort, decision.BesluitSoort, decision.BesluitTekst, decision.Opmerking, decision.Status, decision.AgendapuntZaakBesluitVolgorde, timePtr(decision.ApiGewijzigdOp), sourceDeleted)
+	`, projected.DecisionKey, projected.SourceKey, projected.MotionKey, projected.SourceID, projected.AgendaPointSourceID, projected.VotingType, projected.DecisionType, projected.DecisionText, projected.Comment, projected.Status, projected.DecisionOrder, projected.SourceUpdatedAt, projected.SourceDeleted)
 	if err != nil {
 		return false, err
 	}
@@ -201,10 +201,10 @@ func storeDecision(ctx context.Context, tx pgx.Tx, motion motionCandidate, decis
 }
 
 func storeVote(ctx context.Context, tx pgx.Tx, motion motionCandidate, decision tweedekamer.DecisionRecord, vote tweedekamer.VoteRecord) (bool, error) {
-	sourceDeleted := vote.Verwijderd != nil && *vote.Verwijderd
-	mistake := vote.Vergissing != nil && *vote.Vergissing
+	raw := projectVoteRaw(vote)
+	projected := projectVote(motion, decision, vote)
 
-	rawChanged, err := storeRawRecord(ctx, tx, stemmingCollection, vote.ID, timePtr(vote.ApiGewijzigdOp), sourceDeleted, vote.Raw)
+	rawChanged, err := storeRawRecord(ctx, tx, raw)
 	if err != nil {
 		return false, err
 	}
@@ -241,7 +241,7 @@ func storeVote(ctx context.Context, tx pgx.Tx, motion motionCandidate, decision 
 		              source_updated_at = EXCLUDED.source_updated_at,
 		              source_deleted = EXCLUDED.source_deleted,
 		              updated_at = now()
-	`, voteKey(vote.ID), tweedeKamerSourceKey, motion.MotionKey, decisionKey(decision.ID), vote.ID, vote.Soort, vote.FractieID, vote.ActorFractie, vote.ActorNaam, vote.FractieGrootte, mistake, vote.PersoonID, timePtr(vote.ApiGewijzigdOp), sourceDeleted)
+	`, projected.VoteKey, projected.SourceKey, projected.MotionKey, projected.DecisionKey, projected.SourceID, projected.VoteType, projected.PartySourceID, projected.PartyName, projected.ActorName, projected.PartySize, projected.Mistake, projected.PersonSourceID, projected.SourceUpdatedAt, projected.SourceDeleted)
 	if err != nil {
 		return false, err
 	}
@@ -252,11 +252,7 @@ func storeVote(ctx context.Context, tx pgx.Tx, motion motionCandidate, decision 
 func storeRawRecord(
 	ctx context.Context,
 	tx pgx.Tx,
-	collection string,
-	sourceID string,
-	sourceUpdatedAt *time.Time,
-	sourceDeleted bool,
-	payload []byte,
+	record rawRecordProjection,
 ) (bool, error) {
 	tag, err := tx.Exec(ctx, `
 		INSERT INTO raw_records (
@@ -278,7 +274,7 @@ func storeRawRecord(
 		WHERE raw_records.payload_hash IS DISTINCT FROM EXCLUDED.payload_hash
 		   OR raw_records.source_updated_at IS DISTINCT FROM EXCLUDED.source_updated_at
 		   OR raw_records.source_deleted IS DISTINCT FROM EXCLUDED.source_deleted
-	`, tweedeKamerSourceKey, collection, sourceID, sourceUpdatedAt, sourceDeleted, string(payload), hashBytes(payload))
+	`, tweedeKamerSourceKey, record.Collection, record.SourceID, record.SourceUpdatedAt, record.SourceDeleted, string(record.Payload), record.PayloadHash)
 	if err != nil {
 		return false, err
 	}

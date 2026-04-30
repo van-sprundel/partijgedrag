@@ -310,8 +310,8 @@ func (ingest TweedeKamerMotionIngest) storeMotionRecord(
 	}
 	defer tx.Rollback(ctx)
 
-	payloadHash := hashBytes(record.Raw)
-	sourceDeleted := record.Verwijderd != nil && *record.Verwijderd
+	raw := projectMotionRaw(record)
+	motion := projectMotion(jurisdictionKey, record)
 
 	tag, err := tx.Exec(ctx, `
 		INSERT INTO raw_records (
@@ -333,7 +333,7 @@ func (ingest TweedeKamerMotionIngest) storeMotionRecord(
 		WHERE raw_records.payload_hash IS DISTINCT FROM EXCLUDED.payload_hash
 		   OR raw_records.source_updated_at IS DISTINCT FROM EXCLUDED.source_updated_at
 		   OR raw_records.source_deleted IS DISTINCT FROM EXCLUDED.source_deleted
-	`, tweedeKamerSourceKey, zaakCollection, record.ID, timePtr(record.ApiGewijzigdOp), sourceDeleted, string(record.Raw), payloadHash)
+	`, tweedeKamerSourceKey, raw.Collection, raw.SourceID, raw.SourceUpdatedAt, raw.SourceDeleted, string(raw.Payload), raw.PayloadHash)
 	if err != nil {
 		return false, err
 	}
@@ -368,7 +368,7 @@ func (ingest TweedeKamerMotionIngest) storeMotionRecord(
 		              source_updated_at = EXCLUDED.source_updated_at,
 		              source_deleted = EXCLUDED.source_deleted,
 		              updated_at = now()
-	`, motionKey(record.ID), tweedeKamerSourceKey, jurisdictionKey, record.ID, record.Nummer, title(record), record.Onderwerp, record.Status, record.Soort, record.Vergaderjaar, proposedAt(record), timePtr(record.ApiGewijzigdOp), sourceDeleted, zaakCollection)
+	`, motion.MotionKey, motion.SourceKey, motion.JurisdictionKey, motion.SourceID, motion.Number, motion.Title, motion.Subject, motion.Status, motion.Kind, motion.ParliamentaryYear, motion.ProposedAt, motion.SourceUpdatedAt, motion.SourceDeleted, motion.RawCollection)
 	if err != nil {
 		return false, err
 	}

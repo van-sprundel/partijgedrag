@@ -12,6 +12,7 @@ import (
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
 
+	"partijgedrag/rewrite/internal/politics"
 	"partijgedrag/rewrite/internal/status"
 	"partijgedrag/rewrite/internal/web"
 )
@@ -282,18 +283,10 @@ func (server Server) getMotionPartyPositions(response http.ResponseWriter, reque
 			return
 		}
 
-		position := "NEUTRAL"
-		if votesFor > votesAgainst {
-			position = "FOR"
-		}
-		if votesAgainst > votesFor {
-			position = "AGAINST"
-		}
-
 		positions = append(positions, map[string]any{
 			"partySourceId": partySourceID,
 			"partyName":     partyName,
-			"position":      position,
+			"position":      politics.PartyPosition(votesFor, votesAgainst),
 			"votesFor":      votesFor,
 			"votesAgainst":  votesAgainst,
 			"totalVotes":    totalVotes,
