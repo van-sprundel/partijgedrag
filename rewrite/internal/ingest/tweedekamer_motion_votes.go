@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"sync"
 	"time"
 
 	"github.com/jackc/pgx/v5"
@@ -22,6 +23,7 @@ type TweedeKamerMotionVotesIngest struct {
 	Pool        *pgxpool.Pool
 	Client      *tweedekamer.Client
 	Limit       int
+	Concurrency int
 	ResyncAfter time.Duration
 }
 
@@ -50,26 +52,10 @@ func (ingest TweedeKamerMotionVotesIngest) Run(ctx context.Context) error {
 		return err
 	}
 
-	recordsSeen := 0
-	recordsChanged := 0
-
-	for _, motion := range motions {
-		decisions, err := ingest.Client.FetchMotionDecisions(ctx, motion.SourceID)
-		if err != nil {
-			_ = finishPipelineRun(ctx, ingest.Pool, runID, motionVotesPipeline, "failed", recordsSeen, recordsChanged, false, "error", err.Error())
-			return err
-		}
-		recordsSeen += len(decisions)
-
-		decisionChanges, voteSeen, voteChanges, err := ingest.storeMotionDecisionsAndVotes(ctx, motion, decisions)
-		if err != nil {
-			_ = finishPipelineRun(ctx, ingest.Pool, runID, motionVotesPipeline, "failed", recordsSeen, recordsChanged, false, "error", err.Error())
-			return err
-		}
-		recordsSeen += voteSeen
-		recordsChanged += decisionChanges + voteChanges
-
-		fmt.Printf("motion=%s decisions=%d votes=%d changed=%d\n", motion.MotionKey, len(decisions), voteSeen, decisionChanges+voteChanges)
+	recordsSeen, recordsChanged, err := ingest.processMotionCandidates(ctx, motions)
+	if err != nil {
+		_ = finishPipelineRun(ctx, ingest.Pool, runID, motionVotesPipeline, "failed", recordsSeen, recordsChanged, false, "error", err.Error())
+		return err
 	}
 
 	if err := finishPipelineRun(ctx, ingest.Pool, runID, motionVotesPipeline, "succeeded", recordsSeen, recordsChanged, false, "complete", ""); err != nil {
@@ -83,6 +69,110 @@ func (ingest TweedeKamerMotionVotesIngest) Run(ctx context.Context) error {
 
 	fmt.Printf("motion vote ingestion complete run_id=%d motions=%d seen=%d changed=%d pending_before=%d pending_after=%d\n", runID, len(motions), recordsSeen, recordsChanged, pendingBefore, pendingAfter)
 	return nil
+}
+
+type motionVoteResult struct {
+	motion          motionCandidate
+	decisionsSeen   int
+	votesSeen       int
+	decisionChanges int
+	voteChanges     int
+	err             error
+}
+
+func (ingest TweedeKamerMotionVotesIngest) processMotionCandidates(ctx context.Context, motions []motionCandidate) (int, int, error) {
+	if len(motions) == 0 {
+		return 0, 0, nil
+	}
+
+	workerCount := ingest.Concurrency
+	if workerCount <= 0 {
+		workerCount = 4
+	}
+	if workerCount > 16 {
+		workerCount = 16
+	}
+	if workerCount > len(motions) {
+		workerCount = len(motions)
+	}
+
+	ctx, cancel := context.WithCancel(ctx)
+	defer cancel()
+
+	jobs := make(chan motionCandidate)
+	results := make(chan motionVoteResult)
+	var wg sync.WaitGroup
+
+	for range workerCount {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			for motion := range jobs {
+				result := ingest.processMotionCandidate(ctx, motion)
+				select {
+				case results <- result:
+				case <-ctx.Done():
+					return
+				}
+				if result.err != nil {
+					cancel()
+					return
+				}
+			}
+		}()
+	}
+
+	go func() {
+		defer close(jobs)
+		for _, motion := range motions {
+			select {
+			case jobs <- motion:
+			case <-ctx.Done():
+				return
+			}
+		}
+	}()
+
+	go func() {
+		wg.Wait()
+		close(results)
+	}()
+
+	recordsSeen := 0
+	recordsChanged := 0
+	var firstErr error
+	for result := range results {
+		recordsSeen += result.decisionsSeen + result.votesSeen
+		recordsChanged += result.decisionChanges + result.voteChanges
+		if result.err != nil && firstErr == nil {
+			firstErr = result.err
+			continue
+		}
+		fmt.Printf("motion=%s decisions=%d votes=%d changed=%d\n", result.motion.MotionKey, result.decisionsSeen, result.votesSeen, result.decisionChanges+result.voteChanges)
+	}
+
+	return recordsSeen, recordsChanged, firstErr
+}
+
+func (ingest TweedeKamerMotionVotesIngest) processMotionCandidate(ctx context.Context, motion motionCandidate) motionVoteResult {
+	result := motionVoteResult{motion: motion}
+
+	decisions, err := ingest.Client.FetchMotionDecisions(ctx, motion.SourceID)
+	if err != nil {
+		result.err = err
+		return result
+	}
+	result.decisionsSeen = len(decisions)
+
+	decisionChanges, voteSeen, voteChanges, err := ingest.storeMotionDecisionsAndVotes(ctx, motion, decisions)
+	if err != nil {
+		result.err = err
+		return result
+	}
+	result.votesSeen = voteSeen
+	result.decisionChanges = decisionChanges
+	result.voteChanges = voteChanges
+	return result
 }
 
 type motionCandidate struct {

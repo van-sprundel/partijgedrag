@@ -257,6 +257,14 @@ dd {
   margin-top: 16px;
 }
 
+.command {
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  overflow-x: auto;
+  padding: 14px 16px;
+}
+
 .compass-layout {
   align-items: start;
   display: grid;

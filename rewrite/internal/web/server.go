@@ -39,7 +39,7 @@ func MustNew(pool *pgxpool.Pool) Server {
 
 func New(pool *pgxpool.Pool) (Server, error) {
 	templates := make(map[string]*template.Template)
-	for _, name := range []string{"home", "motions", "motion", "party_likeness", "coalition_analysis", "coalition_motions", "voting_compass"} {
+	for _, name := range []string{"home", "motions", "motion", "party_likeness", "coalition_analysis", "coalition_motions", "voting_compass", "data_quality"} {
 		parsed, err := parseTemplate(name)
 		if err != nil {
 			return Server{}, err
@@ -60,6 +60,7 @@ func (server Server) Register(mux *http.ServeMux) {
 	mux.HandleFunc("GET /coalition-analysis", server.coalitionAnalysis)
 	mux.HandleFunc("GET /coalition-analysis/motions", server.coalitionMotions)
 	mux.HandleFunc("GET /voting-compass", server.votingCompass)
+	mux.HandleFunc("GET /data-quality", server.dataQuality)
 	mux.HandleFunc("GET /motions", server.motions)
 	mux.HandleFunc("GET /motions/{motionKey}", server.motion)
 }
@@ -78,6 +79,7 @@ func parseTemplate(name string) (*template.Template, error) {
 		"date":     dateValue,
 		"fallback": fallback,
 		"likeness": likenessValue,
+		"percent":  percentValue,
 		"time":     timeValue,
 	})
 	return tmpl.Parse(string(base) + "\n" + string(page))
@@ -339,6 +341,36 @@ func (server Server) votingCompass(response http.ResponseWriter, request *http.R
 	})
 }
 
+func (server Server) dataQuality(response http.ResponseWriter, request *http.Request) {
+	summary, err := status.LoadSummary(request.Context(), server.Pool)
+	if err != nil {
+		writeError(response, err)
+		return
+	}
+	backfill, err := status.LoadVoteBackfill(request.Context(), server.Pool, 0)
+	if err != nil {
+		writeError(response, err)
+		return
+	}
+	runs, err := loadIngestionRuns(request.Context(), server.Pool, 20)
+	if err != nil {
+		writeError(response, err)
+		return
+	}
+	failedRunsLastDay, err := loadFailedRunsLastDay(request.Context(), server.Pool)
+	if err != nil {
+		writeError(response, err)
+		return
+	}
+
+	server.render(response, "data_quality", dataQualityPage{
+		Summary:           summary,
+		Backfill:          backfill,
+		Runs:              runs,
+		FailedRunsLastDay: failedRunsLastDay,
+	})
+}
+
 func (server Server) render(response http.ResponseWriter, name string, data any) {
 	var buffer bytes.Buffer
 	if err := server.templates[name].ExecuteTemplate(&buffer, "base", data); err != nil {
@@ -376,6 +408,17 @@ func loadIngestionRuns(ctx context.Context, pool *pgxpool.Pool, limit int) ([]in
 		runs = append(runs, run)
 	}
 	return runs, rows.Err()
+}
+
+func loadFailedRunsLastDay(ctx context.Context, pool *pgxpool.Pool) (int64, error) {
+	var count int64
+	err := pool.QueryRow(ctx, `
+		SELECT count(*)::bigint
+		FROM ingestion_runs
+		WHERE status = 'failed'
+		  AND started_at >= now() - interval '24 hours'
+	`).Scan(&count)
+	return count, err
 }
 
 func loadMotions(ctx context.Context, pool *pgxpool.Pool, options motionListOptions) ([]motion, int, error) {
@@ -634,6 +677,13 @@ type votingCompassPage struct {
 	Periods []analysis.CabinetPeriod
 }
 
+type dataQualityPage struct {
+	Summary           status.Summary
+	Backfill          status.VoteBackfill
+	Runs              []ingestionRun
+	FailedRunsLastDay int64
+}
+
 type coalitionPartyAlignmentView struct {
 	analysis.CoalitionPartyAlignment
 	WithURL    string
@@ -882,6 +932,13 @@ func timeValue(value any) string {
 	default:
 		return fmt.Sprint(value)
 	}
+}
+
+func percentValue(numerator int64, denominator int64) string {
+	if denominator == 0 {
+		return "0.0%"
+	}
+	return fmt.Sprintf("%.1f%%", (float64(numerator)/float64(denominator))*100)
 }
 
 func parseDate(value string) (*time.Time, error) {

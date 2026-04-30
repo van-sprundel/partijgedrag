@@ -179,12 +179,16 @@ func runIngestMotionVotes(ctx context.Context, cfg config.Config, database *db.D
 	flags := flag.NewFlagSet("ingest tweedekamer motion-votes", flag.ContinueOnError)
 	flags.SetOutput(os.Stderr)
 	limit := flags.Int("limit", 25, "number of motions to sync votes for")
+	concurrency := flags.Int("concurrency", 4, "number of motions to sync in parallel")
 	resyncAfter := flags.Duration("resync-after", 0, "also resync motions whose votes were synced before this duration, e.g. 168h; 0 means only unsynced")
 	if err := flags.Parse(args); err != nil {
 		return err
 	}
 	if *limit <= 0 {
 		return fmt.Errorf("--limit must be greater than 0")
+	}
+	if *concurrency <= 0 {
+		return fmt.Errorf("--concurrency must be greater than 0")
 	}
 	if *resyncAfter < 0 {
 		return fmt.Errorf("--resync-after must be 0 or greater")
@@ -194,6 +198,7 @@ func runIngestMotionVotes(ctx context.Context, cfg config.Config, database *db.D
 		Pool:        database.Pool,
 		Client:      tweedekamer.NewClient(cfg.TweedeKamerODataBaseURL),
 		Limit:       *limit,
+		Concurrency: *concurrency,
 		ResyncAfter: *resyncAfter,
 	}
 	return job.Run(ctx)
@@ -211,6 +216,7 @@ func runSync(ctx context.Context, cfg config.Config, database *db.DB, args []str
 	partyMaxPages := flags.Int("party-max-pages", cfg.TweedeKamerMaxPages, "maximum party OData pages to process, 0 means all")
 	partyBatchSize := flags.Int("party-batch-size", cfg.TweedeKamerBatchSize, "party records per OData page")
 	motionVoteLimit := flags.Int("motion-vote-limit", 100, "number of known motions to sync votes for")
+	motionVoteConcurrency := flags.Int("motion-vote-concurrency", 4, "number of motions to sync votes for in parallel")
 	motionVoteResyncAfter := flags.Duration("motion-vote-resync-after", 0, "also resync motions whose votes were synced before this duration, e.g. 168h; 0 means only unsynced")
 	skipParties := flags.Bool("skip-parties", false, "skip party ingestion")
 	skipMotions := flags.Bool("skip-motions", false, "skip motion ingestion")
@@ -235,6 +241,9 @@ func runSync(ctx context.Context, cfg config.Config, database *db.DB, args []str
 	}
 	if *motionVoteLimit <= 0 {
 		return fmt.Errorf("--motion-vote-limit must be greater than 0")
+	}
+	if *motionVoteConcurrency <= 0 {
+		return fmt.Errorf("--motion-vote-concurrency must be greater than 0")
 	}
 	if *motionVoteResyncAfter < 0 {
 		return fmt.Errorf("--motion-vote-resync-after must be 0 or greater")
@@ -280,6 +289,7 @@ func runSync(ctx context.Context, cfg config.Config, database *db.DB, args []str
 			Pool:        database.Pool,
 			Client:      client,
 			Limit:       *motionVoteLimit,
+			Concurrency: *motionVoteConcurrency,
 			ResyncAfter: *motionVoteResyncAfter,
 		}
 		if err := job.Run(ctx); err != nil {
@@ -455,8 +465,8 @@ func usage() error {
   partijgedrag migrate
   partijgedrag ingest tweedekamer parties [--max-pages=N] [--batch-size=N] [--since=RFC3339] [--reset-cursor]
   partijgedrag ingest tweedekamer motions [--max-pages=N] [--batch-size=N] [--since=RFC3339] [--reset-cursor]
-  partijgedrag ingest tweedekamer motion-votes [--limit=N] [--resync-after=168h]
-  partijgedrag sync tweedekamer [--party-max-pages=N] [--party-batch-size=N] [--motion-max-pages=N] [--motion-batch-size=N] [--motion-vote-limit=N] [--motion-vote-resync-after=168h] [--skip-parties] [--skip-motions] [--skip-motion-votes]
+  partijgedrag ingest tweedekamer motion-votes [--limit=N] [--concurrency=N] [--resync-after=168h]
+  partijgedrag sync tweedekamer [--party-max-pages=N] [--party-batch-size=N] [--motion-max-pages=N] [--motion-batch-size=N] [--motion-vote-limit=N] [--motion-vote-concurrency=N] [--motion-vote-resync-after=168h] [--skip-parties] [--skip-motions] [--skip-motion-votes]
   partijgedrag status ingestion-runs [--limit=N] [--pipeline=NAME] [--failed]
   partijgedrag status summary
   partijgedrag status vote-backfill [--resync-after=168h]

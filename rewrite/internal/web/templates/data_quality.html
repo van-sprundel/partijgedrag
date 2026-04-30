@@ -1,0 +1,94 @@
+{{ define "title" }}Data Quality - Partijgedrag{{ end }}
+{{ define "content" }}
+  <section class="section">
+    <div class="section-heading">
+      <h1>Data Quality</h1>
+      <span class="muted">Internal</span>
+    </div>
+    <p class="lead">Operational checks for ingestion coverage and projection gaps.</p>
+  </section>
+
+  <section class="section">
+    <div class="metric-grid">
+      <div class="metric"><span>Vote coverage</span><strong>{{ percent .Summary.MotionsWithVotes .Summary.Motions }}</strong></div>
+      <div class="metric"><span>Synced motions</span><strong>{{ .Backfill.SyncedMotions }}</strong></div>
+      <div class="metric"><span>Unsynced motions</span><strong>{{ .Backfill.UnsyncedMotions }}</strong></div>
+      <div class="metric"><span>Eligible backfill</span><strong>{{ .Backfill.EligibleMotions }}</strong></div>
+      <div class="metric"><span>Decision gaps</span><strong>{{ .Summary.DecisionsWithoutVotes }}</strong></div>
+      <div class="metric"><span>Failed runs 24h</span><strong>{{ .FailedRunsLastDay }}</strong></div>
+    </div>
+  </section>
+
+  <section class="section">
+    <h2>Current Gaps</h2>
+    <table>
+      <thead>
+        <tr>
+          <th>Check</th>
+          <th>Value</th>
+          <th>Impact</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td>Motions without vote sync</td>
+          <td>{{ .Summary.MotionsWithoutVotes }}</td>
+          <td>Compass, coalition analysis, and party similarity are sparse until this drops.</td>
+        </tr>
+        <tr>
+          <td>Synced motions without decisions</td>
+          <td>{{ .Summary.MotionsWithNoDecisions }}</td>
+          <td>Likely motions without a vote yet, deleted/source edge cases, or ingestion misses.</td>
+        </tr>
+        <tr>
+          <td>Decisions without votes</td>
+          <td>{{ .Summary.DecisionsWithoutVotes }}</td>
+          <td>These decision records exist, but no usable vote rows are projected for them.</td>
+        </tr>
+        <tr>
+          <td>Mistake votes</td>
+          <td>{{ .Summary.MistakeVotes }}</td>
+          <td>Ignored in current vote math; useful to track if correction handling changes.</td>
+        </tr>
+      </tbody>
+    </table>
+  </section>
+
+  <section class="section">
+    <h2>Backfill Command</h2>
+    <pre class="command">go run ./cmd/partijgedrag ingest tweedekamer motion-votes --limit=500 --concurrency=4</pre>
+    <p class="muted">Check progress with <code>go run ./cmd/partijgedrag status vote-backfill</code>.</p>
+  </section>
+
+  <section class="section">
+    <h2>Recent Ingestion Runs</h2>
+    <table>
+      <thead>
+        <tr>
+          <th>ID</th>
+          <th>Pipeline</th>
+          <th>Status</th>
+          <th>Seen</th>
+          <th>Changed</th>
+          <th>Stop</th>
+          <th>Started</th>
+        </tr>
+      </thead>
+      <tbody>
+        {{ range .Runs }}
+          <tr>
+            <td>#{{ .ID }}</td>
+            <td>{{ .Pipeline }}</td>
+            <td><span class="status status-{{ .Status }}">{{ .Status }}</span></td>
+            <td>{{ .RecordsSeen }}</td>
+            <td>{{ .RecordsChanged }}</td>
+            <td>{{ .StopReason }}</td>
+            <td>{{ time .StartedAt }}</td>
+          </tr>
+        {{ else }}
+          <tr><td colspan="7">No runs yet.</td></tr>
+        {{ end }}
+      </tbody>
+    </table>
+  </section>
+{{ end }}

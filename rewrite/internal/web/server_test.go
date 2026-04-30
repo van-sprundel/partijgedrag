@@ -8,7 +8,7 @@ func TestNewParsesTemplates(t *testing.T) {
 		t.Fatalf("New() returned error: %v", err)
 	}
 
-	for _, name := range []string{"home", "motions", "motion", "party_likeness", "coalition_analysis", "coalition_motions", "voting_compass"} {
+	for _, name := range []string{"home", "motions", "motion", "party_likeness", "coalition_analysis", "coalition_motions", "voting_compass", "data_quality"} {
 		if server.templates[name] == nil {
 			t.Fatalf("template %q was not parsed", name)
 		}
