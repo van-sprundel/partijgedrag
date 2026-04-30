@@ -53,13 +53,13 @@
         </tr>
       </thead>
       <tbody>
-        {{ range .Analysis.Parties }}
+        {{ range .Parties }}
           <tr>
             <td>{{ .PartyName }}</td>
             <td>{{ if .CoalitionParty }}Coalition{{ else }}Other{{ end }}</td>
             <td>{{ printf "%.1f%%" .Alignment }}</td>
-            <td>{{ .WithCoalition }}</td>
-            <td>{{ .AgainstCoalition }}</td>
+            <td>{{ if .WithURL }}<a href="{{ .WithURL }}">{{ .WithCoalition }}</a>{{ else }}{{ .WithCoalition }}{{ end }}</td>
+            <td>{{ if .AgainstURL }}<a href="{{ .AgainstURL }}">{{ .AgainstCoalition }}</a>{{ else }}{{ .AgainstCoalition }}{{ end }}</td>
             <td>{{ .CommonMotions }}</td>
           </tr>
         {{ else }}

@@ -31,6 +31,7 @@ func (server Server) Handler() http.Handler {
 	mux.HandleFunc("GET /api/summary", server.summary)
 	mux.HandleFunc("GET /api/cabinet-periods", server.listCabinetPeriods)
 	mux.HandleFunc("GET /api/coalition-analysis", server.getCoalitionAnalysis)
+	mux.HandleFunc("GET /api/coalition-analysis/motions", server.listCoalitionMotions)
 	mux.HandleFunc("GET /api/ingestion-runs", server.listIngestionRuns)
 	mux.HandleFunc("GET /api/parties", server.listParties)
 	mux.HandleFunc("GET /api/party-likeness", server.listPartyLikeness)
@@ -242,6 +243,82 @@ func (server Server) getCoalitionAnalysis(response http.ResponseWriter, request 
 			"split":                     coalition.Summary.Split,
 		},
 		"parties": parties,
+	})
+}
+
+func (server Server) listCoalitionMotions(response http.ResponseWriter, request *http.Request) {
+	query := request.URL.Query()
+	jurisdiction := query.Get("jurisdiction")
+	if jurisdiction == "" {
+		jurisdiction = "nl-tweede-kamer"
+	}
+	partySourceID := query.Get("partySourceId")
+	if partySourceID == "" {
+		writeJSON(response, http.StatusBadRequest, map[string]string{"error": "missing_party_source_id"})
+		return
+	}
+	relation, ok := analysis.NormalizeCoalitionRelation(query.Get("relation"))
+	if !ok {
+		writeJSON(response, http.StatusBadRequest, map[string]string{"error": "invalid_relation"})
+		return
+	}
+
+	period, err := selectedCabinetPeriod(request.Context(), server.Pool, jurisdiction, query.Get("period"))
+	if err != nil {
+		if analysis.IsNotFound(err) {
+			writeJSON(response, http.StatusBadRequest, map[string]string{"error": "invalid_period"})
+			return
+		}
+		writeError(response, err)
+		return
+	}
+
+	limit := clamp(parseInt(query.Get("limit"), 100), 1, 500)
+	offset := max(parseInt(query.Get("offset"), 0), 0)
+	motions, err := analysis.LoadCoalitionMotions(request.Context(), server.Pool, analysis.CoalitionMotionOptions{
+		Period:        period,
+		PartySourceID: partySourceID,
+		Relation:      relation,
+		Limit:         limit,
+		Offset:        offset,
+	})
+	if err != nil {
+		writeError(response, err)
+		return
+	}
+
+	items := make([]map[string]any, 0, len(motions))
+	for _, motion := range motions {
+		items = append(items, map[string]any{
+			"motionKey":         motion.MotionKey,
+			"number":            motion.Number,
+			"title":             motion.Title,
+			"subject":           motion.Subject,
+			"proposedAt":        motion.ProposedAt,
+			"partySourceId":     motion.PartySourceID,
+			"partyName":         motion.PartyName,
+			"partyPosition":     motion.PartyPosition,
+			"coalitionPosition": motion.CoalitionPosition,
+			"coalitionFor":      motion.CoalitionFor,
+			"coalitionAgainst":  motion.CoalitionAgainst,
+			"withCoalition":     motion.WithCoalition,
+		})
+	}
+
+	writeJSON(response, http.StatusOK, map[string]any{
+		"period": map[string]any{
+			"periodKey":    period.PeriodKey,
+			"jurisdiction": period.Jurisdiction,
+			"name":         period.Name,
+			"startedOn":    period.StartedOn.Format("2006-01-02"),
+			"endedOn":      dateString(period.EndedOn),
+			"parties":      period.Parties,
+		},
+		"partySourceId": partySourceID,
+		"relation":      relation,
+		"limit":         limit,
+		"offset":        offset,
+		"motions":       items,
 	})
 }
 

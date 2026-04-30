@@ -3,6 +3,7 @@ package analysis
 import (
 	"context"
 	"strings"
+	"time"
 
 	"github.com/jackc/pgx/v5/pgxpool"
 )
@@ -35,6 +36,29 @@ type CoalitionAnalysisOptions struct {
 	MinCommon int
 }
 
+type CoalitionMotion struct {
+	MotionKey         string
+	Number            *string
+	Title             *string
+	Subject           *string
+	ProposedAt        *time.Time
+	PartySourceID     *string
+	PartyName         string
+	PartyPosition     string
+	CoalitionPosition string
+	CoalitionFor      int
+	CoalitionAgainst  int
+	WithCoalition     bool
+}
+
+type CoalitionMotionOptions struct {
+	Period        CabinetPeriod
+	PartySourceID string
+	Relation      string
+	Limit         int
+	Offset        int
+}
+
 func LoadCoalitionAnalysis(ctx context.Context, pool *pgxpool.Pool, options CoalitionAnalysisOptions) (CoalitionAnalysis, error) {
 	minCommon := options.MinCommon
 	if minCommon <= 0 {
@@ -57,6 +81,98 @@ func LoadCoalitionAnalysis(ctx context.Context, pool *pgxpool.Pool, options Coal
 	analysis.Parties = parties
 
 	return analysis, nil
+}
+
+func LoadCoalitionMotions(ctx context.Context, pool *pgxpool.Pool, options CoalitionMotionOptions) ([]CoalitionMotion, error) {
+	limit := options.Limit
+	if limit <= 0 {
+		limit = 100
+	}
+	if limit > 500 {
+		limit = 500
+	}
+	offset := options.Offset
+	if offset < 0 {
+		offset = 0
+	}
+
+	relation, ok := NormalizeCoalitionRelation(options.Relation)
+	if !ok {
+		relation = "all"
+	}
+
+	rows, err := pool.Query(ctx, coalitionPositionSQL()+`
+		SELECT m.motion_key,
+		       m.number,
+		       m.title,
+		       m.subject,
+		       m.proposed_at,
+		       pp.party_source_id,
+		       pp.party_name,
+		       pp.position AS party_position,
+		       CASE
+		         WHEN cbm.coalition_for > cbm.coalition_against THEN 'FOR'
+		         ELSE 'AGAINST'
+		       END AS coalition_position,
+		       cbm.coalition_for,
+		       cbm.coalition_against,
+		       (
+		         (cbm.coalition_for > cbm.coalition_against AND pp.position = 'FOR')
+		         OR (cbm.coalition_against > cbm.coalition_for AND pp.position = 'AGAINST')
+		       ) AS with_coalition
+		FROM party_positions pp
+		JOIN coalition_by_motion cbm ON cbm.motion_key = pp.motion_key
+		JOIN motions m ON m.motion_key = pp.motion_key
+		WHERE cbm.coalition_for <> cbm.coalition_against
+		  AND cbm.coalition_parties_seen >= 2
+		  AND pp.party_source_id = $5
+		  AND (
+		    $6::text = 'all'
+		    OR (
+		      $6::text = 'with'
+		      AND (
+		        (cbm.coalition_for > cbm.coalition_against AND pp.position = 'FOR')
+		        OR (cbm.coalition_against > cbm.coalition_for AND pp.position = 'AGAINST')
+		      )
+		    )
+		    OR (
+		      $6::text = 'against'
+		      AND (
+		        (cbm.coalition_for > cbm.coalition_against AND pp.position = 'AGAINST')
+		        OR (cbm.coalition_against > cbm.coalition_for AND pp.position = 'FOR')
+		      )
+		    )
+		  )
+		ORDER BY m.proposed_at DESC NULLS LAST, m.motion_key
+		LIMIT $7 OFFSET $8
+	`, options.Period.Jurisdiction, options.Period.StartedOn, options.Period.EndedOn, normalizedPartyNames(options.Period.Parties), options.PartySourceID, relation, limit, offset)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	motions := []CoalitionMotion{}
+	for rows.Next() {
+		var motion CoalitionMotion
+		if err := rows.Scan(
+			&motion.MotionKey,
+			&motion.Number,
+			&motion.Title,
+			&motion.Subject,
+			&motion.ProposedAt,
+			&motion.PartySourceID,
+			&motion.PartyName,
+			&motion.PartyPosition,
+			&motion.CoalitionPosition,
+			&motion.CoalitionFor,
+			&motion.CoalitionAgainst,
+			&motion.WithCoalition,
+		); err != nil {
+			return nil, err
+		}
+		motions = append(motions, motion)
+	}
+	return motions, rows.Err()
 }
 
 func loadCoalitionSummary(ctx context.Context, pool *pgxpool.Pool, period CabinetPeriod, coalitionParties []string) (CoalitionSummary, error) {
@@ -196,5 +312,18 @@ func partyNameAliases(name string) []string {
 		return []string{"NSC", "NIEUW SOCIAAL CONTRACT"}
 	default:
 		return []string{name}
+	}
+}
+
+func NormalizeCoalitionRelation(value string) (string, bool) {
+	switch strings.ToLower(strings.TrimSpace(value)) {
+	case "", "all":
+		return "all", true
+	case "with":
+		return "with", true
+	case "against":
+		return "against", true
+	default:
+		return "", false
 	}
 }

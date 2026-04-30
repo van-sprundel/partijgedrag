@@ -1,0 +1,47 @@
+{{ define "title" }}Coalition Motions - Partijgedrag{{ end }}
+{{ define "content" }}
+  <section class="section">
+    <a class="back-link" href="{{ .BackURL }}">Back to coalition analysis</a>
+    <div class="section-heading">
+      <h1>Coalition Motions</h1>
+      <span class="muted">{{ .Period.Name }}</span>
+    </div>
+    <p class="lead">
+      {{ fallback .PartyName "Selected party" }} voted
+      {{ if eq .Relation "against" }}against{{ else if eq .Relation "with" }}with{{ else }}with or against{{ end }}
+      the coalition bloc on these motions.
+    </p>
+  </section>
+
+  <section class="section">
+    <table>
+      <thead>
+        <tr>
+          <th>Motion</th>
+          <th>Proposed</th>
+          <th>Party</th>
+          <th>Coalition bloc</th>
+          <th>Coalition split</th>
+        </tr>
+      </thead>
+      <tbody>
+        {{ range .Motions }}
+          <tr>
+            <td><a href="/motions/{{ .MotionKey }}">{{ fallback .Title .Subject .Number .MotionKey }}</a></td>
+            <td>{{ date .ProposedAt }}</td>
+            <td>{{ .PartyPosition }}</td>
+            <td>{{ .CoalitionPosition }}</td>
+            <td>{{ .CoalitionFor }} for / {{ .CoalitionAgainst }} against</td>
+          </tr>
+        {{ else }}
+          <tr><td colspan="5">No motions found for this drill-down.</td></tr>
+        {{ end }}
+      </tbody>
+    </table>
+
+    <nav class="pagination">
+      {{ if .ShowPrev }}<a href="{{ .PrevURL }}">Previous</a>{{ end }}
+      {{ if .ShowNext }}<a href="{{ .NextURL }}">Next</a>{{ end }}
+    </nav>
+  </section>
+{{ end }}

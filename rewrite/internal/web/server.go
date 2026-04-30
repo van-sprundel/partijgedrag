@@ -39,7 +39,7 @@ func MustNew(pool *pgxpool.Pool) Server {
 
 func New(pool *pgxpool.Pool) (Server, error) {
 	templates := make(map[string]*template.Template)
-	for _, name := range []string{"home", "motions", "motion", "party_likeness", "coalition_analysis"} {
+	for _, name := range []string{"home", "motions", "motion", "party_likeness", "coalition_analysis", "coalition_motions"} {
 		parsed, err := parseTemplate(name)
 		if err != nil {
 			return Server{}, err
@@ -58,6 +58,7 @@ func (server Server) Register(mux *http.ServeMux) {
 	mux.HandleFunc("GET /", server.home)
 	mux.HandleFunc("GET /party-likeness", server.partyLikeness)
 	mux.HandleFunc("GET /coalition-analysis", server.coalitionAnalysis)
+	mux.HandleFunc("GET /coalition-analysis/motions", server.coalitionMotions)
 	mux.HandleFunc("GET /motions", server.motions)
 	mux.HandleFunc("GET /motions/{motionKey}", server.motion)
 }
@@ -265,6 +266,62 @@ func (server Server) coalitionAnalysis(response http.ResponseWriter, request *ht
 		Periods:   periods,
 		Period:    period,
 		Analysis:  coalition,
+		Parties:   coalitionPartyAlignmentViews(period.PeriodKey, minCommon, coalition.Parties),
+		MinCommon: minCommon,
+	})
+}
+
+func (server Server) coalitionMotions(response http.ResponseWriter, request *http.Request) {
+	query := request.URL.Query()
+	partySourceID := query.Get("partySourceId")
+	if partySourceID == "" {
+		http.Error(response, "missing partySourceId", http.StatusBadRequest)
+		return
+	}
+	relation, ok := analysis.NormalizeCoalitionRelation(query.Get("relation"))
+	if !ok {
+		http.Error(response, "invalid relation", http.StatusBadRequest)
+		return
+	}
+
+	periods, err := analysis.LoadCabinetPeriods(request.Context(), server.Pool, "nl-tweede-kamer")
+	if err != nil {
+		writeError(response, err)
+		return
+	}
+	period, err := selectedCabinetPeriod(periods, query.Get("period"))
+	if err != nil {
+		http.Error(response, "invalid period", http.StatusBadRequest)
+		return
+	}
+
+	limit := clamp(parseInt(query.Get("limit"), 100), 1, 500)
+	offset := max(parseInt(query.Get("offset"), 0), 0)
+	minCommon := clamp(parseInt(query.Get("minCommon"), 5), 1, 1000)
+	motions, err := analysis.LoadCoalitionMotions(request.Context(), server.Pool, analysis.CoalitionMotionOptions{
+		Period:        period,
+		PartySourceID: partySourceID,
+		Relation:      relation,
+		Limit:         limit,
+		Offset:        offset,
+	})
+	if err != nil {
+		writeError(response, err)
+		return
+	}
+
+	server.render(response, "coalition_motions", coalitionMotionsPage{
+		Period:    period,
+		PartyName: query.Get("partyName"),
+		Relation:  relation,
+		Motions:   motions,
+		BackURL:   coalitionAnalysisURL(period.PeriodKey, minCommon),
+		PrevURL:   coalitionMotionsURL(period.PeriodKey, partySourceID, query.Get("partyName"), relation, limit, max(offset-limit, 0), strconv.Itoa(minCommon)),
+		NextURL:   coalitionMotionsURL(period.PeriodKey, partySourceID, query.Get("partyName"), relation, limit, offset+limit, strconv.Itoa(minCommon)),
+		ShowPrev:  offset > 0,
+		ShowNext:  len(motions) == limit,
+		Limit:     limit,
+		Offset:    offset,
 		MinCommon: minCommon,
 	})
 }
@@ -541,7 +598,29 @@ type coalitionAnalysisPage struct {
 	Periods   []analysis.CabinetPeriod
 	Period    analysis.CabinetPeriod
 	Analysis  analysis.CoalitionAnalysis
+	Parties   []coalitionPartyAlignmentView
 	MinCommon int
+}
+
+type coalitionMotionsPage struct {
+	Period    analysis.CabinetPeriod
+	PartyName string
+	Relation  string
+	Motions   []analysis.CoalitionMotion
+	BackURL   string
+	PrevURL   string
+	NextURL   string
+	ShowPrev  bool
+	ShowNext  bool
+	Limit     int
+	Offset    int
+	MinCommon int
+}
+
+type coalitionPartyAlignmentView struct {
+	analysis.CoalitionPartyAlignment
+	WithURL    string
+	AgainstURL string
 }
 
 type likenessParty struct {
@@ -681,6 +760,50 @@ func likenessValue(matrix map[string]map[string]analysis.PartyLikeness, rowID st
 		return ""
 	}
 	return fmt.Sprintf("%.0f%%", cell.Similarity)
+}
+
+func coalitionPartyAlignmentViews(periodKey string, minCommon int, parties []analysis.CoalitionPartyAlignment) []coalitionPartyAlignmentView {
+	views := make([]coalitionPartyAlignmentView, 0, len(parties))
+	for _, party := range parties {
+		view := coalitionPartyAlignmentView{CoalitionPartyAlignment: party}
+		if party.PartySourceID != nil {
+			if party.WithCoalition > 0 {
+				view.WithURL = coalitionMotionsURL(periodKey, *party.PartySourceID, party.PartyName, "with", 100, 0, strconv.Itoa(minCommon))
+			}
+			if party.AgainstCoalition > 0 {
+				view.AgainstURL = coalitionMotionsURL(periodKey, *party.PartySourceID, party.PartyName, "against", 100, 0, strconv.Itoa(minCommon))
+			}
+		}
+		views = append(views, view)
+	}
+	return views
+}
+
+func coalitionAnalysisURL(periodKey string, minCommon int) string {
+	query := url.Values{}
+	query.Set("period", periodKey)
+	if minCommon != 5 {
+		query.Set("minCommon", strconv.Itoa(minCommon))
+	}
+	return "/coalition-analysis?" + query.Encode()
+}
+
+func coalitionMotionsURL(periodKey string, partySourceID string, partyName string, relation string, limit int, offset int, minCommon string) string {
+	query := url.Values{}
+	query.Set("period", periodKey)
+	query.Set("partySourceId", partySourceID)
+	query.Set("partyName", partyName)
+	query.Set("relation", relation)
+	if limit != 100 {
+		query.Set("limit", strconv.Itoa(limit))
+	}
+	if offset > 0 {
+		query.Set("offset", strconv.Itoa(offset))
+	}
+	if minCommon != "" && minCommon != "5" {
+		query.Set("minCommon", minCommon)
+	}
+	return "/coalition-analysis/motions?" + query.Encode()
 }
 
 func selectedCabinetPeriod(periods []analysis.CabinetPeriod, periodKey string) (analysis.CabinetPeriod, error) {
