@@ -57,6 +57,8 @@ func run() error {
 		return runSync(ctx, cfg, database, args[1:])
 	case "status":
 		return runStatus(ctx, database, args[1:])
+	case "maintenance":
+		return runMaintenance(ctx, database, args[1:])
 	case "inspect":
 		return runInspect(ctx, database, args[1:])
 	case "serve":
@@ -71,6 +73,63 @@ func run() error {
 	default:
 		return usage()
 	}
+}
+
+func runMaintenance(ctx context.Context, database *db.DB, args []string) error {
+	if len(args) == 0 {
+		return usage()
+	}
+
+	switch args[0] {
+	case "fail-stale-runs":
+		return runMaintenanceFailStaleRuns(ctx, database, args[1:])
+	default:
+		return usage()
+	}
+}
+
+func runMaintenanceFailStaleRuns(ctx context.Context, database *db.DB, args []string) error {
+	flags := flag.NewFlagSet("maintenance fail-stale-runs", flag.ContinueOnError)
+	flags.SetOutput(os.Stderr)
+	olderThan := flags.Duration("older-than", time.Hour, "mark running ingestion runs older than this duration as failed")
+	limit := flags.Int("limit", 50, "maximum stale runs to show in dry-run mode")
+	apply := flags.Bool("apply", false, "write changes; without this flag the command is a dry run")
+	if err := flags.Parse(args); err != nil {
+		return err
+	}
+	if flags.NArg() != 0 {
+		return usage()
+	}
+	if *olderThan <= 0 {
+		return fmt.Errorf("--older-than must be greater than 0")
+	}
+	if *limit <= 0 {
+		return fmt.Errorf("--limit must be greater than 0")
+	}
+
+	var runs []status.StaleRunningRun
+	var err error
+	if *apply {
+		runs, err = status.FailStaleRunningRuns(ctx, database.Pool, *olderThan)
+	} else {
+		runs, err = status.LoadStaleRunningRuns(ctx, database.Pool, *olderThan, *limit)
+	}
+	if err != nil {
+		return err
+	}
+
+	action := "would_mark_failed"
+	if *apply {
+		action = "marked_failed"
+	}
+	fmt.Printf("%s=%d older_than=%s\n", action, len(runs), olderThan.String())
+	for _, run := range runs {
+		fmt.Printf("#%d %s/%s started=%s\n", run.ID, run.SourceKey, run.Pipeline, run.StartedAt.Format(time.RFC3339))
+	}
+	if !*apply && len(runs) > 0 {
+		fmt.Println("dry_run=true rerun_with=--apply")
+	}
+	return nil
 }
 
 func runInspect(ctx context.Context, database *db.DB, args []string) error {
@@ -467,6 +526,7 @@ func usage() error {
   partijgedrag ingest tweedekamer motions [--max-pages=N] [--batch-size=N] [--since=RFC3339] [--reset-cursor]
   partijgedrag ingest tweedekamer motion-votes [--limit=N] [--concurrency=N] [--resync-after=168h]
   partijgedrag sync tweedekamer [--party-max-pages=N] [--party-batch-size=N] [--motion-max-pages=N] [--motion-batch-size=N] [--motion-vote-limit=N] [--motion-vote-concurrency=N] [--motion-vote-resync-after=168h] [--skip-parties] [--skip-motions] [--skip-motion-votes]
+  partijgedrag maintenance fail-stale-runs [--older-than=1h] [--limit=N] [--apply]
   partijgedrag status ingestion-runs [--limit=N] [--pipeline=NAME] [--failed]
   partijgedrag status summary
   partijgedrag status vote-backfill [--resync-after=168h]

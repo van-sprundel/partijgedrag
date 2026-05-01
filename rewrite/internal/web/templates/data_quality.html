@@ -74,6 +74,12 @@
   </section>
 
   <section class="section">
+    <h2>Stale Run Cleanup</h2>
+    <pre class="command">go run ./cmd/partijgedrag maintenance fail-stale-runs --older-than=1h</pre>
+    <p class="muted">Dry-run by default. Add <code>--apply</code> to mark stale running rows as failed with stop reason <code>interrupted</code>.</p>
+  </section>
+
+  <section class="section">
     <h2>Recent Ingestion Runs</h2>
     <table>
       <thead>
