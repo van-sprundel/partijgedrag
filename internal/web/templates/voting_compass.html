@@ -1,87 +1,129 @@
-{{ define "title" }}Voting Compass - Partijgedrag{{ end }}
+{{ define "title" }}Stemwijzer — Partijgedrag{{ end }}
 {{ define "content" }}
   <section class="section">
     <div class="section-heading">
-      <h1>Voting Compass</h1>
-      <span class="muted" id="compass-count">0 answered</span>
+      <h1>Stemwijzer</h1>
+      <span class="muted mono" id="compass-count">0 beantwoord</span>
     </div>
+    <p class="lead">Stem zelf op echte moties uit de Tweede Kamer. Na elke stem ziet u direct welke partijen het meest met u meestemden.</p>
 
-    <form class="filters" id="compass-filters">
-      <label>
-        Cabinet period
-        <select name="period" id="compass-period">
-          <option value="">All synced motions</option>
-          {{ range .Periods }}
-            <option value="{{ .PeriodKey }}">{{ .Name }}</option>
-          {{ end }}
-        </select>
-      </label>
-      <label>
-        Motions
-        <input type="number" name="limit" id="compass-limit" value="12" min="1" max="50">
-      </label>
-      <label>
-        Minimum overlap
-        <input type="number" name="minOverlap" id="compass-min-overlap" value="5" min="1" max="50">
-      </label>
-      <button type="submit">Load</button>
-    </form>
+    <div class="compass-profile">
+      <span class="muted mono" id="compass-profile-summary"></span>
+      <a class="btn btn-secondary" id="compass-edit-profile" href="/voting-compass/settings">Profiel aanpassen</a>
+    </div>
   </section>
 
   <section class="section compass-layout">
-    <div id="compass-motions" class="compass-motion-list"></div>
+    <div>
+      <div class="progress" aria-hidden="true"><span id="compass-progress"></span></div>
+      <div id="compass-motions" class="compass-motion-list" aria-live="polite"></div>
+    </div>
     <aside class="compass-results">
-      <h2>Matches</h2>
-      <p class="muted" id="compass-threshold">Minimum overlap: 5</p>
+      <h2>Uw matches</h2>
+      <p class="muted mono" id="compass-threshold">Min. overlap: 5</p>
       <table>
         <thead>
           <tr>
-            <th>Party</th>
-            <th>Match</th>
-            <th>Same</th>
-            <th>Overlap</th>
+            <th>Partij</th>
+            <th class="num">Match</th>
+            <th class="num">Gelijk</th>
+            <th class="num">Overlap</th>
           </tr>
         </thead>
         <tbody id="compass-results">
-          <tr><td colspan="4">No answers yet.</td></tr>
+          <tr><td colspan="4">Nog geen antwoorden.</td></tr>
         </tbody>
       </table>
       <details class="inconclusive" id="compass-inconclusive" hidden>
-        <summary>Inconclusive</summary>
+        <summary>Te weinig overlap</summary>
         <table>
           <thead>
             <tr>
-              <th>Party</th>
-              <th>Same</th>
-              <th>Overlap</th>
+              <th>Partij</th>
+              <th class="num">Gelijk</th>
+              <th class="num">Overlap</th>
             </tr>
           </thead>
           <tbody id="compass-inconclusive-results"></tbody>
         </table>
       </details>
       <p>
-        <button type="button" id="compass-share" disabled>Save &amp; share results</button>
+        <button type="button" class="btn" id="compass-share" disabled>Bewaar &amp; deel resultaat</button>
         <span class="muted" id="compass-share-status"></span>
       </p>
+      <p><button type="button" class="btn btn-secondary" id="compass-reset">Opnieuw beginnen</button></p>
     </aside>
   </section>
 
   <script>
     (() => {
-      const form = document.querySelector("#compass-filters");
-      const period = document.querySelector("#compass-period");
-      const limit = document.querySelector("#compass-limit");
-      const minOverlap = document.querySelector("#compass-min-overlap");
       const count = document.querySelector("#compass-count");
       const threshold = document.querySelector("#compass-threshold");
       const motionsNode = document.querySelector("#compass-motions");
+      const progressNode = document.querySelector("#compass-progress");
       const resultsNode = document.querySelector("#compass-results");
       const inconclusive = document.querySelector("#compass-inconclusive");
       const inconclusiveResults = document.querySelector("#compass-inconclusive-results");
       let motions = [];
+      let current = 0;
+      let exhausted = false;
+      const REQUIRED_ANSWERS = 20;
       const answers = new Map();
+      const seen = new Set();
+
+      // The profile (filters) lives in the URL; it is edited on the separate
+      // settings page, which links back here with the chosen query string.
+      const query = new URLSearchParams(location.search);
+      const splitAll = (name) => query.getAll(name).flatMap((value) => value.split(",")).map((value) => value.trim()).filter(Boolean);
+      const profile = {
+        period: query.get("period") || "",
+        limit: Math.min(Math.max(parseInt(query.get("limit"), 10) || 20, 1), 50),
+        minOverlap: Math.min(Math.max(parseInt(query.get("minOverlap"), 10) || 5, 1), 50),
+        categories: splitAll("categories"),
+        parties: splitAll("parties")
+      };
+
+      const periodNames = {
+        {{ range .Periods }}"{{ .PeriodKey }}": "{{ .Name }}",
+        {{ end }}
+      };
+      const summaryParts = [periodNames[profile.period] || "Alle beschikbare moties"];
+      if (profile.categories.length > 0) summaryParts.push(`${profile.categories.length} onderwerpen`);
+      if (profile.parties.length > 0) summaryParts.push(`${profile.parties.length} partijen`);
+      document.querySelector("#compass-profile-summary").textContent = summaryParts.join(" · ");
+      document.querySelector("#compass-edit-profile").setAttribute("href", `/voting-compass/settings${location.search}`);
+
+      // Answers survive the round-trip to the settings page.
+      const STORAGE_KEY = "stemwijzer-state-v1";
+      const saveState = () => {
+        try {
+          sessionStorage.setItem(STORAGE_KEY, JSON.stringify({
+            answers: Array.from(answers.entries()),
+            seen: Array.from(seen),
+            motions: motions.filter((motion) => seen.has(motion.motionKey) || answers.has(motion.motionKey))
+          }));
+        } catch { /* private mode or full storage: continue without persistence */ }
+      };
+      const restoreState = () => {
+        try {
+          const raw = sessionStorage.getItem(STORAGE_KEY);
+          if (!raw) return;
+          const payload = JSON.parse(raw);
+          (payload.answers || []).forEach(([motionKey, answer]) => answers.set(motionKey, answer));
+          (payload.seen || []).forEach((motionKey) => seen.add(motionKey));
+          motions = payload.motions || [];
+        } catch { /* corrupt state: start fresh */ }
+      };
 
       const label = (value) => value || "";
+      const formatTitle = (value) => {
+        const cleaned = String(value || "")
+          .replace(/^(nader )?(gewijzigde )?motie van (het lid|de leden) .*? over /i, "")
+          .replace(/\s*\(t\.v\.v\.[^)]*\)\s*$/i, "")
+          .trim();
+        return cleaned.charAt(0).toUpperCase() + cleaned.slice(1);
+      };
+      const isVerzoek = (bullet) => bullet.trimStart().toLowerCase().startsWith("verzoekt");
       const escapeHTML = (value) => String(value ?? "").replace(/[&<>"']/g, (character) => ({
         "&": "&amp;",
         "<": "&lt;",
@@ -90,53 +132,162 @@
         "'": "&#39;"
       })[character]);
 
-      const loadMotions = async () => {
+      const fetchMotions = async (excludeKeys) => {
         const params = new URLSearchParams();
-        if (period.value) params.set("period", period.value);
-        params.set("limit", limit.value || "12");
+        if (profile.period) params.set("period", profile.period);
+        params.set("limit", String(profile.limit));
+        if (profile.categories.length > 0) params.set("categories", profile.categories.join(","));
+        if (profile.parties.length > 0) params.set("parties", profile.parties.join(","));
+        if (excludeKeys && excludeKeys.length > 0) params.set("exclude", excludeKeys.join(","));
         const response = await fetch(`/api/voting-compass/motions?${params.toString()}`);
         if (!response.ok) throw new Error("failed to load motions");
         const data = await response.json();
-        motions = data.motions || [];
-        answers.clear();
-        renderMotions();
+        return data.motions || [];
+      };
+
+      // Loading keeps everything the user already saw or answered (possibly
+      // restored from a previous visit) and only fills the remaining queue.
+      const loadMotions = async () => {
+        const kept = motions.filter((motion) => seen.has(motion.motionKey) || answers.has(motion.motionKey));
+        const known = new Set(kept.map((motion) => motion.motionKey));
+        const fresh = (await fetchMotions(kept.map((motion) => motion.motionKey)))
+          .filter((motion) => !known.has(motion.motionKey));
+        exhausted = fresh.length < profile.limit;
+        motions = kept.concat(fresh);
+        current = kept.length;
+        renderCurrent();
+        renderResults();
+        if (fresh.length > 0 && window.matchMedia("(max-width: 720px)").matches) {
+          document.querySelector(".compass-layout").scrollIntoView({ block: "start" });
+        }
+      };
+
+      const loadMore = async () => {
+        const known = new Set(motions.map((motion) => motion.motionKey));
+        const fresh = (await fetchMotions(motions.map((motion) => motion.motionKey)))
+          .filter((motion) => !known.has(motion.motionKey));
+        exhausted = fresh.length === 0;
+        motions = motions.concat(fresh);
+        renderCurrent();
         renderResults();
       };
 
-      const renderMotions = () => {
+      const renderCurrent = () => {
+        progressNode.style.width = motions.length === 0 ? "0%" : `${(seen.size / motions.length) * 100}%`;
+
         if (motions.length === 0) {
-          motionsNode.innerHTML = `<p class="muted">No synced motions found for this selection.</p>`;
+          motionsNode.innerHTML = `<p class="muted">Geen moties met stemuitslag gevonden voor deze selectie.</p>`;
           return;
         }
 
-        motionsNode.innerHTML = motions.map((motion, index) => `
+        if (current >= motions.length) {
+          motionsNode.innerHTML = `
+            <article class="compass-motion compass-done">
+              <p class="eyebrow">Klaar</p>
+              <h2>U heeft alle geladen stellingen gehad.</h2>
+              <p>Bekijk uw matches hiernaast${exhausted ? "" : ", ga verder met nieuwe stellingen"}, of bewaar het resultaat om het te delen.</p>
+              ${exhausted ? "" : `<button type="button" id="compass-more" class="btn">Meer stellingen</button> `}
+              <button type="button" id="compass-restart" class="btn btn-secondary">Bekijk stellingen opnieuw</button>
+            </article>
+          `;
+          const more = motionsNode.querySelector("#compass-more");
+          if (more) {
+            more.addEventListener("click", () => {
+              more.disabled = true;
+              loadMore().catch(() => {
+                more.disabled = false;
+              });
+            });
+          }
+          motionsNode.querySelector("#compass-restart").addEventListener("click", () => {
+            current = 0;
+            renderCurrent();
+          });
+          return;
+        }
+
+        const motion = motions[current];
+        const chosen = answers.get(motion.motionKey);
+        const bullets = motion.bulletPoints || [];
+        const verzoeken = bullets.filter(isVerzoek);
+        const motivation = verzoeken.length > 0 ? bullets.filter((bullet) => !isVerzoek(bullet)) : [];
+        const shownBullets = verzoeken.length > 0 ? verzoeken : bullets;
+        motionsNode.innerHTML = `
           <article class="compass-motion" data-motion-key="${escapeHTML(motion.motionKey)}">
-            <div>
-              <span class="muted">${index + 1} / ${motions.length}</span>
-              <h2><a href="/motions/${encodeURIComponent(motion.motionKey)}">${escapeHTML(label(motion.title) || label(motion.subject) || motion.motionKey)}</a></h2>
-              <p>${escapeHTML(label(motion.subject))}</p>
+            <div class="compass-question">
+              <p class="eyebrow">Stelling ${current + 1} van ${motions.length}${motion.title ? ` · ${escapeHTML(motion.title)}` : ""}</p>
+              <h2><a href="/motions/${encodeURIComponent(motion.motionKey)}" target="_blank" rel="noopener">${escapeHTML(formatTitle(motion.subject) || label(motion.title) || motion.motionKey)}</a></h2>
+              <ul class="compass-bullets">
+                ${shownBullets.map((bullet) => `<li>${escapeHTML(bullet)}</li>`).join("")}
+              </ul>
+              <ul class="compass-bullets compass-motivation" id="compass-motivation" hidden>
+                ${motivation.map((bullet) => `<li>${escapeHTML(bullet)}</li>`).join("")}
+              </ul>
+              <p class="compass-meta">
+                ${motivation.length > 0 ? `<button type="button" id="compass-toggle-motivation" aria-expanded="false">Toon motivatie</button>` : ""}
+                ${motion.documentUrl ? `<a href="${escapeHTML(motion.documentUrl.replace(/\.xml$/, ".html"))}" target="_blank" rel="noopener">Bron</a>` : ""}
+              </p>
             </div>
-            <div class="segmented" role="group">
-              <button type="button" data-answer="FOR">Voor</button>
-              <button type="button" data-answer="AGAINST">Tegen</button>
-              <button type="button" data-answer="SKIP">Skip</button>
+            <div class="compass-actions">
+              <div class="segmented" role="group" aria-label="Uw stem">
+                <button type="button" data-answer="FOR" aria-pressed="${chosen === "FOR"}" ${chosen === "FOR" ? 'class="active"' : ""}>Voor</button>
+                <button type="button" data-answer="AGAINST" aria-pressed="${chosen === "AGAINST"}" ${chosen === "AGAINST" ? 'class="active"' : ""}>Tegen</button>
+                <button type="button" data-answer="SKIP">Sla over</button>
+              </div>
+              <div class="compass-nav">
+                <button type="button" data-step="-1" ${current === 0 ? "disabled" : ""}>← Vorige</button>
+                <button type="button" data-step="1">Volgende →</button>
+              </div>
             </div>
           </article>
-        `).join("");
+        `;
+
+        const motivationToggle = motionsNode.querySelector("#compass-toggle-motivation");
+        if (motivationToggle) {
+          motivationToggle.addEventListener("click", () => {
+            const motivationNode = motionsNode.querySelector("#compass-motivation");
+            const expanded = motivationNode.hidden;
+            motivationNode.hidden = !expanded;
+            motivationToggle.setAttribute("aria-expanded", String(expanded));
+            motivationToggle.textContent = expanded ? "Verberg motivatie" : "Toon motivatie";
+          });
+        }
 
         motionsNode.querySelectorAll("[data-answer]").forEach((button) => {
           button.addEventListener("click", () => {
-            const card = button.closest("[data-motion-key]");
-            const motionKey = card.dataset.motionKey;
             const answer = button.dataset.answer;
             if (answer === "SKIP") {
-              answers.delete(motionKey);
+              answers.delete(motion.motionKey);
             } else {
-              answers.set(motionKey, answer);
+              answers.set(motion.motionKey, answer);
             }
-            card.querySelectorAll("[data-answer]").forEach((candidate) => candidate.classList.remove("active"));
-            if (answer !== "SKIP") button.classList.add("active");
+            seen.add(motion.motionKey);
+            motionsNode.querySelectorAll("[data-answer]").forEach((candidate) => {
+              candidate.classList.remove("active");
+              if (candidate.dataset.answer !== "SKIP") candidate.setAttribute("aria-pressed", "false");
+            });
+            if (answer !== "SKIP") {
+              button.classList.add("active");
+              button.setAttribute("aria-pressed", "true");
+            }
+            saveState();
             renderResults();
+            setTimeout(() => {
+              current += 1;
+              renderCurrent();
+              const sameSpot = motionsNode.querySelector(`[data-answer="${answer}"]`) || motionsNode.querySelector("#compass-restart");
+              if (sameSpot) sameSpot.focus({ preventScroll: true });
+            }, 250);
+          });
+        });
+
+        motionsNode.querySelectorAll("[data-step]").forEach((button) => {
+          button.addEventListener("click", () => {
+            const step = Number(button.dataset.step);
+            current = Math.max(0, current + step);
+            renderCurrent();
+            const sameSpot = motionsNode.querySelector(`[data-step="${step}"]:not(:disabled)`) || motionsNode.querySelector("#compass-restart");
+            if (sameSpot) sameSpot.focus({ preventScroll: true });
           });
         });
       };
@@ -146,14 +297,14 @@
 
       share.addEventListener("click", async () => {
         share.disabled = true;
-        shareStatus.textContent = "Saving…";
+        shareStatus.textContent = "Opslaan…";
         try {
           const response = await fetch("/api/compass-sessions", {
             method: "POST",
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify({
               answers: Array.from(answers, ([motionKey, answer]) => ({ motionKey, answer })),
-              minOverlap: Number(minOverlap.value || 5)
+              minOverlap: profile.minOverlap
             })
           });
           if (!response.ok) throw new Error("failed to save session");
@@ -161,16 +312,19 @@
           window.location.href = data.url;
         } catch {
           share.disabled = false;
-          shareStatus.textContent = "Could not save results.";
+          shareStatus.textContent = "Opslaan is niet gelukt.";
         }
       });
 
       const renderResults = () => {
-        count.textContent = `${answers.size} answered`;
-        share.disabled = answers.size === 0;
-        shareStatus.textContent = "";
-        const overlapThreshold = Math.max(1, Math.min(Number(minOverlap.value || 5), answers.size || 1));
-        threshold.textContent = `Minimum overlap: ${overlapThreshold}`;
+        count.textContent = `${answers.size} beantwoord`;
+        const requiredAnswers = exhausted ? Math.max(1, Math.min(REQUIRED_ANSWERS, motions.length)) : REQUIRED_ANSWERS;
+        share.disabled = answers.size < requiredAnswers;
+        shareStatus.textContent = answers.size > 0 && answers.size < requiredAnswers
+          ? `Nog ${requiredAnswers - answers.size} antwoorden nodig.`
+          : "";
+        const overlapThreshold = Math.max(1, Math.min(profile.minOverlap, answers.size || 1));
+        threshold.textContent = `Min. overlap: ${overlapThreshold}`;
         const scores = new Map();
         for (const motion of motions) {
           const answer = answers.get(motion.motionKey);
@@ -197,29 +351,34 @@
           .sort((a, b) => b.overlap - a.overlap || a.party.localeCompare(b.party));
 
         if (rows.length === 0) {
-          resultsNode.innerHTML = `<tr><td colspan="4">${answers.size === 0 ? "No answers yet." : "No parties have enough overlap yet."}</td></tr>`;
+          resultsNode.innerHTML = `<tr><td colspan="4">${answers.size === 0 ? "Nog geen antwoorden." : "Nog geen partijen met genoeg overlap."}</td></tr>`;
         } else {
           resultsNode.innerHTML = rows.map((score) => {
             const match = Math.round((score.same / score.overlap) * 1000) / 10;
-            return `<tr><td>${escapeHTML(score.party)}</td><td>${match.toFixed(1)}%</td><td>${score.same}</td><td>${score.overlap}</td></tr>`;
+            return `<tr><td>${escapeHTML(score.party)}</td><td class="num">${match.toFixed(1)}%</td><td class="num">${score.same}</td><td class="num">${score.overlap}</td></tr>`;
           }).join("");
         }
 
         inconclusive.hidden = inconclusiveRows.length === 0;
         inconclusiveResults.innerHTML = inconclusiveRows.map((score) => `
-          <tr><td>${escapeHTML(score.party)}</td><td>${score.same}</td><td>${score.overlap}</td></tr>
+          <tr><td>${escapeHTML(score.party)}</td><td class="num">${score.same}</td><td class="num">${score.overlap}</td></tr>
         `).join("");
       };
 
-      form.addEventListener("submit", (event) => {
-        event.preventDefault();
+      document.querySelector("#compass-reset").addEventListener("click", () => {
+        try { sessionStorage.removeItem(STORAGE_KEY); } catch { /* nothing to clear */ }
+        answers.clear();
+        seen.clear();
+        motions = [];
+        current = 0;
         loadMotions().catch(() => {
-          motionsNode.innerHTML = `<p class="muted">Could not load motions.</p>`;
+          motionsNode.innerHTML = `<p class="muted">Moties laden is niet gelukt.</p>`;
         });
       });
 
+      restoreState();
       loadMotions().catch(() => {
-        motionsNode.innerHTML = `<p class="muted">Could not load motions.</p>`;
+        motionsNode.innerHTML = `<p class="muted">Moties laden is niet gelukt.</p>`;
       });
     })();
   </script>

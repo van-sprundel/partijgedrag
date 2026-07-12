@@ -19,6 +19,13 @@ type Config struct {
 	TweedeKamerMaxPages     int
 	TweedeKamerInitialSince time.Time
 	CursorOverlap           time.Duration
+
+	// SyncInterval makes `serve` run a full tweedekamer sync on this interval,
+	// so a plain container deployment stays fresh without an external cron.
+	// Zero disables the built-in scheduler.
+	SyncInterval            time.Duration
+	SyncMotionVoteLimit     int
+	SyncMotionDocumentLimit int
 }
 
 func Load() (Config, error) {
@@ -27,6 +34,14 @@ func Load() (Config, error) {
 	initialSince, err := time.Parse(time.RFC3339, getEnv("TWEEDE_KAMER_INITIAL_SINCE", "1970-01-01T00:00:00Z"))
 	if err != nil {
 		return Config{}, fmt.Errorf("parse TWEEDE_KAMER_INITIAL_SINCE: %w", err)
+	}
+
+	syncInterval, err := time.ParseDuration(getEnv("SYNC_INTERVAL", "1h"))
+	if err != nil {
+		return Config{}, fmt.Errorf("parse SYNC_INTERVAL: %w", err)
+	}
+	if syncInterval < 0 {
+		return Config{}, fmt.Errorf("SYNC_INTERVAL must be 0 or greater")
 	}
 
 	return Config{
@@ -38,6 +53,9 @@ func Load() (Config, error) {
 		TweedeKamerMaxPages:     getEnvInt("TWEEDE_KAMER_MAX_PAGES", 0),
 		TweedeKamerInitialSince: initialSince,
 		CursorOverlap:           time.Duration(getEnvInt("TWEEDE_KAMER_CURSOR_OVERLAP_MINUTES", 10)) * time.Minute,
+		SyncInterval:            syncInterval,
+		SyncMotionVoteLimit:     getEnvInt("SYNC_MOTION_VOTE_LIMIT", 250),
+		SyncMotionDocumentLimit: getEnvInt("SYNC_MOTION_DOCUMENT_LIMIT", 500),
 	}, nil
 }
 

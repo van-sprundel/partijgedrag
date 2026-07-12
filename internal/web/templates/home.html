@@ -1,48 +1,87 @@
-{{ define "title" }}Partijgedrag{{ end }}
+{{ define "title" }}Partijgedrag — Stemgedrag in de Tweede Kamer{{ end }}
 {{ define "content" }}
+  <section class="hero">
+    <p class="eyebrow">Tweede Kamer · Stemgedrag</p>
+    <h1>Geen woorden, maar daden.</h1>
+    <p class="lead">
+      Partijen beloven veel. Hier ziet u wat ze <em>doen</em>: elke motie, elke stem,
+      rechtstreeks uit de open data van de Tweede Kamer. Vergelijk uw idealen met
+      hun stemgedrag.
+    </p>
+    <div class="actions">
+      <a class="btn" href="/voting-compass">Start de stemwijzer</a>
+      <a class="btn btn-secondary" href="/motions?withVotes=true">Bekijk moties</a>
+    </div>
+    <p class="statline">
+      <span><strong>{{ .Summary.Motions }}</strong> moties</span>
+      <span><strong>{{ .Summary.MotionsWithVotes }}</strong> met stemuitslag</span>
+      <span><strong>{{ .Summary.Votes }}</strong> stemmen</span>
+      <span><strong>{{ .Summary.Parties }}</strong> partijen</span>
+    </p>
+  </section>
+
   <section class="section">
-    <h1>Partijgedrag</h1>
-    <div class="metric-grid">
-      <div class="metric"><span>Parties</span><strong>{{ .Summary.Parties }}</strong></div>
-      <div class="metric"><span>Motions</span><strong>{{ .Summary.Motions }}</strong></div>
-      <div class="metric"><span>With votes</span><strong>{{ .Summary.MotionsWithVotes }}</strong></div>
-      <div class="metric"><span>Decisions</span><strong>{{ .Summary.Decisions }}</strong></div>
-      <div class="metric"><span>Votes</span><strong>{{ .Summary.Votes }}</strong></div>
-      <div class="metric"><span>No votes yet</span><strong>{{ .Summary.MotionsWithoutVotes }}</strong></div>
-      <div class="metric"><span>Decision gaps</span><strong>{{ .Summary.DecisionsWithoutVotes }}</strong></div>
+    <div class="section-heading">
+      <h2>Recente stemmingen</h2>
+      <a href="/motions?withVotes=true">Alle moties met stemuitslag</a>
+    </div>
+    <div class="motion-list">
+      {{ range .Recent }}
+        <article class="motion-row">
+          <div>
+            <p class="eyebrow">{{ fallback .Number .MotionKey }} · {{ date .ProposedAt }}</p>
+            <a class="motion-title" href="/motions/{{ .MotionKey }}">{{ fallback .Subject .Title .MotionKey }}</a>
+            <p>{{ .Title }}</p>
+          </div>
+          <div class="motion-meta">
+            <div class="votebar" role="img" aria-label="{{ .VotesFor }} zetels voor, {{ .VotesAgainst }} zetels tegen">
+              <span class="voor" style="width: {{ share .VotesFor .VotesAgainst }}"></span>
+              <span class="tegen" style="width: {{ share .VotesAgainst .VotesFor }}"></span>
+            </div>
+            <div class="votebar-legend">
+              <span class="voor-count">{{ .VotesFor }} voor</span>
+              <span class="tegen-count">{{ .VotesAgainst }} tegen</span>
+            </div>
+          </div>
+        </article>
+      {{ else }}
+        <p class="muted">Nog geen stemmingen geladen. Start een synchronisatie om data op te halen.</p>
+      {{ end }}
     </div>
   </section>
 
   <section class="section">
     <div class="section-heading">
-      <h2>Recent Ingestion Runs</h2>
+      <h2>Wat kunt u hier doen?</h2>
     </div>
     <table>
       <thead>
         <tr>
-          <th>ID</th>
-          <th>Pipeline</th>
-          <th>Status</th>
-          <th>Seen</th>
-          <th>Changed</th>
-          <th>Stop</th>
-          <th>Started</th>
+          <th>Onderdeel</th>
+          <th>Wat het laat zien</th>
         </tr>
       </thead>
       <tbody>
-        {{ range .Runs }}
-          <tr>
-            <td>#{{ .ID }}</td>
-            <td>{{ .Pipeline }}</td>
-            <td><span class="status status-{{ .Status }}">{{ .Status }}</span></td>
-            <td>{{ .RecordsSeen }}</td>
-            <td>{{ .RecordsChanged }}</td>
-            <td>{{ .StopReason }}</td>
-            <td>{{ time .StartedAt }}</td>
-          </tr>
-        {{ else }}
-          <tr><td colspan="7">No runs yet.</td></tr>
-        {{ end }}
+        <tr>
+          <td><a href="/voting-compass">Stemwijzer</a></td>
+          <td>Stem zelf op echte moties en zie welke partijen het meest met u meestemden.</td>
+        </tr>
+        <tr>
+          <td><a href="/motions">Moties</a></td>
+          <td>Zoek en filter moties op onderwerp, en bekijk per motie hoe elke partij stemde.</td>
+        </tr>
+        <tr>
+          <td><a href="/party-likeness">Partijgelijkenis</a></td>
+          <td>Welke partijen stemmen het vaakst hetzelfde? De hele matrix, ook per kabinetsperiode.</td>
+        </tr>
+        <tr>
+          <td><a href="/party-focus">Partijfocus</a></td>
+          <td>Eén partij uitgelicht: stemgedrag per onderwerp en de meest gelijkende partijen.</td>
+        </tr>
+        <tr>
+          <td><a href="/coalition-analysis">Coalitie</a></td>
+          <td>Hoe vaak stemde elke partij mee met het kabinet, per kabinetsperiode.</td>
+        </tr>
       </tbody>
     </table>
   </section>

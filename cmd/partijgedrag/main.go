@@ -64,6 +64,15 @@ func run() error {
 	case "inspect":
 		return runInspect(ctx, database, args[1:])
 	case "serve":
+		if err := migrate.Run(ctx, database.Pool); err != nil {
+			return fmt.Errorf("migrate on startup: %w", err)
+		}
+
+		if cfg.SyncInterval > 0 {
+			fmt.Printf("built-in sync scheduler enabled interval=%s (set SYNC_INTERVAL=0 to disable)\n", cfg.SyncInterval)
+			go runPeriodicSync(ctx, cfg, database)
+		}
+
 		address := fmt.Sprintf("%s:%d", cfg.HTTPHost, cfg.HTTPPort)
 		fmt.Printf("partijgedrag listening on http://%s\n", address)
 		server := httpapi.Server{Pool: database.Pool}
@@ -392,14 +401,65 @@ func runSync(ctx context.Context, cfg config.Config, database *db.DB, args []str
 		return fmt.Errorf("sync has nothing to do when --skip-parties, --skip-motions, --skip-motion-votes, --skip-motion-documents, and --skip-categorize are set")
 	}
 
+	return syncTweedeKamer(ctx, cfg, database, tweedeKamerSyncSettings{
+		PartyMaxPages:             *partyMaxPages,
+		PartyBatchSize:            *partyBatchSize,
+		MotionMaxPages:            *motionMaxPages,
+		MotionBatchSize:           *motionBatchSize,
+		MotionVoteLimit:           *motionVoteLimit,
+		MotionVoteConcurrency:     *motionVoteConcurrency,
+		MotionVoteResyncAfter:     *motionVoteResyncAfter,
+		MotionDocumentLimit:       *motionDocumentLimit,
+		MotionDocumentConcurrency: *motionDocumentConcurrency,
+		MotionDocumentResyncAfter: *motionDocumentResyncAfter,
+		SkipParties:               *skipParties,
+		SkipMotions:               *skipMotions,
+		SkipMotionVotes:           *skipMotionVotes,
+		SkipMotionDocuments:       *skipMotionDocuments,
+		SkipCategorize:            *skipCategorize,
+	})
+}
+
+type tweedeKamerSyncSettings struct {
+	PartyMaxPages             int
+	PartyBatchSize            int
+	MotionMaxPages            int
+	MotionBatchSize           int
+	MotionVoteLimit           int
+	MotionVoteConcurrency     int
+	MotionVoteResyncAfter     time.Duration
+	MotionDocumentLimit       int
+	MotionDocumentConcurrency int
+	MotionDocumentResyncAfter time.Duration
+	SkipParties               bool
+	SkipMotions               bool
+	SkipMotionVotes           bool
+	SkipMotionDocuments       bool
+	SkipCategorize            bool
+}
+
+func defaultSyncSettings(cfg config.Config) tweedeKamerSyncSettings {
+	return tweedeKamerSyncSettings{
+		PartyMaxPages:             cfg.TweedeKamerMaxPages,
+		PartyBatchSize:            cfg.TweedeKamerBatchSize,
+		MotionMaxPages:            cfg.TweedeKamerMaxPages,
+		MotionBatchSize:           cfg.TweedeKamerBatchSize,
+		MotionVoteLimit:           cfg.SyncMotionVoteLimit,
+		MotionVoteConcurrency:     4,
+		MotionDocumentLimit:       cfg.SyncMotionDocumentLimit,
+		MotionDocumentConcurrency: 4,
+	}
+}
+
+func syncTweedeKamer(ctx context.Context, cfg config.Config, database *db.DB, settings tweedeKamerSyncSettings) error {
 	client := tweedekamer.NewClient(cfg.TweedeKamerODataBaseURL)
-	if !*skipParties {
+	if !settings.SkipParties {
 		fmt.Println("sync step=parties")
 		job := ingest.TweedeKamerPartyIngest{
 			Pool:          database.Pool,
 			Client:        client,
-			BatchSize:     *partyBatchSize,
-			MaxPages:      *partyMaxPages,
+			BatchSize:     settings.PartyBatchSize,
+			MaxPages:      settings.PartyMaxPages,
 			InitialSince:  cfg.TweedeKamerInitialSince,
 			CursorOverlap: cfg.CursorOverlap,
 		}
@@ -408,13 +468,13 @@ func runSync(ctx context.Context, cfg config.Config, database *db.DB, args []str
 		}
 	}
 
-	if !*skipMotions {
+	if !settings.SkipMotions {
 		fmt.Println("sync step=motions")
 		job := ingest.TweedeKamerMotionIngest{
 			Pool:          database.Pool,
 			Client:        client,
-			BatchSize:     *motionBatchSize,
-			MaxPages:      *motionMaxPages,
+			BatchSize:     settings.MotionBatchSize,
+			MaxPages:      settings.MotionMaxPages,
 			InitialSince:  cfg.TweedeKamerInitialSince,
 			CursorOverlap: cfg.CursorOverlap,
 		}
@@ -423,36 +483,36 @@ func runSync(ctx context.Context, cfg config.Config, database *db.DB, args []str
 		}
 	}
 
-	if !*skipMotionVotes {
+	if !settings.SkipMotionVotes {
 		fmt.Println("sync step=motion-votes")
 		job := ingest.TweedeKamerMotionVotesIngest{
 			Pool:        database.Pool,
 			Client:      client,
-			Limit:       *motionVoteLimit,
-			Concurrency: *motionVoteConcurrency,
-			ResyncAfter: *motionVoteResyncAfter,
+			Limit:       settings.MotionVoteLimit,
+			Concurrency: settings.MotionVoteConcurrency,
+			ResyncAfter: settings.MotionVoteResyncAfter,
 		}
 		if err := job.Run(ctx); err != nil {
 			return err
 		}
 	}
 
-	if !*skipMotionDocuments {
+	if !settings.SkipMotionDocuments {
 		fmt.Println("sync step=motion-documents")
 		job := ingest.TweedeKamerMotionDocumentsIngest{
 			Pool:        database.Pool,
 			Client:      client,
 			Documents:   officielebekendmakingen.NewClient(),
-			Limit:       *motionDocumentLimit,
-			Concurrency: *motionDocumentConcurrency,
-			ResyncAfter: *motionDocumentResyncAfter,
+			Limit:       settings.MotionDocumentLimit,
+			Concurrency: settings.MotionDocumentConcurrency,
+			ResyncAfter: settings.MotionDocumentResyncAfter,
 		}
 		if err := job.Run(ctx); err != nil {
 			return err
 		}
 	}
 
-	if !*skipCategorize {
+	if !settings.SkipCategorize {
 		fmt.Println("sync step=categorize")
 		stats, err := categorize.Run(ctx, database.Pool, categorize.Options{})
 		if err != nil {
@@ -463,6 +523,30 @@ func runSync(ctx context.Context, cfg config.Config, database *db.DB, args []str
 
 	fmt.Println("sync complete source=tweedekamer")
 	return nil
+}
+
+// runPeriodicSync keeps the data fresh from inside the serve process, since the
+// production deployment is a single container with no external cron. The first
+// run starts shortly after boot; pipeline advisory locks prevent overlap with
+// manual syncs.
+func runPeriodicSync(ctx context.Context, cfg config.Config, database *db.DB) {
+	timer := time.NewTimer(time.Minute)
+	defer timer.Stop()
+
+	for {
+		select {
+		case <-ctx.Done():
+			return
+		case <-timer.C:
+		}
+
+		fmt.Printf("periodic sync start interval=%s\n", cfg.SyncInterval)
+		if err := syncTweedeKamer(ctx, cfg, database, defaultSyncSettings(cfg)); err != nil && ctx.Err() == nil {
+			fmt.Fprintf(os.Stderr, "periodic sync failed: %v\n", err)
+		}
+
+		timer.Reset(cfg.SyncInterval)
+	}
 }
 
 func runStatus(ctx context.Context, database *db.DB, args []string) error {

@@ -191,9 +191,28 @@ func (server Server) listParties(response http.ResponseWriter, request *http.Req
 		jurisdiction = "nl-tweede-kamer"
 	}
 
+	var activeFrom, activeTo *time.Time
+	if periodKey := query.Get("period"); periodKey != "" {
+		period, err := analysis.LoadCabinetPeriod(request.Context(), server.Pool, jurisdiction, periodKey)
+		if err != nil {
+			if analysis.IsNotFound(err) {
+				writeJSON(response, http.StatusBadRequest, map[string]string{"error": "invalid_period"})
+				return
+			}
+			writeError(response, err)
+			return
+		}
+		activeFrom = &period.StartedOn
+		activeTo = period.EndedOn
+		// a historical period should include parties that no longer exist today
+		activeOnly = false
+	}
+
 	parties, err := analysis.LoadParties(request.Context(), server.Pool, analysis.PartyListOptions{
 		Jurisdiction: jurisdiction,
 		ActiveOnly:   activeOnly,
+		ActiveFrom:   activeFrom,
+		ActiveTo:     activeTo,
 	})
 	if err != nil {
 		writeError(response, err)
@@ -374,8 +393,8 @@ func (server Server) listPartyLikeness(response http.ResponseWriter, request *ht
 	}
 	minCommon := clamp(parseInt(query.Get("minCommon"), 10), 1, 1000)
 	periodKey := query.Get("period")
-	if periodKey != "" {
-		period, err := analysis.LoadCabinetPeriod(request.Context(), server.Pool, jurisdiction, periodKey)
+	if periodKey != "custom" {
+		period, err := selectedCabinetPeriod(request.Context(), server.Pool, jurisdiction, periodKey)
 		if err != nil {
 			if analysis.IsNotFound(err) {
 				writeJSON(response, http.StatusBadRequest, map[string]string{"error": "invalid_period"})
@@ -384,6 +403,7 @@ func (server Server) listPartyLikeness(response http.ResponseWriter, request *ht
 			writeError(response, err)
 			return
 		}
+		periodKey = period.PeriodKey
 		dateFrom = &period.StartedOn
 		dateTo = period.EndedOn
 	}
@@ -445,8 +465,8 @@ func (server Server) getPartyFocus(response http.ResponseWriter, request *http.R
 	}
 	minCommon := clamp(parseInt(query.Get("minCommon"), 10), 1, 1000)
 	periodKey := query.Get("period")
-	if periodKey != "" {
-		period, err := analysis.LoadCabinetPeriod(request.Context(), server.Pool, jurisdiction, periodKey)
+	if periodKey != "custom" {
+		period, err := selectedCabinetPeriod(request.Context(), server.Pool, jurisdiction, periodKey)
 		if err != nil {
 			if analysis.IsNotFound(err) {
 				writeJSON(response, http.StatusBadRequest, map[string]string{"error": "invalid_period"})
@@ -455,6 +475,7 @@ func (server Server) getPartyFocus(response http.ResponseWriter, request *http.R
 			writeError(response, err)
 			return
 		}
+		periodKey = period.PeriodKey
 		dateFrom = &period.StartedOn
 		dateTo = period.EndedOn
 	}
@@ -546,14 +567,18 @@ func (server Server) listVotingCompassMotions(response http.ResponseWriter, requ
 		dateTo = period.EndedOn
 	}
 
-	limit := clamp(parseInt(query.Get("limit"), 12), 1, 50)
+	limit := clamp(parseInt(query.Get("limit"), 20), 1, 50)
 	minParties := clamp(parseInt(query.Get("minParties"), 8), 1, 50)
+
 	motions, err := analysis.LoadVotingCompassMotions(request.Context(), server.Pool, analysis.VotingCompassOptions{
-		Jurisdiction: jurisdiction,
-		DateFrom:     dateFrom,
-		DateTo:       dateTo,
-		Limit:        limit,
-		MinParties:   minParties,
+		Jurisdiction:   jurisdiction,
+		DateFrom:       dateFrom,
+		DateTo:         dateTo,
+		Limit:          limit,
+		MinParties:     minParties,
+		ExcludeKeys:    splitListParam(query.Get("exclude"), 500),
+		CategoryKeys:   splitListParam(query.Get("categories"), 50),
+		PartySourceIDs: splitListParam(query.Get("parties"), 50),
 	})
 	if err != nil {
 		writeError(response, err)
@@ -570,13 +595,19 @@ func (server Server) listVotingCompassMotions(response http.ResponseWriter, requ
 				"position":      position.Position,
 			})
 		}
+		bulletPoints := motion.BulletPoints
+		if bulletPoints == nil {
+			bulletPoints = []string{}
+		}
 		items = append(items, map[string]any{
-			"motionKey":  motion.MotionKey,
-			"number":     motion.Number,
-			"title":      motion.Title,
-			"subject":    motion.Subject,
-			"proposedAt": motion.ProposedAt,
-			"positions":  positions,
+			"motionKey":    motion.MotionKey,
+			"number":       motion.Number,
+			"title":        motion.Title,
+			"subject":      motion.Subject,
+			"proposedAt":   motion.ProposedAt,
+			"bulletPoints": bulletPoints,
+			"documentUrl":  motion.DocumentURL,
+			"positions":    positions,
 		})
 	}
 
@@ -721,12 +752,8 @@ func (server Server) listMotions(response http.ResponseWriter, request *http.Req
 			       m.proposed_at,
 			       m.source_updated_at,
 			       m.source_deleted,
-			       m.votes_synced_at,
-			       COALESCE(count(DISTINCT d.decision_key), 0)::int AS decision_count,
-			       COALESCE(count(v.vote_key) FILTER (WHERE v.source_deleted = false), 0)::int AS vote_count
+			       m.votes_synced_at
 			FROM motions m
-			LEFT JOIN decisions d ON d.motion_key = m.motion_key AND d.source_deleted = false
-			LEFT JOIN votes v ON v.motion_key = m.motion_key AND v.source_deleted = false
 			WHERE m.jurisdiction_key = $1
 			  AND m.source_deleted = false
 			  AND (
@@ -744,14 +771,37 @@ func (server Server) listMotions(response http.ResponseWriter, request *http.Req
 			        AND mc.category_key = $6
 			    )
 			  )
-			GROUP BY m.motion_key
-			HAVING $5::boolean = false OR COALESCE(count(v.vote_key) FILTER (WHERE v.source_deleted = false), 0) > 0
+			  AND ($5::boolean = false
+			       OR EXISTS (
+			         SELECT 1
+			         FROM votes v
+			         WHERE v.motion_key = m.motion_key
+			           AND v.source_deleted = false
+			       ))
+		),
+		paged AS (
+			SELECT s.*,
+			       count(*) OVER ()::int AS total
+			FROM subset s
+			ORDER BY proposed_at DESC NULLS LAST, source_updated_at DESC NULLS LAST
+			LIMIT $3
+			OFFSET $4
 		)
-		SELECT *, count(*) OVER ()::int AS total
-		FROM subset
-		ORDER BY proposed_at DESC NULLS LAST, source_updated_at DESC NULLS LAST
-		LIMIT $3
-		OFFSET $4
+		SELECT p.*,
+		       (SELECT count(*)::int
+		          FROM decisions d
+		         WHERE d.motion_key = p.motion_key AND d.source_deleted = false) AS decision_count,
+		       (SELECT count(*)::int
+		          FROM votes v
+		         WHERE v.motion_key = p.motion_key AND v.source_deleted = false) AS vote_count,
+		       (SELECT COALESCE(SUM(CASE WHEN v.person_source_id IS NULL THEN COALESCE(v.party_size, 1) ELSE 1 END), 0)::int
+		          FROM votes v
+		         WHERE v.motion_key = p.motion_key AND v.source_deleted = false AND v.mistake = false AND v.vote_type = 'Voor') AS votes_for,
+		       (SELECT COALESCE(SUM(CASE WHEN v.person_source_id IS NULL THEN COALESCE(v.party_size, 1) ELSE 1 END), 0)::int
+		          FROM votes v
+		         WHERE v.motion_key = p.motion_key AND v.source_deleted = false AND v.mistake = false AND v.vote_type = 'Tegen') AS votes_against
+		FROM paged p
+		ORDER BY p.proposed_at DESC NULLS LAST, p.source_updated_at DESC NULLS LAST
 	`, jurisdiction, searchPtr, limit, offset, withVotes, category)
 	if err != nil {
 		writeError(response, err)
@@ -803,6 +853,8 @@ func (server Server) getMotion(response http.ResponseWriter, request *http.Reque
 		       votes_synced_at,
 		       (SELECT count(*)::int FROM decisions d WHERE d.motion_key = motions.motion_key AND d.source_deleted = false) AS decision_count,
 		       (SELECT count(*)::int FROM votes v WHERE v.motion_key = motions.motion_key AND v.source_deleted = false) AS vote_count,
+		       (SELECT COALESCE(SUM(CASE WHEN v.person_source_id IS NULL THEN COALESCE(v.party_size, 1) ELSE 1 END), 0)::int FROM votes v WHERE v.motion_key = motions.motion_key AND v.source_deleted = false AND v.mistake = false AND v.vote_type = 'Voor') AS votes_for,
+		       (SELECT COALESCE(SUM(CASE WHEN v.person_source_id IS NULL THEN COALESCE(v.party_size, 1) ELSE 1 END), 0)::int FROM votes v WHERE v.motion_key = motions.motion_key AND v.source_deleted = false AND v.mistake = false AND v.vote_type = 'Tegen') AS votes_against,
 		       1 AS total
 		FROM motions
 		WHERE motion_key = $1
@@ -821,6 +873,8 @@ func (server Server) getMotion(response http.ResponseWriter, request *http.Reque
 		&motion.VotesSyncedAt,
 		&motion.DecisionCount,
 		&motion.VoteCount,
+		&motion.VotesFor,
+		&motion.VotesAgainst,
 		&motion.Total,
 	)
 	if err != nil {
@@ -874,9 +928,9 @@ func (server Server) getMotionPartyPositions(response http.ResponseWriter, reque
 	rows, err := server.Pool.Query(request.Context(), `
 		SELECT party_source_id,
 		       COALESCE(party_name, actor_name, party_source_id, 'unknown') AS party_name,
-		       SUM(CASE WHEN vote_type = 'Voor' THEN 1 ELSE 0 END)::int AS votes_for,
-		       SUM(CASE WHEN vote_type = 'Tegen' THEN 1 ELSE 0 END)::int AS votes_against,
-		       COUNT(*)::int AS total_votes
+		       COALESCE(SUM(CASE WHEN person_source_id IS NULL THEN COALESCE(party_size, 1) ELSE 1 END) FILTER (WHERE vote_type = 'Voor'), 0)::int AS votes_for,
+		       COALESCE(SUM(CASE WHEN person_source_id IS NULL THEN COALESCE(party_size, 1) ELSE 1 END) FILTER (WHERE vote_type = 'Tegen'), 0)::int AS votes_against,
+		       SUM(CASE WHEN person_source_id IS NULL THEN COALESCE(party_size, 1) ELSE 1 END)::int AS total_votes
 		FROM votes
 		WHERE motion_key = $1
 		  AND source_deleted = false
@@ -972,6 +1026,8 @@ type motionRow struct {
 	VotesSyncedAt     *time.Time
 	DecisionCount     int
 	VoteCount         int
+	VotesFor          int
+	VotesAgainst      int
 	Total             int
 }
 
@@ -991,6 +1047,8 @@ func (row *motionRow) scan(scan scanner) error {
 		&row.VotesSyncedAt,
 		&row.DecisionCount,
 		&row.VoteCount,
+		&row.VotesFor,
+		&row.VotesAgainst,
 		&row.Total,
 	)
 }
@@ -1011,6 +1069,8 @@ func (row motionRow) mapValue() map[string]any {
 		"votesSyncedAt":     row.VotesSyncedAt,
 		"decisionCount":     row.DecisionCount,
 		"voteCount":         row.VoteCount,
+		"votesFor":          row.VotesFor,
+		"votesAgainst":      row.VotesAgainst,
 	}
 }
 
@@ -1058,6 +1118,23 @@ func parseInt(value string, fallback int) int {
 		return fallback
 	}
 	return parsed
+}
+
+func splitListParam(value string, maxItems int) []string {
+	if value == "" {
+		return nil
+	}
+	var items []string
+	for _, item := range strings.Split(value, ",") {
+		item = strings.TrimSpace(item)
+		if item != "" {
+			items = append(items, item)
+		}
+		if len(items) >= maxItems {
+			break
+		}
+	}
+	return items
 }
 
 func parseDate(value string) (*time.Time, error) {

@@ -1,52 +1,64 @@
-{{ define "title" }}Motions - Partijgedrag{{ end }}
+{{ define "title" }}Moties — Partijgedrag{{ end }}
 {{ define "content" }}
   <section class="section">
     <div class="section-heading">
-      <h1>Motions</h1>
-      <span class="muted">{{ .Total }} results</span>
+      <h1>Moties</h1>
+      <span class="muted mono">{{ .Total }} resultaten</span>
     </div>
 
     <form class="filters" method="get" action="/motions">
-      <input type="search" name="search" value="{{ .Search }}" placeholder="Search motions">
       <label>
-        Category
+        Zoeken
+        <input type="search" name="search" value="{{ .Search }}" placeholder="Zoek in titel of onderwerp">
+      </label>
+      <label>
+        Onderwerp
         <select name="category">
-          <option value="">All categories</option>
+          <option value="">Alle onderwerpen</option>
           {{ $selected := .Category }}
           {{ range .Categories }}
-            <option value="{{ .CategoryKey }}" {{ if eq .CategoryKey $selected }}selected{{ end }}>{{ .Name }}{{ if eq .Kind "hot_topic" }} (hot topic){{ end }}</option>
+            <option value="{{ .CategoryKey }}" {{ if eq .CategoryKey $selected }}selected{{ end }}>{{ .Name }}</option>
           {{ end }}
         </select>
       </label>
       <label class="checkbox">
         <input type="checkbox" name="withVotes" value="true" {{ if .WithVotes }}checked{{ end }}>
-        With votes
+        Alleen met stemuitslag
       </label>
-      <button type="submit">Filter</button>
+      <button type="submit">Toon moties</button>
     </form>
 
     <div class="motion-list">
       {{ range .Motions }}
         <article class="motion-row">
           <div>
-            <a class="motion-title" href="/motions/{{ .MotionKey }}">{{ fallback .Title .Subject }}</a>
-            <p>{{ .Subject }}</p>
+            <p class="eyebrow">{{ fallback .Number .SourceID }} · {{ date .ProposedAt }}{{ if .Status }} · {{ .Status }}{{ end }}</p>
+            <a class="motion-title" href="/motions/{{ .MotionKey }}">{{ fallback .Subject .Title .MotionKey }}</a>
+            <p>{{ .Title }}</p>
           </div>
-          <dl>
-            <div><dt>Status</dt><dd>{{ .Status }}</dd></div>
-            <div><dt>Proposed</dt><dd>{{ date .ProposedAt }}</dd></div>
-            <div><dt>Decisions</dt><dd>{{ .DecisionCount }}</dd></div>
-            <div><dt>Votes</dt><dd>{{ .VoteCount }}</dd></div>
-          </dl>
+          <div class="motion-meta">
+            {{ if .VoteCount }}
+              <div class="votebar" role="img" aria-label="{{ .VotesFor }} zetels voor, {{ .VotesAgainst }} zetels tegen">
+                <span class="voor" style="width: {{ share .VotesFor .VotesAgainst }}"></span>
+                <span class="tegen" style="width: {{ share .VotesAgainst .VotesFor }}"></span>
+              </div>
+              <div class="votebar-legend">
+                <span class="voor-count">{{ .VotesFor }} voor</span>
+                <span class="tegen-count">{{ .VotesAgainst }} tegen</span>
+              </div>
+            {{ else }}
+              <span class="muted mono">nog geen stemuitslag</span>
+            {{ end }}
+          </div>
         </article>
       {{ else }}
-        <p>No motions found.</p>
+        <p class="muted">Geen moties gevonden. Pas de filters aan of probeer een andere zoekterm.</p>
       {{ end }}
     </div>
 
     <nav class="pagination">
-      {{ if .PrevURL }}<a href="{{ .PrevURL }}">Previous</a>{{ end }}
-      {{ if .NextURL }}<a href="{{ .NextURL }}">Next</a>{{ end }}
+      {{ if .PrevURL }}<a href="{{ .PrevURL }}">← Vorige</a>{{ end }}
+      {{ if .NextURL }}<a href="{{ .NextURL }}">Volgende →</a>{{ end }}
     </nav>
   </section>
 {{ end }}

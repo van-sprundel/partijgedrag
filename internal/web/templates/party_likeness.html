@@ -1,34 +1,35 @@
-{{ define "title" }}Party Similarity - Partijgedrag{{ end }}
+{{ define "title" }}Partijgelijkenis — Partijgedrag{{ end }}
 {{ define "content" }}
   <section class="section">
     <div class="section-heading">
-      <h1>Party Similarity</h1>
-      <span class="muted">{{ len .Rows }} pairs</span>
+      <h1>Partijgelijkenis</h1>
+      <span class="muted mono">{{ len .Rows }} paren</span>
     </div>
+    <p class="lead">Hoe vaak stemden twee partijen hetzelfde over dezelfde moties? Hoe donkerder de cel, hoe gelijker het stemgedrag.</p>
 
     <form class="filters" method="get" action="/party-likeness">
       <label>
-        Cabinet period
+        Kabinetsperiode
         <select name="period">
-          <option value="">Custom dates</option>
+          <option value="custom" {{ if eq $.Period "custom" }}selected{{ end }}>Eigen datums</option>
           {{ range .Periods }}
             <option value="{{ .PeriodKey }}" {{ if eq $.Period .PeriodKey }}selected{{ end }}>{{ .Name }}</option>
           {{ end }}
         </select>
       </label>
       <label>
-        From
+        Vanaf
         <input type="date" name="dateFrom" value="{{ .DateFrom }}">
       </label>
       <label>
-        To
+        Tot
         <input type="date" name="dateTo" value="{{ .DateTo }}">
       </label>
       <label>
-        Minimum overlap
+        Min. gedeelde moties
         <input type="number" name="minCommon" value="{{ .MinCommon }}" min="1" max="1000">
       </label>
-      <button type="submit">Filter</button>
+      <button type="submit">Toon gelijkenis</button>
     </form>
   </section>
 
@@ -50,11 +51,11 @@
             <tr>
               <th title="{{ .ShortName }}">{{ .ShortName }}</th>
               {{ range $.Parties }}
-                <td>{{ likeness $.Matrix $row.SourceID .SourceID }}</td>
+                <td style="{{ tint $.Matrix $row.SourceID .SourceID }}">{{ likeness $.Matrix $row.SourceID .SourceID }}</td>
               {{ end }}
             </tr>
           {{ else }}
-            <tr><td>No party similarity data yet.</td></tr>
+            <tr><td>Nog geen gelijkenisdata. Synchroniseer eerst stemmingen.</td></tr>
           {{ end }}
         </tbody>
       </table>
@@ -62,28 +63,31 @@
   </section>
 
   <section class="section">
-    <h2>Top Pairs</h2>
+    <div class="section-heading">
+      <h2>Meest gelijkende paren</h2>
+      <span class="muted mono">top {{ len .TopRows }} van {{ len .Rows }}</span>
+    </div>
     <table>
       <thead>
         <tr>
-          <th>Party 1</th>
-          <th>Party 2</th>
-          <th>Similarity</th>
-          <th>Same</th>
-          <th>Overlap</th>
+          <th>Partij</th>
+          <th>Partij</th>
+          <th class="num">Gelijkenis</th>
+          <th class="num">Zelfde stem</th>
+          <th class="num">Gedeelde moties</th>
         </tr>
       </thead>
       <tbody>
-        {{ range .Rows }}
+        {{ range .TopRows }}
           <tr>
             <td>{{ .Party1Name }}</td>
             <td>{{ .Party2Name }}</td>
-            <td>{{ printf "%.1f%%" .Similarity }}</td>
-            <td>{{ .SameVotes }}</td>
-            <td>{{ .CommonMotions }}</td>
+            <td class="num">{{ printf "%.1f%%" .Similarity }}</td>
+            <td class="num">{{ .SameVotes }}</td>
+            <td class="num">{{ .CommonMotions }}</td>
           </tr>
         {{ else }}
-          <tr><td colspan="5">No party similarity data yet.</td></tr>
+          <tr><td colspan="5">Nog geen gelijkenisdata. Synchroniseer eerst stemmingen.</td></tr>
         {{ end }}
       </tbody>
     </table>

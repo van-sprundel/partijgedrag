@@ -1,11 +1,9 @@
 pre-commit:
-  parallel: true
   commands:
     gofmt:
       glob: "**/*.go"
-      run: |
-        unformatted="$(gofmt -l {staged_files})"
-        [ -z "$unformatted" ] || { echo "run gofmt -w on:"; echo "$unformatted"; exit 1; }
+      run: gofmt -w {staged_files}
+      stage_fixed: true
     govet:
       glob: "**/*.go"
       run: go vet ./...

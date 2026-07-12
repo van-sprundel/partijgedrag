@@ -1,9 +1,10 @@
-{{ define "title" }}{{ fallback .Motion.Title .Motion.Subject }} - Partijgedrag{{ end }}
+{{ define "title" }}{{ fallback .Motion.Subject .Motion.Title }} — Partijgedrag{{ end }}
 {{ define "content" }}
   <section class="section">
-    <a class="back-link" href="/motions">Back to motions</a>
-    <h1>{{ fallback .Motion.Title .Motion.Subject }}</h1>
-    <p class="lead">{{ .Motion.Subject }}</p>
+    <a class="back-link" href="/motions">← Alle moties</a>
+    <p class="eyebrow">{{ fallback .Motion.Number .Motion.SourceID }} · {{ date .Motion.ProposedAt }}{{ if .Motion.ParliamentaryYear }} · {{ .Motion.ParliamentaryYear }}{{ end }}</p>
+    <h1>{{ fallback .Motion.Subject .Motion.Title }}</h1>
+    {{ if .Motion.Title }}<p class="lead">Onderdeel van: {{ .Motion.Title }}</p>{{ end }}
     {{ if .Categories }}
       <div class="tags">
         {{ range .Categories }}
@@ -11,26 +12,73 @@
         {{ end }}
       </div>
     {{ end }}
-    <dl class="detail-grid">
-      <div><dt>Status</dt><dd>{{ .Motion.Status }}</dd></div>
-      <div><dt>Proposed</dt><dd>{{ date .Motion.ProposedAt }}</dd></div>
-      <div><dt>Decisions</dt><dd>{{ .Motion.DecisionCount }}</dd></div>
-      <div><dt>Votes</dt><dd>{{ .Motion.VoteCount }}</dd></div>
-      <div><dt>Vote sync</dt><dd>{{ time .Motion.VotesSyncedAt }}</dd></div>
-      <div><dt>Source ID</dt><dd>{{ .Motion.SourceID }}</dd></div>
-    </dl>
+
+    {{ if .Motion.VoteCount }}
+      <div class="detail-grid">
+        <div style="grid-column: 1 / -1;">
+          <dt>Stemuitslag (zetels)</dt>
+          <dd>
+            <div class="votebar" role="img" aria-label="{{ .Motion.VotesFor }} zetels voor, {{ .Motion.VotesAgainst }} zetels tegen">
+              <span class="voor" style="width: {{ share .Motion.VotesFor .Motion.VotesAgainst }}"></span>
+              <span class="tegen" style="width: {{ share .Motion.VotesAgainst .Motion.VotesFor }}"></span>
+            </div>
+            <div class="votebar-legend">
+              <span class="voor-count">{{ .Motion.VotesFor }} voor</span>
+              <span class="tegen-count">{{ .Motion.VotesAgainst }} tegen</span>
+            </div>
+          </dd>
+        </div>
+        <div><dt>Status</dt><dd>{{ fallback .Motion.Status "—" }}</dd></div>
+        <div><dt>Besluiten</dt><dd>{{ .Motion.DecisionCount }}</dd></div>
+        <div><dt>Stemmen</dt><dd>{{ .Motion.VoteCount }}</dd></div>
+        <div><dt>Laatst gesynchroniseerd</dt><dd>{{ time .Motion.VotesSyncedAt }}</dd></div>
+      </div>
+    {{ else }}
+      <div class="detail-grid">
+        <div><dt>Status</dt><dd>{{ fallback .Motion.Status "—" }}</dd></div>
+        <div><dt>Besluiten</dt><dd>{{ .Motion.DecisionCount }}</dd></div>
+        <div><dt>Stemmen</dt><dd>nog niet gesynchroniseerd</dd></div>
+      </div>
+    {{ end }}
   </section>
 
   <section class="section">
-    <h2>Decisions</h2>
+    <h2>Hoe stemden de partijen?</h2>
+    <table>
+      <thead>
+        <tr>
+          <th>Partij</th>
+          <th>Positie</th>
+          <th class="num">Voor</th>
+          <th class="num">Tegen</th>
+          <th class="num">Zetels</th>
+        </tr>
+      </thead>
+      <tbody>
+        {{ range .Positions }}
+          <tr>
+            <td>{{ .PartyName }}</td>
+            <td><span class="position position-{{ .Position }}">{{ positie .Position }}</span></td>
+            <td class="num">{{ .VotesFor }}</td>
+            <td class="num">{{ .VotesAgainst }}</td>
+            <td class="num">{{ .TotalVotes }}</td>
+          </tr>
+        {{ else }}
+          <tr><td colspan="5">Nog geen stemmen gesynchroniseerd voor deze motie.</td></tr>
+        {{ end }}
+      </tbody>
+    </table>
+  </section>
+
+  <section class="section">
+    <h2>Besluiten</h2>
     <table>
       <thead>
         <tr>
           <th>Type</th>
           <th>Status</th>
-          <th>Votes</th>
-          <th>Mistakes</th>
-          <th>Text</th>
+          <th class="num">Stemmen</th>
+          <th>Tekst</th>
         </tr>
       </thead>
       <tbody>
@@ -38,40 +86,11 @@
           <tr>
             <td>{{ .DecisionType }}</td>
             <td>{{ .Status }}</td>
-            <td>{{ .VoteCount }}</td>
-            <td>{{ .MistakeCount }}</td>
+            <td class="num">{{ .VoteCount }}</td>
             <td>{{ .DecisionText }}</td>
           </tr>
         {{ else }}
-          <tr><td colspan="5">No decisions synced.</td></tr>
-        {{ end }}
-      </tbody>
-    </table>
-  </section>
-
-  <section class="section">
-    <h2>Party Positions</h2>
-    <table>
-      <thead>
-        <tr>
-          <th>Party</th>
-          <th>Position</th>
-          <th>For</th>
-          <th>Against</th>
-          <th>Total</th>
-        </tr>
-      </thead>
-      <tbody>
-        {{ range .Positions }}
-          <tr>
-            <td>{{ .PartyName }}</td>
-            <td><span class="position position-{{ .Position }}">{{ .Position }}</span></td>
-            <td>{{ .VotesFor }}</td>
-            <td>{{ .VotesAgainst }}</td>
-            <td>{{ .TotalVotes }}</td>
-          </tr>
-        {{ else }}
-          <tr><td colspan="5">No party positions synced.</td></tr>
+          <tr><td colspan="4">Nog geen besluiten gesynchroniseerd.</td></tr>
         {{ end }}
       </tbody>
     </table>

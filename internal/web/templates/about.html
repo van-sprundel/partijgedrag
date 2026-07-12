@@ -1,0 +1,95 @@
+{{ define "title" }}Over — Partijgedrag{{ end }}
+{{ define "content" }}
+  <section class="section">
+    <h1>Over Partijgedrag</h1>
+    <p class="lead">
+      Partijgedrag is gemaakt door <strong>Elwin Oost</strong>, eigenaar van Solveware
+      en security architect van SDB Groep.
+    </p>
+    <p>
+      Deze site is ontstaan uit de wens meer duidelijkheid te krijgen, en aan
+      geïnteresseerden te geven, over het werkelijke gedrag van partijen. Daarvoor is
+      het stemgedrag van de partijen geautomatiseerd ontleed en makkelijk doorzoekbaar
+      gemaakt.
+    </p>
+    <p>
+      De site is geheel onafhankelijk. Er is geen gebruik gemaakt van subsidie. Dank
+      aan alle vrienden die hebben meegedacht, en Cyso voor het hosten van de site.
+    </p>
+  </section>
+
+  <section class="section">
+    <h2>Actualiteit</h2>
+    <p>
+      De site omvat nu <strong class="mono">{{ .Summary.Motions }}</strong> moties,
+      {{ if .FirstMotion }}van <span class="mono">{{ date .FirstMotion }}</span> tot <span class="mono">{{ date .LastMotion }}</span>,{{ end }}
+      waarvan <strong class="mono">{{ .Summary.MotionsWithVotes }}</strong> met stemuitslag.
+      De data wordt doorlopend bijgewerkt vanuit de open data van de Tweede Kamer.
+    </p>
+  </section>
+
+  <section class="section">
+    <h2>Veelgestelde vragen</h2>
+
+    <h3>Waar komt de informatie vandaan?</h3>
+    <p>
+      Rechtstreeks uit de <a href="https://opendata.tweedekamer.nl" target="_blank" rel="noopener noreferrer">open data van de Tweede Kamer der Staten-Generaal</a>:
+      moties, besluiten en stemmingen worden automatisch opgehaald en verwerkt.
+    </p>
+
+    <h3>Waarom geen amendementen en wetsvoorstellen?</h3>
+    <p>
+      Deze zijn veelal niet leesbaar zonder de gerelateerde wetteksten, waardoor de
+      strekking onduidelijk blijft. Moties zijn veel directer.
+    </p>
+
+    <h3>Hoe worden hoofdelijke stemmingen geteld?</h3>
+    <p>
+      Bij hoofdelijke stemmingen telt elke aanwezige stem als één zetel, en wordt de
+      positie van een partij bepaald door de meerderheid van haar aanwezige leden.
+      Bij fractiestemmingen weegt de stem met de fractiegrootte.
+    </p>
+
+    <h3>Waarom stemt een partij tegen haar idealen?</h3>
+    <p>
+      Soms verduidelijkt een partij dit met een stemverklaring in de handeling van de
+      vergadering. Zo kan een partij tegen een motie "Verlaag X 5%" stemmen, omdat er
+      een motie "Verlaag X 10%" volgt waar de partij voor wil stemmen. Anders heeft u
+      mogelijk een punt gevonden waarop het stemgedrag niet strookt met de genoemde
+      idealen.
+    </p>
+
+    <h3>Kan mijn (politieke) banner op de site?</h3>
+    <p>Nee, sorry, we willen de site geheel onafhankelijk houden.</p>
+  </section>
+
+  <section class="section">
+    <h2>Privacy</h2>
+    <p>Uw persoonlijke gebruik van deze site blijft privé, simpel. Wij vragen nergens gegevens van u.</p>
+    <p>De enige zaken die geregistreerd worden:</p>
+    <ul>
+      <li>
+        <strong>Standaardlogging</strong> van welke IP-adressen welke pagina's opvragen.
+        Deze wordt nooit met derden gedeeld tenzij dit wettelijk verplicht zou zijn of
+        misbruik van de site wordt geconstateerd. Hier is geen partijvoorkeur uit af te
+        leiden. Na 15 dagen wordt deze gewist.
+      </li>
+      <li>
+        <strong>Gedeelde stemwijzerresultaten.</strong> Alleen als u zelf op
+        "Bewaar &amp; deel resultaat" drukt, worden uw antwoorden anoniem opgeslagen
+        zodat de resultaatpagina een vast adres krijgt.
+      </li>
+      <li><strong>Verder: niets.</strong> Geen cookies, geen trackers.</li>
+    </ul>
+  </section>
+
+  <section class="section">
+    <h2>Disclaimer</h2>
+    <p>
+      We hebben ons best gedaan de stemgegevens zo zorgvuldig mogelijk te vullen, maar
+      het kan zijn dat er fouten in staan. Tip ons op
+      <code>e.m.oost@solveware.nl</code>.
+    </p>
+    <p>Aan de inhoud van deze site kunnen geen rechten worden ontleend.</p>
+  </section>
+{{ end }}

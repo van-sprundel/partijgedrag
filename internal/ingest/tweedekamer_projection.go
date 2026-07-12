@@ -110,6 +110,22 @@ func projectPartyRaw(record tweedekamer.PartyRecord) rawRecordProjection {
 	return projectRawRecord(fractieCollection, record.ID, record.ApiGewijzigdOp, record.Verwijderd, record.Raw)
 }
 
+// The API is inconsistent for a few parties: their Afkorting field holds the
+// full name instead of the abbreviation.
+var partyShortNameOverrides = map[string]string{
+	"Nieuw Sociaal Contract": "NSC",
+}
+
+func partyShortName(afkorting *string) *string {
+	if afkorting == nil {
+		return nil
+	}
+	if override, ok := partyShortNameOverrides[*afkorting]; ok {
+		return &override
+	}
+	return afkorting
+}
+
 func projectParty(jurisdictionKey string, record tweedekamer.PartyRecord) partyProjection {
 	return partyProjection{
 		PartyKey:        partyKey(record.ID),
@@ -117,7 +133,7 @@ func projectParty(jurisdictionKey string, record tweedekamer.PartyRecord) partyP
 		JurisdictionKey: jurisdictionKey,
 		SourceID:        record.ID,
 		Number:          record.Nummer,
-		ShortName:       record.Afkorting,
+		ShortName:       partyShortName(record.Afkorting),
 		Name:            record.NaamNL,
 		NameEN:          record.NaamEN,
 		Seats:           record.AantalZetels,

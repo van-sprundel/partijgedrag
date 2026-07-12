@@ -1,15 +1,15 @@
-{{ define "title" }}Coalition Motions - Partijgedrag{{ end }}
+{{ define "title" }}Coalitiemoties — Partijgedrag{{ end }}
 {{ define "content" }}
   <section class="section">
-    <a class="back-link" href="{{ .BackURL }}">Back to coalition analysis</a>
+    <a class="back-link" href="{{ .BackURL }}">← Terug naar coalitie-analyse</a>
     <div class="section-heading">
-      <h1>Coalition Motions</h1>
-      <span class="muted">{{ .Period.Name }}</span>
+      <h1>Moties in detail</h1>
+      <span class="muted mono">{{ .Period.Name }}</span>
     </div>
     <p class="lead">
-      {{ fallback .PartyName "Selected party" }} voted
-      {{ if eq .Relation "against" }}against{{ else if eq .Relation "with" }}with{{ else }}with or against{{ end }}
-      the coalition bloc on these motions.
+      {{ fallback .PartyName "De gekozen partij" }} stemde bij deze moties
+      {{ if eq .Relation "against" }}tegen{{ else if eq .Relation "with" }}met{{ else }}met of tegen{{ end }}
+      het coalitieblok.
     </p>
   </section>
 
@@ -17,31 +17,31 @@
     <table>
       <thead>
         <tr>
-          <th>Motion</th>
-          <th>Proposed</th>
-          <th>Party</th>
-          <th>Coalition bloc</th>
-          <th>Coalition split</th>
+          <th>Motie</th>
+          <th>Datum</th>
+          <th>Partij</th>
+          <th>Coalitieblok</th>
+          <th class="num">Blok voor/tegen</th>
         </tr>
       </thead>
       <tbody>
         {{ range .Motions }}
           <tr>
-            <td><a href="/motions/{{ .MotionKey }}">{{ fallback .Title .Subject .Number .MotionKey }}</a></td>
-            <td>{{ date .ProposedAt }}</td>
-            <td>{{ .PartyPosition }}</td>
-            <td>{{ .CoalitionPosition }}</td>
-            <td>{{ .CoalitionFor }} for / {{ .CoalitionAgainst }} against</td>
+            <td><a href="/motions/{{ .MotionKey }}">{{ fallback .Subject .Title .Number .MotionKey }}</a></td>
+            <td class="mono">{{ date .ProposedAt }}</td>
+            <td><span class="position position-{{ .PartyPosition }}">{{ positie .PartyPosition }}</span></td>
+            <td><span class="position position-{{ .CoalitionPosition }}">{{ positie .CoalitionPosition }}</span></td>
+            <td class="num">{{ .CoalitionFor }} / {{ .CoalitionAgainst }}</td>
           </tr>
         {{ else }}
-          <tr><td colspan="5">No motions found for this drill-down.</td></tr>
+          <tr><td colspan="5">Geen moties gevonden voor deze selectie.</td></tr>
         {{ end }}
       </tbody>
     </table>
 
     <nav class="pagination">
-      {{ if .ShowPrev }}<a href="{{ .PrevURL }}">Previous</a>{{ end }}
-      {{ if .ShowNext }}<a href="{{ .NextURL }}">Next</a>{{ end }}
+      {{ if .ShowPrev }}<a href="{{ .PrevURL }}">← Vorige</a>{{ end }}
+      {{ if .ShowNext }}<a href="{{ .NextURL }}">Volgende →</a>{{ end }}
     </nav>
   </section>
 {{ end }}

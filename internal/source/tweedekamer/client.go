@@ -171,6 +171,27 @@ func (record *MotionRecord) UnmarshalJSON(data []byte) error {
 	return nil
 }
 
+type ZaakDocumentRecord struct {
+	ID             string  `json:"Id"`
+	DocumentNummer *string `json:"DocumentNummer"`
+	Onderwerp      *string `json:"Onderwerp"`
+	Volgnummer     *int    `json:"Volgnummer"`
+	Soort          *string `json:"Soort"`
+	Verwijderd     *bool   `json:"Verwijderd"`
+}
+
+type ZaakDossierRecord struct {
+	Nummer     json.Number `json:"Nummer"`
+	Toevoeging *string     `json:"Toevoeging"`
+}
+
+type MotionDocumentInfo struct {
+	Onderwerp  *string              `json:"Onderwerp"`
+	Volgnummer *int                 `json:"Volgnummer"`
+	Dossiers   []ZaakDossierRecord  `json:"Kamerstukdossier"`
+	Documents  []ZaakDocumentRecord `json:"Document"`
+}
+
 type ChangedMotionsPage struct {
 	Records []MotionRecord
 	NextURL string
@@ -259,6 +280,27 @@ func (client *Client) FetchDecisionVotes(ctx context.Context, decisionSourceID s
 	}
 
 	return records, nil
+}
+
+func (client *Client) FetchMotionDocumentInfo(ctx context.Context, motionSourceID string) (MotionDocumentInfo, error) {
+	requestURL := client.motionDocumentInfoURL(motionSourceID)
+	var info MotionDocumentInfo
+	if err := client.fetchJSON(ctx, requestURL, &info); err != nil {
+		return MotionDocumentInfo{}, err
+	}
+	return info, nil
+}
+
+func (client *Client) motionDocumentInfoURL(motionSourceID string) string {
+	u, _ := url.Parse(fmt.Sprintf("%s/Zaak(%s)", client.baseURL, motionSourceID))
+	query := u.Query()
+	query.Set("$select", "Id,Onderwerp,Volgnummer")
+	query.Set("$expand", strings.Join([]string{
+		"Kamerstukdossier($select=Nummer,Toevoeging)",
+		"Document($select=Id,DocumentNummer,Onderwerp,Volgnummer,Soort,Verwijderd)",
+	}, ","))
+	u.RawQuery = query.Encode()
+	return u.String()
 }
 
 func (client *Client) changedMotionsURL(since time.Time, top int, skip int) string {

@@ -1,10 +1,8 @@
 # Partijgedrag
 
-Partijgedrag is a web application that provides insight into the voting behavior of political parties in the Dutch parliament. It was originally created by Elwin Oost, later rebuilt in TypeScript, and now runs as a single Go binary.
+Partijgedrag is a web application that provides insight into the voting behavior of political parties in the Dutch parliament. It was originally created by Elwin Oost, later rebuilt in TypeScript, and has now become a final implementation that runs as a single Go binary.
 
 ## Project Structure
-
-The whole application — data ingestion, web pages, and JSON API — is one Go program:
 
 - `cmd/partijgedrag/`: The CLI entry point with `migrate`, `ingest`, `sync`, `status`, `maintenance`, `inspect`, and `serve` subcommands.
 - `internal/`: Ingestion pipelines (Tweede Kamer OData), analysis queries, motion categorization, and the server-rendered web UI.
@@ -46,7 +44,14 @@ The database starts empty. Fetch parties, motions, and votes from the Tweede Kam
 go run ./cmd/partijgedrag sync tweedekamer
 ```
 
-The first full sync takes a while; rerunning it is incremental. `deploy/systemd/` contains a timer unit that keeps the data fresh on a server. See `go run ./cmd/partijgedrag` for all commands, including ingestion status and data-quality tooling.
+The first full sync takes a while; rerunning it is incremental. See `go run ./cmd/partijgedrag` for all commands, including ingestion status and data-quality tooling.
+
+## Deployment
+
+The GitHub CI workflow builds a single container image; running it with `serve` (the default command) is all a server needs. On startup the server applies pending migrations and starts a built-in sync scheduler, so the data stays fresh without an external cron:
+
+- `SYNC_INTERVAL` (default `1h`): how often `serve` runs a full `sync tweedekamer`. The first run starts one minute after boot. Set to `0` to disable, e.g. when scheduling sync externally instead (`deploy/systemd/` has a timer unit for that setup).
+- `SYNC_MOTION_VOTE_LIMIT` (default `250`) and `SYNC_MOTION_DOCUMENT_LIMIT` (default `500`): how many motions get votes/documents backfilled per run. Pipeline advisory locks make concurrent syncs safe — an overlapping run fails fast rather than duplicating work.
 
 ## Acknowledgements
 

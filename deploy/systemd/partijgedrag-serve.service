@@ -11,6 +11,8 @@ Group=partijgedrag
 WorkingDirectory=/opt/partijgedrag
 EnvironmentFile=/etc/partijgedrag/partijgedrag.env
 Environment=PATH=/opt/partijgedrag/bin:/usr/local/bin:/usr/bin
+# The sync timer unit handles syncing in this setup; disable the built-in scheduler.
+Environment=SYNC_INTERVAL=0
 ExecStart=/usr/bin/env partijgedrag serve
 Restart=on-failure
 RestartSec=10s

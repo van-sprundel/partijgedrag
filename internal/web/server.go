@@ -6,6 +6,7 @@ import (
 	"embed"
 	"fmt"
 	"html/template"
+	"io/fs"
 	"net/http"
 	"net/url"
 	"sort"
@@ -22,7 +23,7 @@ import (
 	"partijgedrag/internal/status"
 )
 
-//go:embed templates/*.html static/styles.css
+//go:embed templates/*.html static
 var files embed.FS
 
 type Server struct {
@@ -40,7 +41,7 @@ func MustNew(pool *pgxpool.Pool) Server {
 
 func New(pool *pgxpool.Pool) (Server, error) {
 	templates := make(map[string]*template.Template)
-	for _, name := range []string{"home", "motions", "motion", "party_likeness", "party_focus", "coalition_analysis", "coalition_motions", "voting_compass", "compass_results", "data_quality"} {
+	for _, name := range []string{"home", "about", "motions", "motion", "party_likeness", "party_focus", "coalition_analysis", "coalition_motions", "voting_compass", "voting_compass_settings", "compass_results", "data_quality"} {
 		parsed, err := parseTemplate(name)
 		if err != nil {
 			return Server{}, err
@@ -55,13 +56,19 @@ func New(pool *pgxpool.Pool) (Server, error) {
 }
 
 func (server Server) Register(mux *http.ServeMux) {
-	mux.HandleFunc("GET /static/styles.css", server.styles)
+	staticFiles, err := fs.Sub(files, "static")
+	if err != nil {
+		panic(err)
+	}
+	mux.Handle("GET /static/", http.StripPrefix("/static/", http.FileServerFS(staticFiles)))
 	mux.HandleFunc("GET /", server.home)
+	mux.HandleFunc("GET /about", server.about)
 	mux.HandleFunc("GET /party-likeness", server.partyLikeness)
 	mux.HandleFunc("GET /party-focus", server.partyFocus)
 	mux.HandleFunc("GET /coalition-analysis", server.coalitionAnalysis)
 	mux.HandleFunc("GET /coalition-analysis/motions", server.coalitionMotions)
 	mux.HandleFunc("GET /voting-compass", server.votingCompass)
+	mux.HandleFunc("GET /voting-compass/settings", server.votingCompassSettings)
 	mux.HandleFunc("GET /compass/results/{sessionKey}", server.compassResults)
 	mux.HandleFunc("GET /data-quality", server.dataQuality)
 	mux.HandleFunc("GET /motions", server.motions)
@@ -83,19 +90,12 @@ func parseTemplate(name string) (*template.Template, error) {
 		"fallback": fallback,
 		"likeness": likenessValue,
 		"percent":  percentValue,
+		"positie":  positieLabel,
+		"share":    shareValue,
+		"tint":     tintStyle,
 		"time":     timeValue,
 	})
 	return tmpl.Parse(string(base) + "\n" + string(page))
-}
-
-func (server Server) styles(response http.ResponseWriter, request *http.Request) {
-	content, err := files.ReadFile("static/styles.css")
-	if err != nil {
-		http.Error(response, "static asset not found", http.StatusInternalServerError)
-		return
-	}
-	response.Header().Set("Content-Type", "text/css; charset=utf-8")
-	_, _ = response.Write(content)
 }
 
 func (server Server) home(response http.ResponseWriter, request *http.Request) {
@@ -109,7 +109,7 @@ func (server Server) home(response http.ResponseWriter, request *http.Request) {
 		writeError(response, err)
 		return
 	}
-	runs, err := loadIngestionRuns(request.Context(), server.Pool, 10)
+	recent, err := loadRecentVotedMotions(request.Context(), server.Pool, "nl-tweede-kamer", 5)
 	if err != nil {
 		writeError(response, err)
 		return
@@ -117,7 +117,33 @@ func (server Server) home(response http.ResponseWriter, request *http.Request) {
 
 	server.render(response, "home", homePage{
 		Summary: summary,
-		Runs:    runs,
+		Recent:  recent,
+	})
+}
+
+func (server Server) about(response http.ResponseWriter, request *http.Request) {
+	summary, err := status.LoadSummary(request.Context(), server.Pool)
+	if err != nil {
+		writeError(response, err)
+		return
+	}
+
+	var firstMotion, lastMotion *time.Time
+	err = server.Pool.QueryRow(request.Context(), `
+		SELECT min(proposed_at), max(proposed_at)
+		FROM motions
+		WHERE jurisdiction_key = 'nl-tweede-kamer'
+		  AND source_deleted = false
+	`).Scan(&firstMotion, &lastMotion)
+	if err != nil {
+		writeError(response, err)
+		return
+	}
+
+	server.render(response, "about", aboutPage{
+		Summary:     summary,
+		FirstMotion: firstMotion,
+		LastMotion:  lastMotion,
 	})
 }
 
@@ -224,16 +250,13 @@ func (server Server) partyLikeness(response http.ResponseWriter, request *http.R
 	}
 	minCommon := clamp(parseInt(query.Get("minCommon"), 10), 1, 1000)
 	periodKey := query.Get("period")
-	if periodKey != "" {
-		period, err := analysis.LoadCabinetPeriod(request.Context(), server.Pool, "nl-tweede-kamer", periodKey)
+	if periodKey != "custom" {
+		period, err := selectedCabinetPeriod(periods, periodKey)
 		if err != nil {
-			if analysis.IsNotFound(err) {
-				http.Error(response, "invalid period", http.StatusBadRequest)
-				return
-			}
-			writeError(response, err)
+			http.Error(response, "invalid period", http.StatusBadRequest)
 			return
 		}
+		periodKey = period.PeriodKey
 		dateFrom = &period.StartedOn
 		dateTo = period.EndedOn
 	}
@@ -249,9 +272,15 @@ func (server Server) partyLikeness(response http.ResponseWriter, request *http.R
 		return
 	}
 
+	topRows := rows
+	if len(topRows) > 10 {
+		topRows = topRows[:10]
+	}
+
 	server.render(response, "party_likeness", partyLikenessPage{
 		Parties:   likenessParties(rows),
 		Rows:      rows,
+		TopRows:   topRows,
 		Matrix:    likenessMatrix(rows),
 		Periods:   periods,
 		Period:    periodKey,
@@ -288,16 +317,13 @@ func (server Server) partyFocus(response http.ResponseWriter, request *http.Requ
 	}
 	minCommon := clamp(parseInt(query.Get("minCommon"), 10), 1, 1000)
 	periodKey := query.Get("period")
-	if periodKey != "" {
-		period, err := analysis.LoadCabinetPeriod(request.Context(), server.Pool, "nl-tweede-kamer", periodKey)
+	if periodKey != "custom" {
+		period, err := selectedCabinetPeriod(periods, periodKey)
 		if err != nil {
-			if analysis.IsNotFound(err) {
-				http.Error(response, "invalid period", http.StatusBadRequest)
-				return
-			}
-			writeError(response, err)
+			http.Error(response, "invalid period", http.StatusBadRequest)
 			return
 		}
+		periodKey = period.PeriodKey
 		dateFrom = &period.StartedOn
 		dateTo = period.EndedOn
 	}
@@ -433,6 +459,44 @@ func (server Server) votingCompass(response http.ResponseWriter, request *http.R
 	})
 }
 
+func (server Server) votingCompassSettings(response http.ResponseWriter, request *http.Request) {
+	periods, err := analysis.LoadCabinetPeriods(request.Context(), server.Pool, "nl-tweede-kamer")
+	if err != nil {
+		writeError(response, err)
+		return
+	}
+
+	categories, err := categorize.LoadCategories(request.Context(), server.Pool, "nl-tweede-kamer")
+	if err != nil {
+		writeError(response, err)
+		return
+	}
+	var hotTopics, genericCategories []categorize.Category
+	for _, category := range categories {
+		if category.Kind == "hot_topic" {
+			hotTopics = append(hotTopics, category)
+		} else {
+			genericCategories = append(genericCategories, category)
+		}
+	}
+
+	parties, err := analysis.LoadParties(request.Context(), server.Pool, analysis.PartyListOptions{
+		Jurisdiction: "nl-tweede-kamer",
+		ActiveOnly:   true,
+	})
+	if err != nil {
+		writeError(response, err)
+		return
+	}
+
+	server.render(response, "voting_compass_settings", votingCompassSettingsPage{
+		Periods:    periods,
+		HotTopics:  hotTopics,
+		Categories: genericCategories,
+		Parties:    parties,
+	})
+}
+
 func (server Server) compassResults(response http.ResponseWriter, request *http.Request) {
 	sessionKey := request.PathValue("sessionKey")
 
@@ -547,12 +611,8 @@ func loadMotions(ctx context.Context, pool *pgxpool.Pool, options motionListOpti
 			       m.proposed_at,
 			       m.source_updated_at,
 			       m.source_deleted,
-			       m.votes_synced_at,
-			       COALESCE(count(DISTINCT d.decision_key), 0)::int AS decision_count,
-			       COALESCE(count(v.vote_key) FILTER (WHERE v.source_deleted = false), 0)::int AS vote_count
+			       m.votes_synced_at
 			FROM motions m
-			LEFT JOIN decisions d ON d.motion_key = m.motion_key AND d.source_deleted = false
-			LEFT JOIN votes v ON v.motion_key = m.motion_key AND v.source_deleted = false
 			WHERE m.jurisdiction_key = $1
 			  AND m.source_deleted = false
 			  AND (
@@ -570,14 +630,37 @@ func loadMotions(ctx context.Context, pool *pgxpool.Pool, options motionListOpti
 			        AND mc.category_key = $6
 			    )
 			  )
-			GROUP BY m.motion_key
-			HAVING $5::boolean = false OR COALESCE(count(v.vote_key) FILTER (WHERE v.source_deleted = false), 0) > 0
+			  AND ($5::boolean = false
+			       OR EXISTS (
+			         SELECT 1
+			         FROM votes v
+			         WHERE v.motion_key = m.motion_key
+			           AND v.source_deleted = false
+			       ))
+		),
+		paged AS (
+			SELECT s.*,
+			       count(*) OVER ()::int AS total
+			FROM subset s
+			ORDER BY proposed_at DESC NULLS LAST, source_updated_at DESC NULLS LAST
+			LIMIT $3
+			OFFSET $4
 		)
-		SELECT *, count(*) OVER ()::int AS total
-		FROM subset
-		ORDER BY proposed_at DESC NULLS LAST, source_updated_at DESC NULLS LAST
-		LIMIT $3
-		OFFSET $4
+		SELECT p.*,
+		       (SELECT count(*)::int
+		          FROM decisions d
+		         WHERE d.motion_key = p.motion_key AND d.source_deleted = false) AS decision_count,
+		       (SELECT count(*)::int
+		          FROM votes v
+		         WHERE v.motion_key = p.motion_key AND v.source_deleted = false) AS vote_count,
+		       (SELECT COALESCE(SUM(CASE WHEN v.person_source_id IS NULL THEN COALESCE(v.party_size, 1) ELSE 1 END), 0)::int
+		          FROM votes v
+		         WHERE v.motion_key = p.motion_key AND v.source_deleted = false AND v.mistake = false AND v.vote_type = 'Voor') AS votes_for,
+		       (SELECT COALESCE(SUM(CASE WHEN v.person_source_id IS NULL THEN COALESCE(v.party_size, 1) ELSE 1 END), 0)::int
+		          FROM votes v
+		         WHERE v.motion_key = p.motion_key AND v.source_deleted = false AND v.mistake = false AND v.vote_type = 'Tegen') AS votes_against
+		FROM paged p
+		ORDER BY p.proposed_at DESC NULLS LAST, p.source_updated_at DESC NULLS LAST
 	`, options.Jurisdiction, search, options.Limit, options.Offset, options.WithVotes, options.Category)
 	if err != nil {
 		return nil, 0, err
@@ -614,6 +697,8 @@ func loadMotion(ctx context.Context, pool *pgxpool.Pool, motionKey string) (moti
 		       votes_synced_at,
 		       (SELECT count(*)::int FROM decisions d WHERE d.motion_key = motions.motion_key AND d.source_deleted = false) AS decision_count,
 		       (SELECT count(*)::int FROM votes v WHERE v.motion_key = motions.motion_key AND v.source_deleted = false) AS vote_count,
+		       (SELECT COALESCE(SUM(CASE WHEN v.person_source_id IS NULL THEN COALESCE(v.party_size, 1) ELSE 1 END), 0)::int FROM votes v WHERE v.motion_key = motions.motion_key AND v.source_deleted = false AND v.mistake = false AND v.vote_type = 'Voor') AS votes_for,
+		       (SELECT COALESCE(SUM(CASE WHEN v.person_source_id IS NULL THEN COALESCE(v.party_size, 1) ELSE 1 END), 0)::int FROM votes v WHERE v.motion_key = motions.motion_key AND v.source_deleted = false AND v.mistake = false AND v.vote_type = 'Tegen') AS votes_against,
 		       1 AS total
 		FROM motions
 		WHERE motion_key = $1
@@ -632,6 +717,8 @@ func loadMotion(ctx context.Context, pool *pgxpool.Pool, motionKey string) (moti
 		&motion.VotesSyncedAt,
 		&motion.DecisionCount,
 		&motion.VoteCount,
+		&motion.VotesFor,
+		&motion.VotesAgainst,
 		&motion.Total,
 	)
 	return motion, err
@@ -683,9 +770,9 @@ func loadPartyPositions(ctx context.Context, pool *pgxpool.Pool, motionKey strin
 	rows, err := pool.Query(ctx, `
 		SELECT COALESCE(party_name, actor_name, party_source_id, 'unknown') AS party_name,
 		       party_source_id,
-		       SUM(CASE WHEN vote_type = 'Voor' THEN 1 ELSE 0 END)::int AS votes_for,
-		       SUM(CASE WHEN vote_type = 'Tegen' THEN 1 ELSE 0 END)::int AS votes_against,
-		       COUNT(*)::int AS total_votes
+		       COALESCE(SUM(CASE WHEN person_source_id IS NULL THEN COALESCE(party_size, 1) ELSE 1 END) FILTER (WHERE vote_type = 'Voor'), 0)::int AS votes_for,
+		       COALESCE(SUM(CASE WHEN person_source_id IS NULL THEN COALESCE(party_size, 1) ELSE 1 END) FILTER (WHERE vote_type = 'Tegen'), 0)::int AS votes_against,
+		       SUM(CASE WHEN person_source_id IS NULL THEN COALESCE(party_size, 1) ELSE 1 END)::int AS total_votes
 		FROM votes
 		WHERE motion_key = $1
 		  AND source_deleted = false
@@ -709,6 +796,42 @@ func loadPartyPositions(ctx context.Context, pool *pgxpool.Pool, motionKey strin
 		positions = append(positions, position)
 	}
 	return positions, rows.Err()
+}
+
+func loadRecentVotedMotions(ctx context.Context, pool *pgxpool.Pool, jurisdiction string, limit int) ([]votedMotion, error) {
+	rows, err := pool.Query(ctx, `
+		SELECT m.motion_key,
+		       m.number,
+		       m.title,
+		       m.subject,
+		       m.proposed_at,
+		       COALESCE(SUM(CASE WHEN v.person_source_id IS NULL THEN COALESCE(v.party_size, 1) ELSE 1 END) FILTER (WHERE v.vote_type = 'Voor'), 0)::int AS votes_for,
+		       COALESCE(SUM(CASE WHEN v.person_source_id IS NULL THEN COALESCE(v.party_size, 1) ELSE 1 END) FILTER (WHERE v.vote_type = 'Tegen'), 0)::int AS votes_against
+		FROM motions m
+		JOIN votes v ON v.motion_key = m.motion_key
+		            AND v.source_deleted = false
+		            AND v.mistake = false
+		            AND v.vote_type IN ('Voor', 'Tegen')
+		WHERE m.jurisdiction_key = $1
+		  AND m.source_deleted = false
+		GROUP BY m.motion_key
+		ORDER BY m.proposed_at DESC NULLS LAST
+		LIMIT $2
+	`, jurisdiction, limit)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	motions := []votedMotion{}
+	for rows.Next() {
+		var motion votedMotion
+		if err := rows.Scan(&motion.MotionKey, &motion.Number, &motion.Title, &motion.Subject, &motion.ProposedAt, &motion.VotesFor, &motion.VotesAgainst); err != nil {
+			return nil, err
+		}
+		motions = append(motions, motion)
+	}
+	return motions, rows.Err()
 }
 
 func loadMotionCategories(ctx context.Context, pool *pgxpool.Pool, motionKey string) ([]motionCategory, error) {
@@ -753,13 +876,31 @@ func scanMotion(scan scanner, motion *motion) error {
 		&motion.VotesSyncedAt,
 		&motion.DecisionCount,
 		&motion.VoteCount,
+		&motion.VotesFor,
+		&motion.VotesAgainst,
 		&motion.Total,
 	)
 }
 
 type homePage struct {
 	Summary status.Summary
-	Runs    []ingestionRun
+	Recent  []votedMotion
+}
+
+type aboutPage struct {
+	Summary     status.Summary
+	FirstMotion *time.Time
+	LastMotion  *time.Time
+}
+
+type votedMotion struct {
+	MotionKey    string
+	Number       *string
+	Title        *string
+	Subject      *string
+	ProposedAt   *time.Time
+	VotesFor     int
+	VotesAgainst int
 }
 
 type motionsPage struct {
@@ -791,6 +932,7 @@ type motionCategory struct {
 type partyLikenessPage struct {
 	Parties   []likenessParty
 	Rows      []analysis.PartyLikeness
+	TopRows   []analysis.PartyLikeness
 	Matrix    map[string]map[string]analysis.PartyLikeness
 	Periods   []analysis.CabinetPeriod
 	Period    string
@@ -835,6 +977,13 @@ type coalitionMotionsPage struct {
 
 type votingCompassPage struct {
 	Periods []analysis.CabinetPeriod
+}
+
+type votingCompassSettingsPage struct {
+	Periods    []analysis.CabinetPeriod
+	HotTopics  []categorize.Category
+	Categories []categorize.Category
+	Parties    []analysis.Party
 }
 
 type compassResultsPage struct {
@@ -895,6 +1044,8 @@ type motion struct {
 	VotesSyncedAt     *time.Time
 	DecisionCount     int
 	VoteCount         int
+	VotesFor          int
+	VotesAgainst      int
 	Total             int
 }
 
@@ -1109,6 +1260,46 @@ func percentValue(numerator int64, denominator int64) string {
 		return "0.0%"
 	}
 	return fmt.Sprintf("%.1f%%", (float64(numerator)/float64(denominator))*100)
+}
+
+func positieLabel(position string) string {
+	switch position {
+	case "FOR":
+		return "Voor"
+	case "AGAINST":
+		return "Tegen"
+	case "NEUTRAL":
+		return "Neutraal"
+	}
+	return position
+}
+
+// shareValue returns part's share of a whole as a CSS percentage, for
+// sizing the segments of a votebar.
+func shareValue(part int, rest int) string {
+	total := part + rest
+	if total == 0 {
+		return "0%"
+	}
+	return fmt.Sprintf("%.1f%%", (float64(part)/float64(total))*100)
+}
+
+// tintStyle shades a party-likeness matrix cell: the more alike two parties
+// vote, the deeper the Kamer blue.
+func tintStyle(matrix map[string]map[string]analysis.PartyLikeness, rowID string, columnID string) template.CSS {
+	if rowID == columnID {
+		return ""
+	}
+	row, ok := matrix[rowID]
+	if !ok {
+		return ""
+	}
+	cell, ok := row[columnID]
+	if !ok {
+		return ""
+	}
+	alpha := cell.Similarity / 100 * 0.32
+	return template.CSS(fmt.Sprintf("background: rgba(33, 65, 143, %.3f)", alpha))
 }
 
 func ceilDiv(numerator int64, denominator int64) int64 {
