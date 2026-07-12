@@ -1,16 +1,15 @@
 # Partijgedrag
 
-Partijgedrag is a web application that provides insight into the voting behavior of political parties in the Dutch parliament. It was originally created by Elwin Oost and later rebuilt in TypeScript.
+Partijgedrag is a web application that provides insight into the voting behavior of political parties in the Dutch parliament. It was originally created by Elwin Oost, later rebuilt in TypeScript, and now runs as a single Go binary.
 
 ## Project Structure
 
-This repository is a monorepo containing three main components:
+The whole application — data ingestion, web pages, and JSON API — is one Go program:
 
-- `app/`: The web application, split into a frontend and a backend.
-  - `frontend/`: A React/TypeScript frontend built with Vite.
-  - `backend/`: A Node.js/TypeScript backend using Express, node-pg and SafeQL.
-- `etl/`: A Go application responsible for extracting, transforming, and loading the voting data into the database.
-- `docker-compose.yml`: Defines the services for the application, which for now is only the PostgreSQL database.
+- `cmd/partijgedrag/`: The CLI entry point with `migrate`, `ingest`, `sync`, `status`, `maintenance`, `inspect`, and `serve` subcommands.
+- `internal/`: Ingestion pipelines (Tweede Kamer OData), analysis queries, motion categorization, and the server-rendered web UI.
+- `deploy/systemd/`: Unit files for running the server and a recurring sync on a plain Linux host.
+- `docker-compose.yml`: The PostgreSQL database for local development.
 
 ## Screenshots
 
@@ -26,73 +25,28 @@ This repository is a monorepo containing three main components:
 
 ### Prerequisites
 
-- [Docker](https://www.docker.com/) and Docker Compose
-- [Go](https://go.dev/) (version 1.21 or higher)
-- [Node.js](https://nodejs.org/) (version 18 or higher)
+- [Go](https://go.dev/) (see `go.mod` for the version)
+- [Podman](https://podman.io/) or Docker, with compose
+- [just](https://github.com/casey/just) and [lefthook](https://lefthook.dev/) for the development workflow
 
-### 1. Start the Database
-
-The application requires a PostgreSQL database. You can start one using Docker Compose:
+### Quick start
 
 ```bash
-docker compose up -d
+just install   # git hooks + Go dependencies
+just dev       # start the database, apply migrations, serve web + API
 ```
 
-or Podman
+The server runs on `http://localhost:3001`. Configuration is read from environment variables; see `.env.example` for the defaults.
+
+### Loading data
+
+The database starts empty. Fetch parties, motions, and votes from the Tweede Kamer open data API, and categorize motions, with:
 
 ```bash
-podman compose up -d
+go run ./cmd/partijgedrag sync tweedekamer
 ```
 
-This will start a PostgreSQL server and expose it on port 5432.
-
-### 2. Load the Data (ETL)
-
-The `etl` service fetches and processes parliamentary data.
-
-1.  Navigate to the ETL directory:
-    ```bash
-    cd etl
-    ```
-2.  On the first run, seed the database:
-    ```bash
-    go run cmd/manage_categories/main.go --action=seed
-    ```
-3.  Run the ETL process:
-    ```bash
-    go run cmd/etl/main.go
-    ```
-
-### 3. Run the Application
-
-The `app` is split into a backend and a frontend, which are separately for development.
-
-### App
-
-1.  Navigate to the app directory:
-    ```bash
-    cd app
-    ```
-2.  Install dependencies:
-    ```bash
-    npm install
-    ```
-3.  Set up your environment variables:
-    ```bash
-    cd backend; cp .env.example .env; cd ../frontend; cp .env.example .env; cd ..
-    ```
-
-> Ensure the `DATABASE_URL` in the new `.env` file is correctly configured for your environment.
-
-4.  Start the app server:
-
-    ```bash
-    cd -; npm run dev
-    ```
-
-    The backend will be running on `http://localhost:3001`.
-
-    The frontend will be accessible at `http://localhost:3000`.
+The first full sync takes a while; rerunning it is incremental. `deploy/systemd/` contains a timer unit that keeps the data fresh on a server. See `go run ./cmd/partijgedrag` for all commands, including ingestion status and data-quality tooling.
 
 ## Acknowledgements
 

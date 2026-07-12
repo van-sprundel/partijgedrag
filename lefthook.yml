@@ -1,29 +1,11 @@
 pre-commit:
   parallel: true
   commands:
-    rewrite-gofmt:
-      root: "rewrite/"
-      glob: "**/*.go"
-      run: gofmt -w {staged_files}
-      stage_fixed: true
-    govet:
-      glob: "**/*.go"
-      run: go vet ./...
-    etl-gofmt:
-      root: "etl/"
+    gofmt:
       glob: "**/*.go"
       run: |
         unformatted="$(gofmt -l {staged_files})"
         [ -z "$unformatted" ] || { echo "run gofmt -w on:"; echo "$unformatted"; exit 1; }
-    etl-govet:
-      root: "etl/"
+    govet:
       glob: "**/*.go"
       run: go vet ./...
-    backend-eslint:
-      root: "app/backend/"
-      glob: "**/*.{ts,tsx}"
-      run: npm run lint
-    frontend-eslint:
-      root: "app/frontend/"
-      glob: "**/*.{ts,tsx}"
-      run: npm run lint
