@@ -14,6 +14,11 @@ type Config struct {
 	HTTPHost    string
 	HTTPPort    int
 
+	// Dev makes `serve` read templates and static files from disk on every
+	// request instead of the embedded copies, so edits only need a browser
+	// refresh. Requires running from the repo root.
+	Dev bool
+
 	TweedeKamerODataBaseURL string
 	TweedeKamerBatchSize    int
 	TweedeKamerMaxPages     int
@@ -48,6 +53,7 @@ func Load() (Config, error) {
 		DatabaseURL:             getEnv("DATABASE_URL", "postgres://etl_user:etl_password@localhost:5432/partijgedrag"),
 		HTTPHost:                getEnv("HTTP_HOST", "0.0.0.0"),
 		HTTPPort:                getEnvInt("HTTP_PORT", 3001),
+		Dev:                     getEnvBool("DEV", false),
 		TweedeKamerODataBaseURL: getEnv("TWEEDE_KAMER_ODATA_BASE_URL", "https://gegevensmagazijn.tweedekamer.nl/OData/v4/2.0"),
 		TweedeKamerBatchSize:    getEnvInt("TWEEDE_KAMER_BATCH_SIZE", 100),
 		TweedeKamerMaxPages:     getEnvInt("TWEEDE_KAMER_MAX_PAGES", 0),
@@ -65,6 +71,19 @@ func getEnv(key string, fallback string) string {
 		return fallback
 	}
 	return value
+}
+
+func getEnvBool(key string, fallback bool) bool {
+	value := os.Getenv(key)
+	if value == "" {
+		return fallback
+	}
+
+	parsed, err := strconv.ParseBool(value)
+	if err != nil {
+		return fallback
+	}
+	return parsed
 }
 
 func getEnvInt(key string, fallback int) int {

@@ -21,6 +21,15 @@ type Summary struct {
 	RawRecords             int64 `json:"rawRecords"`
 }
 
+// SiteStats holds the handful of counts shown on public pages. It stays
+// cheap by scanning each table at most once, unlike the full Summary.
+type SiteStats struct {
+	Parties          int64 `json:"parties"`
+	Motions          int64 `json:"motions"`
+	MotionsWithVotes int64 `json:"motionsWithVotes"`
+	Votes            int64 `json:"votes"`
+}
+
 type VoteBackfill struct {
 	TotalMotions       int64      `json:"totalMotions"`
 	SyncedMotions      int64      `json:"syncedMotions"`
@@ -40,21 +49,58 @@ type IngestionRunHealth struct {
 	FinishedWithoutStopRuns int64 `json:"finishedWithoutStopRuns"`
 }
 
+func LoadSiteStats(ctx context.Context, pool *pgxpool.Pool) (SiteStats, error) {
+	var stats SiteStats
+	err := pool.QueryRow(ctx, `
+		WITH motion_stats AS (
+			SELECT count(*) AS motions,
+			       count(*) FILTER (WHERE votes_synced_at IS NOT NULL) AS motions_with_votes
+			FROM motions
+			WHERE source_deleted = false
+		)
+		SELECT
+		  (SELECT count(*) FROM parties WHERE source_deleted = false),
+		  motions,
+		  motions_with_votes,
+		  (SELECT count(*) FROM votes WHERE source_deleted = false)
+		FROM motion_stats
+	`).Scan(
+		&stats.Parties,
+		&stats.Motions,
+		&stats.MotionsWithVotes,
+		&stats.Votes,
+	)
+	return stats, err
+}
+
 func LoadSummary(ctx context.Context, pool *pgxpool.Pool) (Summary, error) {
 	var summary Summary
 	err := pool.QueryRow(ctx, `
+		WITH motion_stats AS (
+			SELECT count(*) FILTER (WHERE source_deleted = false) AS motions,
+			       count(*) FILTER (WHERE source_deleted = false AND votes_synced_at IS NOT NULL) AS motions_with_votes,
+			       count(*) FILTER (WHERE source_deleted = false AND votes_synced_at IS NULL) AS motions_without_votes
+			FROM motions
+		),
+		vote_stats AS (
+			SELECT count(*) FILTER (WHERE source_deleted = false) AS votes,
+			       count(*) FILTER (WHERE source_deleted = false AND mistake = true) AS mistake_votes,
+			       count(*) FILTER (WHERE source_deleted = true) AS deleted_votes
+			FROM votes
+		)
 		SELECT
 		  (SELECT count(*) FROM parties WHERE source_deleted = false),
-		  (SELECT count(*) FROM motions WHERE source_deleted = false),
-		  (SELECT count(*) FROM motions WHERE source_deleted = false AND votes_synced_at IS NOT NULL),
-		  (SELECT count(*) FROM motions WHERE source_deleted = false AND votes_synced_at IS NULL),
+		  motion_stats.motions,
+		  motion_stats.motions_with_votes,
+		  motion_stats.motions_without_votes,
 		  (SELECT count(*) FROM motions m WHERE m.source_deleted = false AND m.votes_synced_at IS NOT NULL AND NOT EXISTS (SELECT 1 FROM decisions d WHERE d.motion_key = m.motion_key AND d.source_deleted = false)),
 		  (SELECT count(*) FROM decisions WHERE source_deleted = false),
 		  (SELECT count(*) FROM decisions d WHERE d.source_deleted = false AND NOT EXISTS (SELECT 1 FROM votes v WHERE v.decision_key = d.decision_key AND v.source_deleted = false)),
-		  (SELECT count(*) FROM votes WHERE source_deleted = false),
-		  (SELECT count(*) FROM votes WHERE source_deleted = false AND mistake = true),
-		  (SELECT count(*) FROM votes WHERE source_deleted = true),
+		  vote_stats.votes,
+		  vote_stats.mistake_votes,
+		  vote_stats.deleted_votes,
 		  (SELECT count(*) FROM raw_records)
+		FROM motion_stats, vote_stats
 	`).Scan(
 		&summary.Parties,
 		&summary.Motions,

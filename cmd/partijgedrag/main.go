@@ -73,9 +73,13 @@ func run() error {
 			go runPeriodicSync(ctx, cfg, database)
 		}
 
+		if cfg.Dev {
+			fmt.Println("dev mode enabled: templates and static files reload from disk")
+		}
+
 		address := fmt.Sprintf("%s:%d", cfg.HTTPHost, cfg.HTTPPort)
 		fmt.Printf("partijgedrag listening on http://%s\n", address)
-		server := httpapi.Server{Pool: database.Pool}
+		server := httpapi.Server{Pool: database.Pool, Dev: cfg.Dev}
 		err := httpapi.ListenAndServe(ctx, address, server.Handler())
 		if errors.Is(err, http.ErrServerClosed) {
 			return nil
