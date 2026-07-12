@@ -1,0 +1,48 @@
+{{ define "base" }}
+<!doctype html>
+<html lang="nl">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>{{ template "title" . }}</title>
+    <link rel="stylesheet" href="/static/styles.css">
+    <link rel="icon" href="/static/favicon.ico">
+  </head>
+  <body>
+    <header class="topbar">
+      <a class="brand" href="/">
+	<img width="40" height="34" src="/static/logo.png" />
+        Partijgedrag
+      </a>
+      <nav>
+        <a href="/motions">Moties</a>
+        <a href="/voting-compass">Stemwijzer</a>
+        <a href="/party-likeness">Partijgelijkenis</a>
+        <a href="/party-focus">Partijfocus</a>
+        <a href="/coalition-analysis">Coalitie</a>
+        <a href="/about">Over</a>
+      </nav>
+    </header>
+    <main class="page">
+      {{ template "content" . }}
+    </main>
+    <footer class="footer">
+      <span>
+        © 2012–2026 Elwin Oost, <a href="https://solveware.nl" target="_blank" rel="noopener noreferrer">Solveware</a>
+        · Partijgedrag wordt gehost door <a href="https://cyso.com" target="_blank" rel="noopener noreferrer">Cyso</a>
+      </span>
+      <span>
+        <a href="/data-quality">Datakwaliteit</a>
+        · Open source op <a href="https://github.com/van-sprundel/partijgedrag" target="_blank" rel="noopener noreferrer">GitHub</a>
+      </span>
+    </footer>
+    <script>
+      document.querySelectorAll(".topbar nav a").forEach((link) => {
+        if (location.pathname.split("/")[1] === link.getAttribute("href").split("/")[1]) {
+          link.setAttribute("aria-current", "page");
+        }
+      });
+    </script>
+  </body>
+</html>
+{{ end }}

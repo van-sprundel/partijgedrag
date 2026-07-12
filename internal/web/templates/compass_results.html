@@ -1,0 +1,98 @@
+{{ define "title" }}Uw stemwijzerresultaat — Partijgedrag{{ end }}
+{{ define "content" }}
+  <section class="section">
+    <p class="eyebrow">Stemwijzer · {{ time .Results.Session.CreatedAt }}</p>
+    <div class="section-heading">
+      <h1>Uw resultaat</h1>
+      <span class="muted mono">{{ len .Results.Session.Answers }} antwoorden</span>
+    </div>
+    <p class="muted">
+      Deze pagina heeft een vast adres. Deel de link om uw resultaat te laten zien.
+      <button type="button" id="copy-link">Kopieer link</button>
+    </p>
+  </section>
+
+  <section class="section">
+    <h2>Uw matches</h2>
+    <p class="muted mono">Min. overlap: {{ .Results.Threshold }}</p>
+    <table>
+      <thead>
+        <tr>
+          <th>Partij</th>
+          <th class="num">Match</th>
+          <th class="num">Gelijk</th>
+          <th class="num">Overlap</th>
+        </tr>
+      </thead>
+      <tbody>
+        {{ range .Results.Matches }}
+          <tr>
+            <td>{{ .PartyName }}</td>
+            <td class="num">{{ printf "%.1f%%" .Match }}</td>
+            <td class="num">{{ .SameVotes }}</td>
+            <td class="num">{{ .Overlap }}</td>
+          </tr>
+        {{ else }}
+          <tr><td colspan="4">Geen partijen met genoeg overlap.</td></tr>
+        {{ end }}
+      </tbody>
+    </table>
+
+    {{ if .Results.Inconclusive }}
+      <details class="inconclusive">
+        <summary>Te weinig overlap</summary>
+        <table>
+          <thead>
+            <tr>
+              <th>Partij</th>
+              <th class="num">Gelijk</th>
+              <th class="num">Overlap</th>
+            </tr>
+          </thead>
+          <tbody>
+            {{ range .Results.Inconclusive }}
+              <tr>
+                <td>{{ .PartyName }}</td>
+                <td class="num">{{ .SameVotes }}</td>
+                <td class="num">{{ .Overlap }}</td>
+              </tr>
+            {{ end }}
+          </tbody>
+        </table>
+      </details>
+    {{ end }}
+  </section>
+
+  <section class="section">
+    <h2>Uw antwoorden</h2>
+    <div class="motion-list">
+      {{ range .Results.Motions }}
+        <article class="motion-row">
+          <div>
+            <p class="eyebrow">{{ fallback .Motion.Number .Motion.MotionKey }} · {{ date .Motion.ProposedAt }}</p>
+            <a class="motion-title" href="/motions/{{ .Motion.MotionKey }}">{{ fallback .Motion.Subject .Motion.Title .Motion.MotionKey }}</a>
+            <p>
+              U stemde
+              <span class="position position-{{ .UserAnswer }}">{{ positie .UserAnswer }}</span>
+            </p>
+            <div class="tags">
+              {{ range .Positions }}
+                <span class="tag {{ if .AgreesWithUser }}tag-agree{{ else }}tag-disagree{{ end }}" title="{{ .PartyName }}: {{ positie .Position }}">{{ .PartyName }}</span>
+              {{ else }}
+                <span class="muted">Geen duidelijke partijposities voor deze motie.</span>
+              {{ end }}
+            </div>
+          </div>
+        </article>
+      {{ end }}
+    </div>
+    <p class="muted">Groen: de partij stemde zoals u. Rood: de partij stemde anders.</p>
+  </section>
+
+  <script>
+    document.querySelector("#copy-link").addEventListener("click", async () => {
+      await navigator.clipboard.writeText(window.location.href);
+      document.querySelector("#copy-link").textContent = "Gekopieerd";
+    });
+  </script>
+{{ end }}

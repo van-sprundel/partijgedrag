@@ -1,0 +1,449 @@
+package tweedekamer
+
+import (
+	"context"
+	"encoding/json"
+	"fmt"
+	"io"
+	"net/http"
+	"net/url"
+	"strings"
+	"time"
+)
+
+type Time struct {
+	time.Time
+}
+
+func (value *Time) UnmarshalJSON(data []byte) error {
+	if string(data) == "null" {
+		return nil
+	}
+
+	var raw string
+	if err := json.Unmarshal(data, &raw); err != nil {
+		return err
+	}
+	if raw == "" {
+		return nil
+	}
+
+	for _, layout := range []string{
+		time.RFC3339Nano,
+		time.RFC3339,
+		"2006-01-02T15:04:05",
+		"2006-01-02",
+	} {
+		parsed, err := time.Parse(layout, raw)
+		if err == nil {
+			value.Time = parsed
+			return nil
+		}
+	}
+
+	return fmt.Errorf("unsupported time format %q", raw)
+}
+
+type Client struct {
+	baseURL    string
+	httpClient *http.Client
+}
+
+func NewClient(baseURL string) *Client {
+	return &Client{
+		baseURL: strings.TrimRight(baseURL, "/"),
+		httpClient: &http.Client{
+			Timeout: 60 * time.Second,
+		},
+	}
+}
+
+type MotionRecord struct {
+	ID             string  `json:"Id"`
+	Nummer         *string `json:"Nummer"`
+	Onderwerp      *string `json:"Onderwerp"`
+	Soort          *string `json:"Soort"`
+	Titel          *string `json:"Titel"`
+	Citeertitel    *string `json:"Citeertitel"`
+	Status         *string `json:"Status"`
+	GestartOp      *Time   `json:"GestartOp"`
+	Vergaderjaar   *string `json:"Vergaderjaar"`
+	GewijzigdOp    *Time   `json:"GewijzigdOp"`
+	ApiGewijzigdOp *Time   `json:"ApiGewijzigdOp"`
+	Verwijderd     *bool   `json:"Verwijderd"`
+	Raw            json.RawMessage
+}
+
+type PartyRecord struct {
+	ID             string  `json:"Id"`
+	Nummer         *int    `json:"Nummer"`
+	Afkorting      *string `json:"Afkorting"`
+	NaamNL         *string `json:"NaamNL"`
+	NaamEN         *string `json:"NaamEN"`
+	AantalZetels   *int    `json:"AantalZetels"`
+	AantalStemmen  *int    `json:"AantalStemmen"`
+	DatumActief    *Time   `json:"DatumActief"`
+	DatumInactief  *Time   `json:"DatumInactief"`
+	GewijzigdOp    *Time   `json:"GewijzigdOp"`
+	ApiGewijzigdOp *Time   `json:"ApiGewijzigdOp"`
+	Verwijderd     *bool   `json:"Verwijderd"`
+	Raw            json.RawMessage
+}
+
+func (record *PartyRecord) UnmarshalJSON(data []byte) error {
+	type alias PartyRecord
+	var decoded alias
+	if err := json.Unmarshal(data, &decoded); err != nil {
+		return err
+	}
+
+	*record = PartyRecord(decoded)
+	record.Raw = append(record.Raw[:0], data...)
+	return nil
+}
+
+type DecisionRecord struct {
+	ID                            string  `json:"Id"`
+	AgendapuntID                  *string `json:"Agendapunt_Id"`
+	StemmingsSoort                *string `json:"StemmingsSoort"`
+	BesluitSoort                  *string `json:"BesluitSoort"`
+	BesluitTekst                  *string `json:"BesluitTekst"`
+	Opmerking                     *string `json:"Opmerking"`
+	Status                        *string `json:"Status"`
+	AgendapuntZaakBesluitVolgorde *int    `json:"AgendapuntZaakBesluitVolgorde"`
+	GewijzigdOp                   *Time   `json:"GewijzigdOp"`
+	ApiGewijzigdOp                *Time   `json:"ApiGewijzigdOp"`
+	Verwijderd                    *bool   `json:"Verwijderd"`
+	Raw                           json.RawMessage
+}
+
+func (record *DecisionRecord) UnmarshalJSON(data []byte) error {
+	type alias DecisionRecord
+	var decoded alias
+	if err := json.Unmarshal(data, &decoded); err != nil {
+		return err
+	}
+
+	*record = DecisionRecord(decoded)
+	record.Raw = append(record.Raw[:0], data...)
+	return nil
+}
+
+type VoteRecord struct {
+	ID              string  `json:"Id"`
+	BesluitID       *string `json:"Besluit_Id"`
+	Soort           *string `json:"Soort"`
+	FractieGrootte  *int    `json:"FractieGrootte"`
+	ActorNaam       *string `json:"ActorNaam"`
+	ActorFractie    *string `json:"ActorFractie"`
+	Vergissing      *bool   `json:"Vergissing"`
+	SidActorLid     *string `json:"SidActorLid"`
+	SidActorFractie *string `json:"SidActorFractie"`
+	PersoonID       *string `json:"Persoon_Id"`
+	FractieID       *string `json:"Fractie_Id"`
+	GewijzigdOp     *Time   `json:"GewijzigdOp"`
+	ApiGewijzigdOp  *Time   `json:"ApiGewijzigdOp"`
+	Verwijderd      *bool   `json:"Verwijderd"`
+	Raw             json.RawMessage
+}
+
+func (record *VoteRecord) UnmarshalJSON(data []byte) error {
+	type alias VoteRecord
+	var decoded alias
+	if err := json.Unmarshal(data, &decoded); err != nil {
+		return err
+	}
+
+	*record = VoteRecord(decoded)
+	record.Raw = append(record.Raw[:0], data...)
+	return nil
+}
+
+func (record *MotionRecord) UnmarshalJSON(data []byte) error {
+	type alias MotionRecord
+	var decoded alias
+	if err := json.Unmarshal(data, &decoded); err != nil {
+		return err
+	}
+
+	*record = MotionRecord(decoded)
+	record.Raw = append(record.Raw[:0], data...)
+	return nil
+}
+
+type ZaakDocumentRecord struct {
+	ID             string  `json:"Id"`
+	DocumentNummer *string `json:"DocumentNummer"`
+	Onderwerp      *string `json:"Onderwerp"`
+	Volgnummer     *int    `json:"Volgnummer"`
+	Soort          *string `json:"Soort"`
+	Verwijderd     *bool   `json:"Verwijderd"`
+}
+
+type ZaakDossierRecord struct {
+	Nummer     json.Number `json:"Nummer"`
+	Toevoeging *string     `json:"Toevoeging"`
+}
+
+type MotionDocumentInfo struct {
+	Onderwerp  *string              `json:"Onderwerp"`
+	Volgnummer *int                 `json:"Volgnummer"`
+	Dossiers   []ZaakDossierRecord  `json:"Kamerstukdossier"`
+	Documents  []ZaakDocumentRecord `json:"Document"`
+}
+
+type ChangedMotionsPage struct {
+	Records []MotionRecord
+	NextURL string
+}
+
+type ChangedPartiesPage struct {
+	Records []PartyRecord
+	NextURL string
+}
+
+func (client *Client) FetchChangedMotions(ctx context.Context, since time.Time, top int, skip int, nextURL string) (ChangedMotionsPage, error) {
+	requestURL := nextURL
+	if requestURL == "" {
+		requestURL = client.changedMotionsURL(since, top, skip)
+	}
+
+	var body struct {
+		Value   []MotionRecord `json:"value"`
+		NextURL string         `json:"@odata.nextLink"`
+	}
+	if err := client.fetchJSON(ctx, requestURL, &body); err != nil {
+		return ChangedMotionsPage{}, err
+	}
+
+	return ChangedMotionsPage{
+		Records: body.Value,
+		NextURL: body.NextURL,
+	}, nil
+}
+
+func (client *Client) FetchChangedParties(ctx context.Context, since time.Time, top int, skip int, nextURL string) (ChangedPartiesPage, error) {
+	requestURL := nextURL
+	if requestURL == "" {
+		requestURL = client.changedPartiesURL(since, top, skip)
+	}
+
+	var body struct {
+		Value   []PartyRecord `json:"value"`
+		NextURL string        `json:"@odata.nextLink"`
+	}
+	if err := client.fetchJSON(ctx, requestURL, &body); err != nil {
+		return ChangedPartiesPage{}, err
+	}
+
+	return ChangedPartiesPage{
+		Records: body.Value,
+		NextURL: body.NextURL,
+	}, nil
+}
+
+func (client *Client) FetchMotionDecisions(ctx context.Context, motionSourceID string) ([]DecisionRecord, error) {
+	requestURL := client.motionDecisionsURL(motionSourceID)
+	var records []DecisionRecord
+
+	for requestURL != "" {
+		var body struct {
+			Value   []DecisionRecord `json:"value"`
+			NextURL string           `json:"@odata.nextLink"`
+		}
+		if err := client.fetchJSON(ctx, requestURL, &body); err != nil {
+			return nil, err
+		}
+
+		records = append(records, body.Value...)
+		requestURL = body.NextURL
+	}
+
+	return records, nil
+}
+
+func (client *Client) FetchDecisionVotes(ctx context.Context, decisionSourceID string) ([]VoteRecord, error) {
+	requestURL := client.decisionVotesURL(decisionSourceID)
+	var records []VoteRecord
+
+	for requestURL != "" {
+		var body struct {
+			Value   []VoteRecord `json:"value"`
+			NextURL string       `json:"@odata.nextLink"`
+		}
+		if err := client.fetchJSON(ctx, requestURL, &body); err != nil {
+			return nil, err
+		}
+
+		records = append(records, body.Value...)
+		requestURL = body.NextURL
+	}
+
+	return records, nil
+}
+
+func (client *Client) FetchMotionDocumentInfo(ctx context.Context, motionSourceID string) (MotionDocumentInfo, error) {
+	requestURL := client.motionDocumentInfoURL(motionSourceID)
+	var info MotionDocumentInfo
+	if err := client.fetchJSON(ctx, requestURL, &info); err != nil {
+		return MotionDocumentInfo{}, err
+	}
+	return info, nil
+}
+
+func (client *Client) motionDocumentInfoURL(motionSourceID string) string {
+	u, _ := url.Parse(fmt.Sprintf("%s/Zaak(%s)", client.baseURL, motionSourceID))
+	query := u.Query()
+	query.Set("$select", "Id,Onderwerp,Volgnummer")
+	query.Set("$expand", strings.Join([]string{
+		"Kamerstukdossier($select=Nummer,Toevoeging)",
+		"Document($select=Id,DocumentNummer,Onderwerp,Volgnummer,Soort,Verwijderd)",
+	}, ","))
+	u.RawQuery = query.Encode()
+	return u.String()
+}
+
+func (client *Client) changedMotionsURL(since time.Time, top int, skip int) string {
+	u, _ := url.Parse(client.baseURL + "/Zaak")
+	query := u.Query()
+	query.Set("$filter", fmt.Sprintf("Soort eq 'Motie' and ApiGewijzigdOp ge %s", formatODataDate(since)))
+	query.Set("$select", strings.Join([]string{
+		"Id",
+		"Nummer",
+		"Onderwerp",
+		"Soort",
+		"Titel",
+		"Citeertitel",
+		"Status",
+		"GestartOp",
+		"Vergaderjaar",
+		"GewijzigdOp",
+		"ApiGewijzigdOp",
+		"Verwijderd",
+	}, ","))
+	query.Set("$orderby", "ApiGewijzigdOp asc,Id asc")
+	query.Set("$top", fmt.Sprintf("%d", top))
+	if skip > 0 {
+		query.Set("$skip", fmt.Sprintf("%d", skip))
+	}
+	query.Set("$count", "false")
+	u.RawQuery = query.Encode()
+	return u.String()
+}
+
+func (client *Client) changedPartiesURL(since time.Time, top int, skip int) string {
+	u, _ := url.Parse(client.baseURL + "/Fractie")
+	query := u.Query()
+	query.Set("$filter", fmt.Sprintf("ApiGewijzigdOp ge %s", formatODataDate(since)))
+	query.Set("$select", strings.Join([]string{
+		"Id",
+		"Nummer",
+		"Afkorting",
+		"NaamNL",
+		"NaamEN",
+		"AantalZetels",
+		"AantalStemmen",
+		"DatumActief",
+		"DatumInactief",
+		"GewijzigdOp",
+		"ApiGewijzigdOp",
+		"Verwijderd",
+	}, ","))
+	query.Set("$orderby", "ApiGewijzigdOp asc,Id asc")
+	query.Set("$top", fmt.Sprintf("%d", top))
+	if skip > 0 {
+		query.Set("$skip", fmt.Sprintf("%d", skip))
+	}
+	query.Set("$count", "false")
+	u.RawQuery = query.Encode()
+	return u.String()
+}
+
+func (client *Client) motionDecisionsURL(motionSourceID string) string {
+	u, _ := url.Parse(fmt.Sprintf("%s/Zaak(%s)/Besluit", client.baseURL, motionSourceID))
+	query := u.Query()
+	query.Set("$select", strings.Join([]string{
+		"Id",
+		"Agendapunt_Id",
+		"StemmingsSoort",
+		"BesluitSoort",
+		"BesluitTekst",
+		"Opmerking",
+		"Status",
+		"AgendapuntZaakBesluitVolgorde",
+		"GewijzigdOp",
+		"ApiGewijzigdOp",
+		"Verwijderd",
+	}, ","))
+	query.Set("$orderby", "AgendapuntZaakBesluitVolgorde asc,ApiGewijzigdOp asc")
+	u.RawQuery = query.Encode()
+	return u.String()
+}
+
+func (client *Client) decisionVotesURL(decisionSourceID string) string {
+	u, _ := url.Parse(fmt.Sprintf("%s/Besluit(%s)/Stemming", client.baseURL, decisionSourceID))
+	query := u.Query()
+	query.Set("$select", strings.Join([]string{
+		"Id",
+		"Besluit_Id",
+		"Soort",
+		"FractieGrootte",
+		"ActorNaam",
+		"ActorFractie",
+		"Vergissing",
+		"SidActorLid",
+		"SidActorFractie",
+		"Persoon_Id",
+		"Fractie_Id",
+		"GewijzigdOp",
+		"ApiGewijzigdOp",
+		"Verwijderd",
+	}, ","))
+	query.Set("$orderby", "ApiGewijzigdOp asc,Id asc")
+	u.RawQuery = query.Encode()
+	return u.String()
+}
+
+func (client *Client) fetchJSON(ctx context.Context, requestURL string, target any) error {
+	var lastErr error
+	for attempt := 1; attempt <= 3; attempt++ {
+		err := client.fetchJSONOnce(ctx, requestURL, target)
+		if err == nil {
+			return nil
+		}
+		lastErr = err
+
+		select {
+		case <-ctx.Done():
+			return ctx.Err()
+		case <-time.After(time.Duration(attempt) * time.Second):
+		}
+	}
+	return lastErr
+}
+
+func (client *Client) fetchJSONOnce(ctx context.Context, requestURL string, target any) error {
+	request, err := http.NewRequestWithContext(ctx, http.MethodGet, requestURL, nil)
+	if err != nil {
+		return err
+	}
+	request.Header.Set("Accept", "application/json")
+	request.Header.Set("User-Agent", "partijgedrag-rewrite/0.1")
+
+	response, err := client.httpClient.Do(request)
+	if err != nil {
+		return err
+	}
+	defer response.Body.Close()
+
+	if response.StatusCode != http.StatusOK {
+		body, _ := io.ReadAll(io.LimitReader(response.Body, 2048))
+		return fmt.Errorf("tweede kamer odata returned %d for %s: %s", response.StatusCode, requestURL, strings.TrimSpace(string(body)))
+	}
+
+	return json.NewDecoder(response.Body).Decode(target)
+}
+
+func formatODataDate(value time.Time) string {
+	return value.UTC().Format("2006-01-02T15:04:05Z")
+}

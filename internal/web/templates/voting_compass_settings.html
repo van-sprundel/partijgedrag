@@ -1,0 +1,148 @@
+{{ define "title" }}Stemwijzer instellingen — Partijgedrag{{ end }}
+{{ define "content" }}
+  <section class="section">
+    <div class="section-heading">
+      <h1>Stemwijzer instellingen</h1>
+      <a href="/voting-compass" id="settings-cancel">Terug naar de stemwijzer</a>
+    </div>
+    <p class="lead">Stel uw voorkeuren in voor de stellingen. U kunt dit profiel tussendoor aanpassen; uw antwoorden blijven bewaard.</p>
+
+    <form class="filters" id="settings-form" method="get" action="/voting-compass">
+      <label>
+        Kabinetsperiode
+        <select name="period" id="settings-period">
+          <option value="">Alle beschikbare moties</option>
+          {{ range .Periods }}
+            <option value="{{ .PeriodKey }}">{{ .Name }}</option>
+          {{ end }}
+        </select>
+      </label>
+      <label>
+        Aantal moties per ronde
+        <input type="number" name="limit" id="settings-limit" value="20" min="1" max="50">
+      </label>
+      <label>
+        Min. overlap
+        <input type="number" name="minOverlap" id="settings-min-overlap" value="5" min="1" max="50">
+      </label>
+
+      <details class="filter-group" open>
+        <summary>Onderwerpen <span id="settings-topics-count"></span></summary>
+        <p class="hint">Selecteer onderwerpen of laat leeg voor alle onderwerpen.</p>
+        <p class="eyebrow">Actueel</p>
+        <div class="chips">
+          {{ range .HotTopics }}
+            <label class="chip"><input type="checkbox" name="categories" value="{{ .CategoryKey }}"><span>{{ .Name }}</span></label>
+          {{ end }}
+        </div>
+        <p class="eyebrow">Beleidsagenda</p>
+        <div class="chips">
+          {{ range .Categories }}
+            <label class="chip"><input type="checkbox" name="categories" value="{{ .CategoryKey }}"><span>{{ .Name }}</span></label>
+          {{ end }}
+        </div>
+      </details>
+
+      <details class="filter-group" open>
+        <summary>Partijen <span id="settings-parties-count"></span></summary>
+        <p class="hint">Kies minstens twee partijen om alleen stellingen te zien waarover zij verschillend stemden.</p>
+        <div class="chips" id="settings-party-chips">
+          {{ range .Parties }}
+            <label class="chip"><input type="checkbox" name="parties" value="{{ .SourceID }}"><span>{{ .ShortName }}</span></label>
+          {{ end }}
+        </div>
+      </details>
+
+      <button type="submit" class="btn" id="settings-submit">Start stemwijzer</button>
+    </form>
+  </section>
+
+  <script>
+    (() => {
+      const form = document.querySelector("#settings-form");
+      const period = document.querySelector("#settings-period");
+      const limit = document.querySelector("#settings-limit");
+      const minOverlap = document.querySelector("#settings-min-overlap");
+
+      const escapeHTML = (value) => String(value ?? "").replace(/[&<>"']/g, (character) => ({
+        "&": "&amp;",
+        "<": "&lt;",
+        ">": "&gt;",
+        "\"": "&quot;",
+        "'": "&#39;"
+      })[character]);
+
+      const checkedValues = (name) => Array.from(form.querySelectorAll(`input[name="${name}"]:checked`)).map((input) => input.value);
+
+      // Pre-fill the form from the incoming query string so editing an existing
+      // profile starts from the current selections.
+      const query = new URLSearchParams(location.search);
+      const splitAll = (name) => query.getAll(name).flatMap((value) => value.split(",")).map((value) => value.trim()).filter(Boolean);
+      if (query.get("period")) period.value = query.get("period");
+      if (query.get("limit")) limit.value = query.get("limit");
+      if (query.get("minOverlap")) minOverlap.value = query.get("minOverlap");
+      const applyChecks = (name, values) => {
+        form.querySelectorAll(`input[name="${name}"]`).forEach((input) => {
+          input.checked = values.has(input.value);
+        });
+      };
+      applyChecks("categories", new Set(splitAll("categories")));
+
+      // Party selections are tracked separately from the DOM: with a historical
+      // period the initial (current-day) list may not contain the profile's
+      // parties until the period-specific list is fetched below.
+      const selectedParties = new Set(splitAll("parties"));
+      applyChecks("parties", selectedParties);
+      form.addEventListener("change", (event) => {
+        if (event.target.name === "parties") {
+          if (event.target.checked) {
+            selectedParties.add(event.target.value);
+          } else {
+            selectedParties.delete(event.target.value);
+          }
+        }
+      });
+
+      const topicsCount = document.querySelector("#settings-topics-count");
+      const partiesCount = document.querySelector("#settings-parties-count");
+      const renderFilterCounts = () => {
+        const categories = checkedValues("categories").length;
+        const parties = checkedValues("parties").length;
+        topicsCount.textContent = categories > 0 ? `(${categories})` : "";
+        partiesCount.textContent = parties > 0 ? `(${parties})` : "";
+      };
+      form.addEventListener("change", renderFilterCounts);
+      renderFilterCounts();
+
+      // The party list follows the selected period: Rutte IV offers different
+      // fracties than today's Kamer. Selections that survive the switch stay checked.
+      const partyChips = document.querySelector("#settings-party-chips");
+      const renderPartyChips = (parties) => {
+        partyChips.innerHTML = parties.map((party) =>
+          `<label class="chip"><input type="checkbox" name="parties" value="${escapeHTML(party.sourceId)}"${selectedParties.has(party.sourceId) ? " checked" : ""}><span>${escapeHTML(party.shortName)}</span></label>`
+        ).join("");
+        renderFilterCounts();
+      };
+      period.addEventListener("change", async () => {
+        try {
+          const params = new URLSearchParams();
+          if (period.value) params.set("period", period.value);
+          const response = await fetch(`/api/parties?${params.toString()}`);
+          if (!response.ok) return;
+          const data = await response.json();
+          renderPartyChips(data.parties || []);
+        } catch {
+          /* keep the current list when the fetch fails */
+        }
+      });
+      if (period.value) period.dispatchEvent(new Event("change"));
+
+      // Cancelling goes back to the compass with the unchanged profile.
+      document.querySelector("#settings-cancel").setAttribute("href", `/voting-compass${location.search}`);
+
+      // When editing an existing profile (incoming query string), the submit
+      // button reflects that the user is resuming rather than starting fresh.
+      if (location.search) document.querySelector("#settings-submit").textContent = "Doorgaan";
+    })();
+  </script>
+{{ end }}

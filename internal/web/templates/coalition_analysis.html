@@ -1,0 +1,70 @@
+{{ define "title" }}Coalitie-analyse — Partijgedrag{{ end }}
+{{ define "content" }}
+  <section class="section">
+    <div class="section-heading">
+      <h1>Coalitie-analyse</h1>
+      <span class="muted mono">{{ .Period.Name }}</span>
+    </div>
+    <p class="lead">Hoe vaak stemde elke partij mee met het coalitieblok, en wanneer stemde de coalitie zelf verdeeld?</p>
+
+    <form class="filters" method="get" action="/coalition-analysis">
+      <label>
+        Kabinetsperiode
+        <select name="period">
+          {{ range .Periods }}
+            <option value="{{ .PeriodKey }}" {{ if eq $.Period.PeriodKey .PeriodKey }}selected{{ end }}>{{ .Name }}</option>
+          {{ end }}
+        </select>
+      </label>
+      <label>
+        Min. gedeelde moties
+        <input type="number" name="minCommon" value="{{ .MinCommon }}" min="1" max="1000">
+      </label>
+      <button type="submit">Toon analyse</button>
+    </form>
+
+    <div class="tags">
+      {{ range .Period.Parties }}
+        <span class="tag">{{ . }}</span>
+      {{ end }}
+    </div>
+
+    <div class="detail-grid">
+      <div><dt>Moties met coalitiestem</dt><dd>{{ .Analysis.Summary.MotionsWithCoalitionVotes }}</dd></div>
+      <div><dt>Duidelijke blokpositie</dt><dd>{{ .Analysis.Summary.ClearBlocPosition }}</dd></div>
+      <div><dt>Unaniem voor</dt><dd>{{ .Analysis.Summary.UnanimousFor }}</dd></div>
+      <div><dt>Unaniem tegen</dt><dd>{{ .Analysis.Summary.UnanimousAgainst }}</dd></div>
+      <div><dt>Verdeeld</dt><dd>{{ .Analysis.Summary.Split }}</dd></div>
+    </div>
+  </section>
+
+  <section class="section">
+    <h2>Stemgedrag ten opzichte van het coalitieblok</h2>
+    <table>
+      <thead>
+        <tr>
+          <th>Partij</th>
+          <th>Rol</th>
+          <th class="num">Meegestemd</th>
+          <th class="num">Met blok</th>
+          <th class="num">Tegen blok</th>
+          <th class="num">Gedeelde moties</th>
+        </tr>
+      </thead>
+      <tbody>
+        {{ range .Parties }}
+          <tr>
+            <td>{{ .PartyName }}</td>
+            <td>{{ if .CoalitionParty }}<span class="position position-FOR">Coalitie</span>{{ else }}<span class="muted">Oppositie</span>{{ end }}</td>
+            <td class="num">{{ printf "%.1f%%" .Alignment }}</td>
+            <td class="num">{{ if .WithURL }}<a href="{{ .WithURL }}">{{ .WithCoalition }}</a>{{ else }}{{ .WithCoalition }}{{ end }}</td>
+            <td class="num">{{ if .AgainstURL }}<a href="{{ .AgainstURL }}">{{ .AgainstCoalition }}</a>{{ else }}{{ .AgainstCoalition }}{{ end }}</td>
+            <td class="num">{{ .CommonMotions }}</td>
+          </tr>
+        {{ else }}
+          <tr><td colspan="6">Nog geen coalitiedata voor deze periode.</td></tr>
+        {{ end }}
+      </tbody>
+    </table>
+  </section>
+{{ end }}

@@ -1,0 +1,12 @@
+[Unit]
+Description=Run Partijgedrag Tweede Kamer sync
+
+[Timer]
+OnBootSec=5min
+OnUnitActiveSec=30min
+RandomizedDelaySec=5min
+Persistent=true
+Unit=partijgedrag-sync.service
+
+[Install]
+WantedBy=timers.target

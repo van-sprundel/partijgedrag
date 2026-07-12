@@ -1,0 +1,111 @@
+{{ define "title" }}Datakwaliteit — Partijgedrag{{ end }}
+{{ define "content" }}
+  <section class="section">
+    <div class="section-heading">
+      <h1>Datakwaliteit</h1>
+      <span class="muted mono">intern</span>
+    </div>
+    <p class="lead">Dekking van de ingestie en bekende gaten in de geprojecteerde data.</p>
+
+    <div class="detail-grid">
+      <div><dt>Stemdekking</dt><dd>{{ percent .Summary.MotionsWithVotes .Summary.Motions }}</dd></div>
+      <div><dt>Gesynchroniseerd</dt><dd>{{ .Backfill.SyncedMotions }}</dd></div>
+      <div><dt>Niet gesynchroniseerd</dt><dd>{{ .Backfill.UnsyncedMotions }}</dd></div>
+      <div><dt>Backfill-kandidaten</dt><dd>{{ .Backfill.EligibleMotions }}</dd></div>
+      <div><dt>Batches van 500 resterend</dt><dd>{{ .BackfillBatchesEstimate }}</dd></div>
+      <div><dt>Besluiten zonder stemmen</dt><dd>{{ .Summary.DecisionsWithoutVotes }}</dd></div>
+      <div><dt>Lopende runs</dt><dd>{{ .RunHealth.RunningRuns }}</dd></div>
+      <div><dt>Vastgelopen runs</dt><dd>{{ .RunHealth.StaleRunningRuns }}</dd></div>
+      <div><dt>Mislukte runs (24u)</dt><dd>{{ .RunHealth.FailedRunsLastDay }}</dd></div>
+    </div>
+  </section>
+
+  <section class="section">
+    <h2>Bekende gaten</h2>
+    <table>
+      <thead>
+        <tr>
+          <th>Controle</th>
+          <th class="num">Waarde</th>
+          <th>Gevolg</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td>Moties zonder stemsynchronisatie</td>
+          <td class="num">{{ .Summary.MotionsWithoutVotes }}</td>
+          <td>Stemwijzer, coalitie-analyse en partijgelijkenis blijven dun tot dit daalt.</td>
+        </tr>
+        <tr>
+          <td>Gesynchroniseerde moties zonder besluiten</td>
+          <td class="num">{{ .Summary.MotionsWithNoDecisions }}</td>
+          <td>Waarschijnlijk moties zonder stemming, verwijderde bronrecords of ingestiemissers.</td>
+        </tr>
+        <tr>
+          <td>Besluiten zonder stemmen</td>
+          <td class="num">{{ .Summary.DecisionsWithoutVotes }}</td>
+          <td>Deze besluiten bestaan, maar er zijn geen bruikbare stemrijen geprojecteerd.</td>
+        </tr>
+        <tr>
+          <td>Vergissingsstemmen</td>
+          <td class="num">{{ .Summary.MistakeVotes }}</td>
+          <td>Genegeerd in de huidige berekeningen; relevant als correctieafhandeling verandert.</td>
+        </tr>
+        <tr>
+          <td>Vastgelopen ingestieruns</td>
+          <td class="num">{{ .RunHealth.StaleRunningRuns }}</td>
+          <td>Runs die langer dan een uur op "running" staan. Meestal onderbroken lokale jobs.</td>
+        </tr>
+        <tr>
+          <td>Afgeronde runs zonder stopreden</td>
+          <td class="num">{{ .RunHealth.FinishedWithoutStopRuns }}</td>
+          <td>Oudere metadata van voor de stopredenen; onschadelijk maar minder informatief.</td>
+        </tr>
+      </tbody>
+    </table>
+  </section>
+
+  <section class="section">
+    <h2>Backfill</h2>
+    <pre class="command">go run ./cmd/partijgedrag ingest tweedekamer motion-votes --limit=500 --concurrency=4</pre>
+    <p class="muted">Verwerkt één begrensde batch. Volg de voortgang met <code>go run ./cmd/partijgedrag status vote-backfill</code>.</p>
+  </section>
+
+  <section class="section">
+    <h2>Vastgelopen runs opruimen</h2>
+    <pre class="command">go run ./cmd/partijgedrag maintenance fail-stale-runs --older-than=1h</pre>
+    <p class="muted">Standaard een dry-run. Voeg <code>--apply</code> toe om vastgelopen runs als mislukt te markeren.</p>
+  </section>
+
+  <section class="section">
+    <h2>Recente ingestieruns</h2>
+    <table>
+      <thead>
+        <tr>
+          <th>ID</th>
+          <th>Pipeline</th>
+          <th>Status</th>
+          <th class="num">Gezien</th>
+          <th class="num">Gewijzigd</th>
+          <th>Stopreden</th>
+          <th>Gestart</th>
+        </tr>
+      </thead>
+      <tbody>
+        {{ range .Runs }}
+          <tr>
+            <td class="mono">#{{ .ID }}</td>
+            <td class="mono">{{ .Pipeline }}</td>
+            <td><span class="status status-{{ .Status }}">{{ .Status }}</span></td>
+            <td class="num">{{ .RecordsSeen }}</td>
+            <td class="num">{{ .RecordsChanged }}</td>
+            <td class="mono">{{ .StopReason }}</td>
+            <td class="mono">{{ time .StartedAt }}</td>
+          </tr>
+        {{ else }}
+          <tr><td colspan="7">Nog geen runs.</td></tr>
+        {{ end }}
+      </tbody>
+    </table>
+  </section>
+{{ end }}

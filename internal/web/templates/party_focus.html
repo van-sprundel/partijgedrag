@@ -1,0 +1,132 @@
+{{ define "title" }}Partijfocus — Partijgedrag{{ end }}
+{{ define "content" }}
+  <section class="section">
+    <div class="section-heading">
+      <h1>Partijfocus</h1>
+      {{ if .Focus }}
+        <span class="muted mono">{{ .Focus.Totals.MotionsVoted }} moties met duidelijke positie</span>
+      {{ end }}
+    </div>
+    <p class="lead">Eén partij uitgelicht: hoe stemt ze in totaal, per onderwerp, en welke partijen stemmen het meest hetzelfde?</p>
+
+    <form class="filters" method="get" action="/party-focus">
+      <label>
+        Partij
+        <select name="party">
+          <option value="">Kies een partij</option>
+          {{ range .Parties }}
+            <option value="{{ .SourceID }}" {{ if eq $.Party .SourceID }}selected{{ end }}>{{ .ShortName }}{{ if .ActiveTo }} (voormalig){{ end }}</option>
+          {{ end }}
+        </select>
+      </label>
+      <label>
+        Kabinetsperiode
+        <select name="period">
+          <option value="custom" {{ if eq $.Period "custom" }}selected{{ end }}>Eigen datums</option>
+          {{ range .Periods }}
+            <option value="{{ .PeriodKey }}" {{ if eq $.Period .PeriodKey }}selected{{ end }}>{{ .Name }}</option>
+          {{ end }}
+        </select>
+      </label>
+      <label>
+        Vanaf
+        <input type="date" name="dateFrom" value="{{ .DateFrom }}">
+      </label>
+      <label>
+        Tot
+        <input type="date" name="dateTo" value="{{ .DateTo }}">
+      </label>
+      <button type="submit">Toon partij</button>
+    </form>
+  </section>
+
+  {{ if .Focus }}
+    {{ with .Focus }}
+      <section class="section">
+        <p class="eyebrow">{{ .Party.ShortName }}{{ if .Party.Seats }} · {{ .Party.Seats }} zetels{{ end }}{{ if .Party.ActiveTo }} · voormalig{{ end }}</p>
+        <h2>{{ fallback .Party.Name .Party.ShortName }}</h2>
+        <div class="detail-grid">
+          <div style="grid-column: 1 / -1;">
+            <dt>Totaal stemgedrag</dt>
+            <dd>
+              <div class="votebar" role="img" aria-label="{{ .Totals.VotedFor }} keer voor, {{ .Totals.VotedAgainst }} keer tegen">
+                <span class="voor" style="width: {{ share .Totals.VotedFor .Totals.VotedAgainst }}"></span>
+                <span class="tegen" style="width: {{ share .Totals.VotedAgainst .Totals.VotedFor }}"></span>
+              </div>
+              <div class="votebar-legend">
+                <span class="voor-count">{{ .Totals.VotedFor }} voor</span>
+                <span class="tegen-count">{{ .Totals.VotedAgainst }} tegen</span>
+              </div>
+            </dd>
+          </div>
+          <div><dt>Moties beoordeeld</dt><dd>{{ .Totals.MotionsVoted }}</dd></div>
+          <div><dt>Actief sinds</dt><dd>{{ date .Party.ActiveFrom }}</dd></div>
+          {{ if .Party.ActiveTo }}<div><dt>Actief tot</dt><dd>{{ date .Party.ActiveTo }}</dd></div>{{ end }}
+        </div>
+      </section>
+
+      <section class="section">
+        <h2>Stemgedrag per onderwerp</h2>
+        <table>
+          <thead>
+            <tr>
+              <th>Onderwerp</th>
+              <th class="num">Moties</th>
+              <th style="width: 30%;">Voor / tegen</th>
+              <th class="num">Voor</th>
+              <th class="num">Tegen</th>
+            </tr>
+          </thead>
+          <tbody>
+            {{ range .Categories }}
+              <tr>
+                <td><a class="tag tag-{{ .Kind }}" href="/motions?category={{ .CategoryKey }}">{{ .Name }}</a></td>
+                <td class="num">{{ .MotionsVoted }}</td>
+                <td>
+                  <div class="votebar">
+                    <span class="voor" style="width: {{ share .VotedFor .VotedAgainst }}"></span>
+                    <span class="tegen" style="width: {{ share .VotedAgainst .VotedFor }}"></span>
+                  </div>
+                </td>
+                <td class="num">{{ .VotedFor }}</td>
+                <td class="num">{{ .VotedAgainst }}</td>
+              </tr>
+            {{ else }}
+              <tr><td colspan="5">Nog geen gecategoriseerde moties voor deze selectie.</td></tr>
+            {{ end }}
+          </tbody>
+        </table>
+      </section>
+
+      <section class="section">
+        <h2>Meest gelijkende partijen</h2>
+        <table>
+          <thead>
+            <tr>
+              <th>Partij</th>
+              <th class="num">Gelijkenis</th>
+              <th class="num">Zelfde stem</th>
+              <th class="num">Gedeelde moties</th>
+            </tr>
+          </thead>
+          <tbody>
+            {{ range .Likeness }}
+              <tr>
+                <td>{{ .Party2Name }}</td>
+                <td class="num">{{ printf "%.1f%%" .Similarity }}</td>
+                <td class="num">{{ .SameVotes }}</td>
+                <td class="num">{{ .CommonMotions }}</td>
+              </tr>
+            {{ else }}
+              <tr><td colspan="4">Te weinig gedeelde stemmingen met andere partijen.</td></tr>
+            {{ end }}
+          </tbody>
+        </table>
+      </section>
+    {{ end }}
+  {{ else }}
+    <section class="section">
+      <p class="muted">Kies een partij om haar stemgedrag te bekijken.</p>
+    </section>
+  {{ end }}
+{{ end }}
