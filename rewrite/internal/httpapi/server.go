@@ -13,6 +13,7 @@ import (
 	"github.com/jackc/pgx/v5/pgxpool"
 
 	"partijgedrag/rewrite/internal/analysis"
+	"partijgedrag/rewrite/internal/categorize"
 	"partijgedrag/rewrite/internal/politics"
 	"partijgedrag/rewrite/internal/status"
 	"partijgedrag/rewrite/internal/web"
@@ -33,9 +34,13 @@ func (server Server) Handler() http.Handler {
 	mux.HandleFunc("GET /api/coalition-analysis", server.getCoalitionAnalysis)
 	mux.HandleFunc("GET /api/coalition-analysis/motions", server.listCoalitionMotions)
 	mux.HandleFunc("GET /api/ingestion-runs", server.listIngestionRuns)
+	mux.HandleFunc("GET /api/categories", server.listCategories)
 	mux.HandleFunc("GET /api/parties", server.listParties)
 	mux.HandleFunc("GET /api/party-likeness", server.listPartyLikeness)
+	mux.HandleFunc("GET /api/party-focus", server.getPartyFocus)
 	mux.HandleFunc("GET /api/voting-compass/motions", server.listVotingCompassMotions)
+	mux.HandleFunc("POST /api/compass-sessions", server.createCompassSession)
+	mux.HandleFunc("GET /api/compass-sessions/{sessionKey}", server.getCompassSession)
 	mux.HandleFunc("GET /api/motions", server.listMotions)
 	mux.HandleFunc("GET /api/motions/{motionKey}/party-positions", server.getMotionPartyPositions)
 	mux.HandleFunc("GET /api/motions/{motionKey}", server.getMotion)
@@ -148,6 +153,33 @@ func (server Server) listCabinetPeriods(response http.ResponseWriter, request *h
 
 	writeJSON(response, http.StatusOK, map[string]any{
 		"cabinetPeriods": items,
+	})
+}
+
+func (server Server) listCategories(response http.ResponseWriter, request *http.Request) {
+	jurisdiction := request.URL.Query().Get("jurisdiction")
+	if jurisdiction == "" {
+		jurisdiction = "nl-tweede-kamer"
+	}
+
+	categories, err := categorize.LoadCategories(request.Context(), server.Pool, jurisdiction)
+	if err != nil {
+		writeError(response, err)
+		return
+	}
+
+	items := make([]map[string]any, 0, len(categories))
+	for _, category := range categories {
+		items = append(items, map[string]any{
+			"categoryKey": category.CategoryKey,
+			"name":        category.Name,
+			"kind":        category.Kind,
+			"keywords":    category.Keywords,
+		})
+	}
+
+	writeJSON(response, http.StatusOK, map[string]any{
+		"categories": items,
 	})
 }
 
@@ -389,6 +421,107 @@ func (server Server) listPartyLikeness(response http.ResponseWriter, request *ht
 	})
 }
 
+func (server Server) getPartyFocus(response http.ResponseWriter, request *http.Request) {
+	query := request.URL.Query()
+	jurisdiction := query.Get("jurisdiction")
+	if jurisdiction == "" {
+		jurisdiction = "nl-tweede-kamer"
+	}
+	partySourceID := query.Get("party")
+	if partySourceID == "" {
+		writeJSON(response, http.StatusBadRequest, map[string]string{"error": "missing_party"})
+		return
+	}
+
+	dateFrom, err := parseDate(query.Get("dateFrom"))
+	if err != nil {
+		writeJSON(response, http.StatusBadRequest, map[string]string{"error": "invalid_date_from"})
+		return
+	}
+	dateTo, err := parseDate(query.Get("dateTo"))
+	if err != nil {
+		writeJSON(response, http.StatusBadRequest, map[string]string{"error": "invalid_date_to"})
+		return
+	}
+	minCommon := clamp(parseInt(query.Get("minCommon"), 10), 1, 1000)
+	periodKey := query.Get("period")
+	if periodKey != "" {
+		period, err := analysis.LoadCabinetPeriod(request.Context(), server.Pool, jurisdiction, periodKey)
+		if err != nil {
+			if analysis.IsNotFound(err) {
+				writeJSON(response, http.StatusBadRequest, map[string]string{"error": "invalid_period"})
+				return
+			}
+			writeError(response, err)
+			return
+		}
+		dateFrom = &period.StartedOn
+		dateTo = period.EndedOn
+	}
+
+	focus, err := analysis.LoadPartyFocus(request.Context(), server.Pool, analysis.PartyFocusOptions{
+		Jurisdiction:  jurisdiction,
+		PartySourceID: partySourceID,
+		DateFrom:      dateFrom,
+		DateTo:        dateTo,
+		MinCommon:     minCommon,
+	})
+	if err != nil {
+		if analysis.IsNotFound(err) {
+			writeJSON(response, http.StatusNotFound, map[string]string{"error": "not_found"})
+			return
+		}
+		writeError(response, err)
+		return
+	}
+
+	categories := make([]map[string]any, 0, len(focus.Categories))
+	for _, category := range focus.Categories {
+		categories = append(categories, map[string]any{
+			"categoryKey":  category.CategoryKey,
+			"name":         category.Name,
+			"kind":         category.Kind,
+			"motionsVoted": category.MotionsVoted,
+			"votedFor":     category.VotedFor,
+			"votedAgainst": category.VotedAgainst,
+			"forShare":     category.ForShare,
+		})
+	}
+	likeness := make([]map[string]any, 0, len(focus.Likeness))
+	for _, row := range focus.Likeness {
+		likeness = append(likeness, map[string]any{
+			"partySourceId": row.Party2SourceID,
+			"partyName":     row.Party2Name,
+			"commonMotions": row.CommonMotions,
+			"sameVotes":     row.SameVotes,
+			"similarity":    row.Similarity,
+		})
+	}
+
+	writeJSON(response, http.StatusOK, map[string]any{
+		"party": map[string]any{
+			"partyKey":   focus.Party.PartyKey,
+			"sourceId":   focus.Party.SourceID,
+			"shortName":  focus.Party.ShortName,
+			"name":       focus.Party.Name,
+			"seats":      focus.Party.Seats,
+			"activeFrom": focus.Party.ActiveFrom,
+			"activeTo":   focus.Party.ActiveTo,
+		},
+		"totals": map[string]any{
+			"motionsVoted": focus.Totals.MotionsVoted,
+			"votedFor":     focus.Totals.VotedFor,
+			"votedAgainst": focus.Totals.VotedAgainst,
+		},
+		"categories": categories,
+		"likeness":   likeness,
+		"minCommon":  minCommon,
+		"period":     periodKey,
+		"dateFrom":   dateString(dateFrom),
+		"dateTo":     dateString(dateTo),
+	})
+}
+
 func (server Server) listVotingCompassMotions(response http.ResponseWriter, request *http.Request) {
 	query := request.URL.Query()
 	jurisdiction := query.Get("jurisdiction")
@@ -455,6 +588,108 @@ func (server Server) listVotingCompassMotions(response http.ResponseWriter, requ
 	})
 }
 
+func (server Server) createCompassSession(response http.ResponseWriter, request *http.Request) {
+	var input struct {
+		Jurisdiction string                   `json:"jurisdiction"`
+		Answers      []analysis.CompassAnswer `json:"answers"`
+		MinOverlap   int                      `json:"minOverlap"`
+	}
+	if err := json.NewDecoder(http.MaxBytesReader(response, request.Body, 64*1024)).Decode(&input); err != nil {
+		writeJSON(response, http.StatusBadRequest, map[string]string{"error": "invalid_json"})
+		return
+	}
+	if input.MinOverlap == 0 {
+		input.MinOverlap = 5
+	}
+	if err := analysis.ValidateCompassAnswers(input.Answers); err != nil {
+		writeJSON(response, http.StatusBadRequest, map[string]string{
+			"error":  "invalid_answers",
+			"detail": err.Error(),
+		})
+		return
+	}
+
+	sessionKey, err := analysis.SaveCompassSession(request.Context(), server.Pool, input.Jurisdiction, input.Answers, input.MinOverlap)
+	if err != nil {
+		writeError(response, err)
+		return
+	}
+
+	writeJSON(response, http.StatusCreated, map[string]any{
+		"sessionKey": sessionKey,
+		"url":        "/compass/results/" + sessionKey,
+	})
+}
+
+func (server Server) getCompassSession(response http.ResponseWriter, request *http.Request) {
+	sessionKey := request.PathValue("sessionKey")
+
+	session, err := analysis.LoadCompassSession(request.Context(), server.Pool, sessionKey)
+	if err != nil {
+		if analysis.IsNotFound(err) {
+			writeJSON(response, http.StatusNotFound, map[string]string{"error": "not_found"})
+			return
+		}
+		writeError(response, err)
+		return
+	}
+	results, err := analysis.ScoreCompassSession(request.Context(), server.Pool, session)
+	if err != nil {
+		writeError(response, err)
+		return
+	}
+
+	matches := make([]map[string]any, 0, len(results.Matches))
+	for _, match := range results.Matches {
+		matches = append(matches, compassMatchValue(match))
+	}
+	inconclusive := make([]map[string]any, 0, len(results.Inconclusive))
+	for _, match := range results.Inconclusive {
+		inconclusive = append(inconclusive, compassMatchValue(match))
+	}
+	motions := make([]map[string]any, 0, len(results.Motions))
+	for _, motion := range results.Motions {
+		positions := make([]map[string]any, 0, len(motion.Positions))
+		for _, position := range motion.Positions {
+			positions = append(positions, map[string]any{
+				"partySourceId":  position.PartySourceID,
+				"partyName":      position.PartyName,
+				"position":       position.Position,
+				"agreesWithUser": position.AgreesWithUser,
+			})
+		}
+		motions = append(motions, map[string]any{
+			"motionKey":  motion.Motion.MotionKey,
+			"number":     motion.Motion.Number,
+			"title":      motion.Motion.Title,
+			"subject":    motion.Motion.Subject,
+			"proposedAt": motion.Motion.ProposedAt,
+			"userAnswer": motion.UserAnswer,
+			"positions":  positions,
+		})
+	}
+
+	writeJSON(response, http.StatusOK, map[string]any{
+		"sessionKey":   session.SessionKey,
+		"createdAt":    session.CreatedAt,
+		"totalAnswers": len(session.Answers),
+		"threshold":    results.Threshold,
+		"matches":      matches,
+		"inconclusive": inconclusive,
+		"motions":      motions,
+	})
+}
+
+func compassMatchValue(match analysis.CompassMatch) map[string]any {
+	return map[string]any{
+		"partySourceId": match.PartySourceID,
+		"partyName":     match.PartyName,
+		"match":         match.Match,
+		"sameVotes":     match.SameVotes,
+		"overlap":       match.Overlap,
+	}
+}
+
 func (server Server) listMotions(response http.ResponseWriter, request *http.Request) {
 	ctx := request.Context()
 	query := request.URL.Query()
@@ -471,6 +706,7 @@ func (server Server) listMotions(response http.ResponseWriter, request *http.Req
 		searchPtr = &search
 	}
 	withVotes := query.Get("withVotes") == "true"
+	category := query.Get("category")
 
 	rows, err := server.Pool.Query(ctx, `
 		WITH subset AS (
@@ -499,6 +735,15 @@ func (server Server) listMotions(response http.ResponseWriter, request *http.Req
 			    OR m.subject ILIKE '%' || $2 || '%'
 			    OR m.number ILIKE '%' || $2 || '%'
 			  )
+			  AND (
+			    $6::text = ''
+			    OR EXISTS (
+			      SELECT 1
+			      FROM motion_categories mc
+			      WHERE mc.motion_key = m.motion_key
+			        AND mc.category_key = $6
+			    )
+			  )
 			GROUP BY m.motion_key
 			HAVING $5::boolean = false OR COALESCE(count(v.vote_key) FILTER (WHERE v.source_deleted = false), 0) > 0
 		)
@@ -507,7 +752,7 @@ func (server Server) listMotions(response http.ResponseWriter, request *http.Req
 		ORDER BY proposed_at DESC NULLS LAST, source_updated_at DESC NULLS LAST
 		LIMIT $3
 		OFFSET $4
-	`, jurisdiction, searchPtr, limit, offset, withVotes)
+	`, jurisdiction, searchPtr, limit, offset, withVotes, category)
 	if err != nil {
 		writeError(response, err)
 		return
@@ -587,7 +832,40 @@ func (server Server) getMotion(response http.ResponseWriter, request *http.Reque
 		return
 	}
 
-	writeJSON(response, http.StatusOK, motion.mapValue())
+	categoryRows, err := server.Pool.Query(request.Context(), `
+		SELECT c.category_key, c.name, c.kind
+		FROM motion_categories mc
+		JOIN categories c ON c.category_key = mc.category_key
+		WHERE mc.motion_key = $1
+		ORDER BY c.kind, c.name
+	`, motionKey)
+	if err != nil {
+		writeError(response, err)
+		return
+	}
+	defer categoryRows.Close()
+
+	categories := []map[string]any{}
+	for categoryRows.Next() {
+		var categoryKey, name, kind string
+		if err := categoryRows.Scan(&categoryKey, &name, &kind); err != nil {
+			writeError(response, err)
+			return
+		}
+		categories = append(categories, map[string]any{
+			"categoryKey": categoryKey,
+			"name":        name,
+			"kind":        kind,
+		})
+	}
+	if err := categoryRows.Err(); err != nil {
+		writeError(response, err)
+		return
+	}
+
+	value := motion.mapValue()
+	value["categories"] = categories
+	writeJSON(response, http.StatusOK, value)
 }
 
 func (server Server) getMotionPartyPositions(response http.ResponseWriter, request *http.Request) {

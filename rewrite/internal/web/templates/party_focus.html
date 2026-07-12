@@ -1,0 +1,125 @@
+{{ define "title" }}Party Focus - Partijgedrag{{ end }}
+{{ define "content" }}
+  <section class="section">
+    <div class="section-heading">
+      <h1>Party Focus</h1>
+      {{ if .Focus }}
+        <span class="muted">{{ .Focus.Totals.MotionsVoted }} motions with a clear position</span>
+      {{ end }}
+    </div>
+
+    <form class="filters" method="get" action="/party-focus">
+      <label>
+        Party
+        <select name="party">
+          <option value="">Choose a party</option>
+          {{ range .Parties }}
+            <option value="{{ .SourceID }}" {{ if eq $.Party .SourceID }}selected{{ end }}>{{ .ShortName }}{{ if .ActiveTo }} (inactive){{ end }}</option>
+          {{ end }}
+        </select>
+      </label>
+      <label>
+        Cabinet period
+        <select name="period">
+          <option value="">Custom dates</option>
+          {{ range .Periods }}
+            <option value="{{ .PeriodKey }}" {{ if eq $.Period .PeriodKey }}selected{{ end }}>{{ .Name }}</option>
+          {{ end }}
+        </select>
+      </label>
+      <label>
+        From
+        <input type="date" name="dateFrom" value="{{ .DateFrom }}">
+      </label>
+      <label>
+        To
+        <input type="date" name="dateTo" value="{{ .DateTo }}">
+      </label>
+      <label>
+        Minimum overlap
+        <input type="number" name="minCommon" value="{{ .MinCommon }}" min="1" max="1000">
+      </label>
+      <button type="submit">Show</button>
+    </form>
+  </section>
+
+  {{ if .Focus }}
+    {{ with .Focus }}
+      <section class="section">
+        <div class="section-heading">
+          <h2>{{ fallback .Party.Name .Party.ShortName }}</h2>
+          <span class="muted">
+            {{ if .Party.Seats }}{{ .Party.Seats }} seats{{ end }}
+            {{ if .Party.ActiveTo }}· inactive since {{ date .Party.ActiveTo }}{{ end }}
+          </span>
+        </div>
+        <dl class="detail-grid">
+          <div><dt>Motions with a clear position</dt><dd>{{ .Totals.MotionsVoted }}</dd></div>
+          <div><dt>Voted for</dt><dd>{{ .Totals.VotedFor }}</dd></div>
+          <div><dt>Voted against</dt><dd>{{ .Totals.VotedAgainst }}</dd></div>
+          <div><dt>Active from</dt><dd>{{ date .Party.ActiveFrom }}</dd></div>
+        </dl>
+      </section>
+
+      <section class="section">
+        <h2>Voting by category</h2>
+        <table>
+          <thead>
+            <tr>
+              <th>Category</th>
+              <th>Motions</th>
+              <th>For</th>
+              <th>Against</th>
+              <th>For share</th>
+            </tr>
+          </thead>
+          <tbody>
+            {{ range .Categories }}
+              <tr>
+                <td>
+                  <a class="tag tag-{{ .Kind }}" href="/motions?category={{ .CategoryKey }}">{{ .Name }}</a>
+                </td>
+                <td>{{ .MotionsVoted }}</td>
+                <td>{{ .VotedFor }}</td>
+                <td>{{ .VotedAgainst }}</td>
+                <td>{{ printf "%.1f%%" .ForShare }}</td>
+              </tr>
+            {{ else }}
+              <tr><td colspan="5">No categorized motions for this selection. Run categorization first.</td></tr>
+            {{ end }}
+          </tbody>
+        </table>
+      </section>
+
+      <section class="section">
+        <h2>Most similar parties</h2>
+        <table>
+          <thead>
+            <tr>
+              <th>Party</th>
+              <th>Similarity</th>
+              <th>Same</th>
+              <th>Overlap</th>
+            </tr>
+          </thead>
+          <tbody>
+            {{ range .Likeness }}
+              <tr>
+                <td>{{ .Party2Name }}</td>
+                <td>{{ printf "%.1f%%" .Similarity }}</td>
+                <td>{{ .SameVotes }}</td>
+                <td>{{ .CommonMotions }}</td>
+              </tr>
+            {{ else }}
+              <tr><td colspan="4">Not enough overlapping votes with other parties.</td></tr>
+            {{ end }}
+          </tbody>
+        </table>
+      </section>
+    {{ end }}
+  {{ else }}
+    <section class="section">
+      <p class="muted">Choose a party to see how it votes overall, per category, and which parties vote most alike.</p>
+    </section>
+  {{ end }}
+{{ end }}

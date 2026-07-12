@@ -391,6 +391,39 @@ dd {
   color: var(--accent);
 }
 
+.tags {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-top: 8px;
+}
+
+.tag {
+  background: var(--accent-soft);
+  border-radius: 999px;
+  color: var(--accent);
+  display: inline-block;
+  font-size: 12px;
+  font-weight: 700;
+  padding: 3px 10px;
+  text-decoration: none;
+}
+
+.tag-hot_topic {
+  background: #f8e5e1;
+  color: var(--bad);
+}
+
+.tag-agree {
+  background: #e5f4e8;
+  color: var(--good);
+}
+
+.tag-disagree {
+  background: #f8e5e1;
+  color: var(--bad);
+}
+
 @media (max-width: 720px) {
   .topbar {
     align-items: flex-start;

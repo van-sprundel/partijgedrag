@@ -59,6 +59,10 @@
           <tbody id="compass-inconclusive-results"></tbody>
         </table>
       </details>
+      <p>
+        <button type="button" id="compass-share" disabled>Save &amp; share results</button>
+        <span class="muted" id="compass-share-status"></span>
+      </p>
     </aside>
   </section>
 
@@ -137,8 +141,34 @@
         });
       };
 
+      const share = document.querySelector("#compass-share");
+      const shareStatus = document.querySelector("#compass-share-status");
+
+      share.addEventListener("click", async () => {
+        share.disabled = true;
+        shareStatus.textContent = "Saving…";
+        try {
+          const response = await fetch("/api/compass-sessions", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              answers: Array.from(answers, ([motionKey, answer]) => ({ motionKey, answer })),
+              minOverlap: Number(minOverlap.value || 5)
+            })
+          });
+          if (!response.ok) throw new Error("failed to save session");
+          const data = await response.json();
+          window.location.href = data.url;
+        } catch {
+          share.disabled = false;
+          shareStatus.textContent = "Could not save results.";
+        }
+      });
+
       const renderResults = () => {
         count.textContent = `${answers.size} answered`;
+        share.disabled = answers.size === 0;
+        shareStatus.textContent = "";
         const overlapThreshold = Math.max(1, Math.min(Number(minOverlap.value || 5), answers.size || 1));
         threshold.textContent = `Minimum overlap: ${overlapThreshold}`;
         const scores = new Map();

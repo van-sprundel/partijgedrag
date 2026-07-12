@@ -11,15 +11,16 @@ import (
 	"syscall"
 	"time"
 
-	"partijgedrag/rewrite/internal/categorize"
-	"partijgedrag/rewrite/internal/config"
-	"partijgedrag/rewrite/internal/db"
-	"partijgedrag/rewrite/internal/httpapi"
-	"partijgedrag/rewrite/internal/ingest"
-	"partijgedrag/rewrite/internal/inspect"
-	"partijgedrag/rewrite/internal/migrate"
-	"partijgedrag/rewrite/internal/source/tweedekamer"
-	"partijgedrag/rewrite/internal/status"
+	"partijgedrag/internal/categorize"
+	"partijgedrag/internal/config"
+	"partijgedrag/internal/db"
+	"partijgedrag/internal/httpapi"
+	"partijgedrag/internal/ingest"
+	"partijgedrag/internal/inspect"
+	"partijgedrag/internal/migrate"
+	"partijgedrag/internal/source/officielebekendmakingen"
+	"partijgedrag/internal/source/tweedekamer"
+	"partijgedrag/internal/status"
 )
 
 func main() {
@@ -185,6 +186,8 @@ func runIngest(ctx context.Context, cfg config.Config, database *db.DB, args []s
 		return runIngestMotions(ctx, cfg, database, args[2:])
 	case "motion-votes":
 		return runIngestMotionVotes(ctx, cfg, database, args[2:])
+	case "motion-documents":
+		return runIngestMotionDocuments(ctx, cfg, database, args[2:])
 	default:
 		return usage()
 	}
@@ -297,6 +300,36 @@ func runIngestMotionVotes(ctx context.Context, cfg config.Config, database *db.D
 	return job.Run(ctx)
 }
 
+func runIngestMotionDocuments(ctx context.Context, cfg config.Config, database *db.DB, args []string) error {
+	flags := flag.NewFlagSet("ingest tweedekamer motion-documents", flag.ContinueOnError)
+	flags.SetOutput(os.Stderr)
+	limit := flags.Int("limit", 25, "number of motions to sync documents for")
+	concurrency := flags.Int("concurrency", 4, "number of motions to sync in parallel")
+	resyncAfter := flags.Duration("resync-after", 0, "also resync motions whose documents were synced before this duration, e.g. 168h; 0 means only unsynced")
+	if err := flags.Parse(args); err != nil {
+		return err
+	}
+	if *limit <= 0 {
+		return fmt.Errorf("--limit must be greater than 0")
+	}
+	if *concurrency <= 0 {
+		return fmt.Errorf("--concurrency must be greater than 0")
+	}
+	if *resyncAfter < 0 {
+		return fmt.Errorf("--resync-after must be 0 or greater")
+	}
+
+	job := ingest.TweedeKamerMotionDocumentsIngest{
+		Pool:        database.Pool,
+		Client:      tweedekamer.NewClient(cfg.TweedeKamerODataBaseURL),
+		Documents:   officielebekendmakingen.NewClient(),
+		Limit:       *limit,
+		Concurrency: *concurrency,
+		ResyncAfter: *resyncAfter,
+	}
+	return job.Run(ctx)
+}
+
 func runSync(ctx context.Context, cfg config.Config, database *db.DB, args []string) error {
 	if len(args) == 0 || args[0] != "tweedekamer" {
 		return usage()
@@ -311,9 +344,13 @@ func runSync(ctx context.Context, cfg config.Config, database *db.DB, args []str
 	motionVoteLimit := flags.Int("motion-vote-limit", 100, "number of known motions to sync votes for")
 	motionVoteConcurrency := flags.Int("motion-vote-concurrency", 4, "number of motions to sync votes for in parallel")
 	motionVoteResyncAfter := flags.Duration("motion-vote-resync-after", 0, "also resync motions whose votes were synced before this duration, e.g. 168h; 0 means only unsynced")
+	motionDocumentLimit := flags.Int("motion-document-limit", 100, "number of known motions to sync documents for")
+	motionDocumentConcurrency := flags.Int("motion-document-concurrency", 4, "number of motions to sync documents for in parallel")
+	motionDocumentResyncAfter := flags.Duration("motion-document-resync-after", 0, "also resync motions whose documents were synced before this duration, e.g. 168h; 0 means only unsynced")
 	skipParties := flags.Bool("skip-parties", false, "skip party ingestion")
 	skipMotions := flags.Bool("skip-motions", false, "skip motion ingestion")
 	skipMotionVotes := flags.Bool("skip-motion-votes", false, "skip motion vote ingestion")
+	skipMotionDocuments := flags.Bool("skip-motion-documents", false, "skip motion document ingestion")
 	skipCategorize := flags.Bool("skip-categorize", false, "skip motion categorization")
 	if err := flags.Parse(args[1:]); err != nil {
 		return err
@@ -342,8 +379,17 @@ func runSync(ctx context.Context, cfg config.Config, database *db.DB, args []str
 	if *motionVoteResyncAfter < 0 {
 		return fmt.Errorf("--motion-vote-resync-after must be 0 or greater")
 	}
-	if *skipParties && *skipMotions && *skipMotionVotes && *skipCategorize {
-		return fmt.Errorf("sync has nothing to do when --skip-parties, --skip-motions, --skip-motion-votes, and --skip-categorize are set")
+	if *motionDocumentLimit <= 0 {
+		return fmt.Errorf("--motion-document-limit must be greater than 0")
+	}
+	if *motionDocumentConcurrency <= 0 {
+		return fmt.Errorf("--motion-document-concurrency must be greater than 0")
+	}
+	if *motionDocumentResyncAfter < 0 {
+		return fmt.Errorf("--motion-document-resync-after must be 0 or greater")
+	}
+	if *skipParties && *skipMotions && *skipMotionVotes && *skipMotionDocuments && *skipCategorize {
+		return fmt.Errorf("sync has nothing to do when --skip-parties, --skip-motions, --skip-motion-votes, --skip-motion-documents, and --skip-categorize are set")
 	}
 
 	client := tweedekamer.NewClient(cfg.TweedeKamerODataBaseURL)
@@ -385,6 +431,21 @@ func runSync(ctx context.Context, cfg config.Config, database *db.DB, args []str
 			Limit:       *motionVoteLimit,
 			Concurrency: *motionVoteConcurrency,
 			ResyncAfter: *motionVoteResyncAfter,
+		}
+		if err := job.Run(ctx); err != nil {
+			return err
+		}
+	}
+
+	if !*skipMotionDocuments {
+		fmt.Println("sync step=motion-documents")
+		job := ingest.TweedeKamerMotionDocumentsIngest{
+			Pool:        database.Pool,
+			Client:      client,
+			Documents:   officielebekendmakingen.NewClient(),
+			Limit:       *motionDocumentLimit,
+			Concurrency: *motionDocumentConcurrency,
+			ResyncAfter: *motionDocumentResyncAfter,
 		}
 		if err := job.Run(ctx); err != nil {
 			return err
@@ -569,7 +630,8 @@ func usage() error {
   partijgedrag ingest tweedekamer parties [--max-pages=N] [--batch-size=N] [--since=RFC3339] [--reset-cursor]
   partijgedrag ingest tweedekamer motions [--max-pages=N] [--batch-size=N] [--since=RFC3339] [--reset-cursor]
   partijgedrag ingest tweedekamer motion-votes [--limit=N] [--concurrency=N] [--resync-after=168h]
-  partijgedrag sync tweedekamer [--party-max-pages=N] [--party-batch-size=N] [--motion-max-pages=N] [--motion-batch-size=N] [--motion-vote-limit=N] [--motion-vote-concurrency=N] [--motion-vote-resync-after=168h] [--skip-parties] [--skip-motions] [--skip-motion-votes] [--skip-categorize]
+  partijgedrag ingest tweedekamer motion-documents [--limit=N] [--concurrency=N] [--resync-after=168h]
+  partijgedrag sync tweedekamer [--party-max-pages=N] [--party-batch-size=N] [--motion-max-pages=N] [--motion-batch-size=N] [--motion-vote-limit=N] [--motion-vote-concurrency=N] [--motion-vote-resync-after=168h] [--motion-document-limit=N] [--motion-document-concurrency=N] [--motion-document-resync-after=168h] [--skip-parties] [--skip-motions] [--skip-motion-votes] [--skip-motion-documents] [--skip-categorize]
   partijgedrag maintenance fail-stale-runs [--older-than=1h] [--limit=N] [--apply]
   partijgedrag maintenance categorize [--batch-size=N] [--max-motions=N] [--recategorize]
   partijgedrag status ingestion-runs [--limit=N] [--pipeline=NAME] [--failed]

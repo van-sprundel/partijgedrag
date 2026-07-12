@@ -8,7 +8,7 @@ func TestNewParsesTemplates(t *testing.T) {
 		t.Fatalf("New() returned error: %v", err)
 	}
 
-	for _, name := range []string{"home", "motions", "motion", "party_likeness", "coalition_analysis", "coalition_motions", "voting_compass", "data_quality"} {
+	for _, name := range []string{"home", "motions", "motion", "party_likeness", "party_focus", "coalition_analysis", "coalition_motions", "voting_compass", "compass_results", "data_quality"} {
 		if server.templates[name] == nil {
 			t.Fatalf("template %q was not parsed", name)
 		}
@@ -16,8 +16,8 @@ func TestNewParsesTemplates(t *testing.T) {
 }
 
 func TestMotionsURL(t *testing.T) {
-	got := motionsURL("zorg wonen", true, 50, 100)
-	want := "/motions?limit=50&offset=100&search=zorg+wonen&withVotes=true"
+	got := motionsURL("zorg wonen", true, "zorg-en-gezondheid", 50, 100)
+	want := "/motions?category=zorg-en-gezondheid&limit=50&offset=100&search=zorg+wonen&withVotes=true"
 	if got != want {
 		t.Fatalf("motionsURL() = %q, want %q", got, want)
 	}

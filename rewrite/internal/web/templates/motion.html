@@ -4,6 +4,13 @@
     <a class="back-link" href="/motions">Back to motions</a>
     <h1>{{ fallback .Motion.Title .Motion.Subject }}</h1>
     <p class="lead">{{ .Motion.Subject }}</p>
+    {{ if .Categories }}
+      <div class="tags">
+        {{ range .Categories }}
+          <a class="tag tag-{{ .Kind }}" href="/motions?category={{ .CategoryKey }}">{{ .Name }}</a>
+        {{ end }}
+      </div>
+    {{ end }}
     <dl class="detail-grid">
       <div><dt>Status</dt><dd>{{ .Motion.Status }}</dd></div>
       <div><dt>Proposed</dt><dd>{{ date .Motion.ProposedAt }}</dd></div>

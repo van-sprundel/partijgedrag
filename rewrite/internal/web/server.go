@@ -17,6 +17,7 @@ import (
 	"github.com/jackc/pgx/v5/pgxpool"
 
 	"partijgedrag/rewrite/internal/analysis"
+	"partijgedrag/rewrite/internal/categorize"
 	"partijgedrag/rewrite/internal/politics"
 	"partijgedrag/rewrite/internal/status"
 )
@@ -39,7 +40,7 @@ func MustNew(pool *pgxpool.Pool) Server {
 
 func New(pool *pgxpool.Pool) (Server, error) {
 	templates := make(map[string]*template.Template)
-	for _, name := range []string{"home", "motions", "motion", "party_likeness", "coalition_analysis", "coalition_motions", "voting_compass", "data_quality"} {
+	for _, name := range []string{"home", "motions", "motion", "party_likeness", "party_focus", "coalition_analysis", "coalition_motions", "voting_compass", "compass_results", "data_quality"} {
 		parsed, err := parseTemplate(name)
 		if err != nil {
 			return Server{}, err
@@ -57,9 +58,11 @@ func (server Server) Register(mux *http.ServeMux) {
 	mux.HandleFunc("GET /static/styles.css", server.styles)
 	mux.HandleFunc("GET /", server.home)
 	mux.HandleFunc("GET /party-likeness", server.partyLikeness)
+	mux.HandleFunc("GET /party-focus", server.partyFocus)
 	mux.HandleFunc("GET /coalition-analysis", server.coalitionAnalysis)
 	mux.HandleFunc("GET /coalition-analysis/motions", server.coalitionMotions)
 	mux.HandleFunc("GET /voting-compass", server.votingCompass)
+	mux.HandleFunc("GET /compass/results/{sessionKey}", server.compassResults)
 	mux.HandleFunc("GET /data-quality", server.dataQuality)
 	mux.HandleFunc("GET /motions", server.motions)
 	mux.HandleFunc("GET /motions/{motionKey}", server.motion)
@@ -124,11 +127,19 @@ func (server Server) motions(response http.ResponseWriter, request *http.Request
 	offset := max(parseInt(query.Get("offset"), 0), 0)
 	search := strings.TrimSpace(query.Get("search"))
 	withVotes := query.Get("withVotes") == "true"
+	category := query.Get("category")
+
+	categories, err := categorize.LoadCategories(request.Context(), server.Pool, "nl-tweede-kamer")
+	if err != nil {
+		writeError(response, err)
+		return
+	}
 
 	motions, total, err := loadMotions(request.Context(), server.Pool, motionListOptions{
 		Jurisdiction: "nl-tweede-kamer",
 		Search:       search,
 		WithVotes:    withVotes,
+		Category:     category,
 		Limit:        limit,
 		Offset:       offset,
 	})
@@ -138,18 +149,20 @@ func (server Server) motions(response http.ResponseWriter, request *http.Request
 	}
 
 	page := motionsPage{
-		Motions:   motions,
-		Total:     total,
-		Limit:     limit,
-		Offset:    offset,
-		Search:    search,
-		WithVotes: withVotes,
+		Motions:    motions,
+		Total:      total,
+		Limit:      limit,
+		Offset:     offset,
+		Search:     search,
+		WithVotes:  withVotes,
+		Category:   category,
+		Categories: categories,
 	}
 	if offset > 0 {
-		page.PrevURL = motionsURL(search, withVotes, limit, max(offset-limit, 0))
+		page.PrevURL = motionsURL(search, withVotes, category, limit, max(offset-limit, 0))
 	}
 	if offset+limit < total {
-		page.NextURL = motionsURL(search, withVotes, limit, offset+limit)
+		page.NextURL = motionsURL(search, withVotes, category, limit, offset+limit)
 	}
 
 	server.render(response, "motions", page)
@@ -177,11 +190,17 @@ func (server Server) motion(response http.ResponseWriter, request *http.Request)
 		writeError(response, err)
 		return
 	}
+	categories, err := loadMotionCategories(request.Context(), server.Pool, motionKey)
+	if err != nil {
+		writeError(response, err)
+		return
+	}
 
 	server.render(response, "motion", motionPage{
-		Motion:    motion,
-		Decisions: decisions,
-		Positions: positions,
+		Motion:     motion,
+		Decisions:  decisions,
+		Positions:  positions,
+		Categories: categories,
 	})
 }
 
@@ -240,6 +259,79 @@ func (server Server) partyLikeness(response http.ResponseWriter, request *http.R
 		DateTo:    query.Get("dateTo"),
 		MinCommon: minCommon,
 	})
+}
+
+func (server Server) partyFocus(response http.ResponseWriter, request *http.Request) {
+	query := request.URL.Query()
+	parties, err := analysis.LoadParties(request.Context(), server.Pool, analysis.PartyListOptions{
+		Jurisdiction: "nl-tweede-kamer",
+	})
+	if err != nil {
+		writeError(response, err)
+		return
+	}
+	periods, err := analysis.LoadCabinetPeriods(request.Context(), server.Pool, "nl-tweede-kamer")
+	if err != nil {
+		writeError(response, err)
+		return
+	}
+
+	dateFrom, err := parseDate(query.Get("dateFrom"))
+	if err != nil {
+		http.Error(response, "invalid dateFrom", http.StatusBadRequest)
+		return
+	}
+	dateTo, err := parseDate(query.Get("dateTo"))
+	if err != nil {
+		http.Error(response, "invalid dateTo", http.StatusBadRequest)
+		return
+	}
+	minCommon := clamp(parseInt(query.Get("minCommon"), 10), 1, 1000)
+	periodKey := query.Get("period")
+	if periodKey != "" {
+		period, err := analysis.LoadCabinetPeriod(request.Context(), server.Pool, "nl-tweede-kamer", periodKey)
+		if err != nil {
+			if analysis.IsNotFound(err) {
+				http.Error(response, "invalid period", http.StatusBadRequest)
+				return
+			}
+			writeError(response, err)
+			return
+		}
+		dateFrom = &period.StartedOn
+		dateTo = period.EndedOn
+	}
+
+	page := partyFocusPage{
+		Parties:   parties,
+		Periods:   periods,
+		Period:    periodKey,
+		Party:     query.Get("party"),
+		DateFrom:  query.Get("dateFrom"),
+		DateTo:    query.Get("dateTo"),
+		MinCommon: minCommon,
+	}
+
+	if page.Party != "" {
+		focus, err := analysis.LoadPartyFocus(request.Context(), server.Pool, analysis.PartyFocusOptions{
+			Jurisdiction:  "nl-tweede-kamer",
+			PartySourceID: page.Party,
+			DateFrom:      dateFrom,
+			DateTo:        dateTo,
+			MinCommon:     minCommon,
+		})
+		if err != nil {
+			if analysis.IsNotFound(err) {
+				http.NotFound(response, request)
+				return
+			}
+			writeError(response, err)
+			return
+		}
+		page.Focus = &focus
+	}
+
+	server.render(response, "party_focus", page)
 }
 
 func (server Server) coalitionAnalysis(response http.ResponseWriter, request *http.Request) {
@@ -338,6 +430,30 @@ func (server Server) votingCompass(response http.ResponseWriter, request *http.R
 
 	server.render(response, "voting_compass", votingCompassPage{
 		Periods: periods,
+	})
+}
+
+func (server Server) compassResults(response http.ResponseWriter, request *http.Request) {
+	sessionKey := request.PathValue("sessionKey")
+
+	session, err := analysis.LoadCompassSession(request.Context(), server.Pool, sessionKey)
+	if err != nil {
+		if analysis.IsNotFound(err) {
+			http.NotFound(response, request)
+			return
+		}
+		writeError(response, err)
+		return
+	}
+
+	results, err := analysis.ScoreCompassSession(request.Context(), server.Pool, session)
+	if err != nil {
+		writeError(response, err)
+		return
+	}
+
+	server.render(response, "compass_results", compassResultsPage{
+		Results: results,
 	})
 }
 
@@ -445,6 +561,15 @@ func loadMotions(ctx context.Context, pool *pgxpool.Pool, options motionListOpti
 			    OR m.subject ILIKE '%' || $2 || '%'
 			    OR m.number ILIKE '%' || $2 || '%'
 			  )
+			  AND (
+			    $6::text = ''
+			    OR EXISTS (
+			      SELECT 1
+			      FROM motion_categories mc
+			      WHERE mc.motion_key = m.motion_key
+			        AND mc.category_key = $6
+			    )
+			  )
 			GROUP BY m.motion_key
 			HAVING $5::boolean = false OR COALESCE(count(v.vote_key) FILTER (WHERE v.source_deleted = false), 0) > 0
 		)
@@ -453,7 +578,7 @@ func loadMotions(ctx context.Context, pool *pgxpool.Pool, options motionListOpti
 		ORDER BY proposed_at DESC NULLS LAST, source_updated_at DESC NULLS LAST
 		LIMIT $3
 		OFFSET $4
-	`, options.Jurisdiction, search, options.Limit, options.Offset, options.WithVotes)
+	`, options.Jurisdiction, search, options.Limit, options.Offset, options.WithVotes, options.Category)
 	if err != nil {
 		return nil, 0, err
 	}
@@ -586,6 +711,30 @@ func loadPartyPositions(ctx context.Context, pool *pgxpool.Pool, motionKey strin
 	return positions, rows.Err()
 }
 
+func loadMotionCategories(ctx context.Context, pool *pgxpool.Pool, motionKey string) ([]motionCategory, error) {
+	rows, err := pool.Query(ctx, `
+		SELECT c.category_key, c.name, c.kind
+		FROM motion_categories mc
+		JOIN categories c ON c.category_key = mc.category_key
+		WHERE mc.motion_key = $1
+		ORDER BY c.kind, c.name
+	`, motionKey)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	categories := []motionCategory{}
+	for rows.Next() {
+		var category motionCategory
+		if err := rows.Scan(&category.CategoryKey, &category.Name, &category.Kind); err != nil {
+			return nil, err
+		}
+		categories = append(categories, category)
+	}
+	return categories, rows.Err()
+}
+
 type scanner func(dest ...any) error
 
 func scanMotion(scan scanner, motion *motion) error {
@@ -614,20 +763,29 @@ type homePage struct {
 }
 
 type motionsPage struct {
-	Motions   []motion
-	Total     int
-	Limit     int
-	Offset    int
-	Search    string
-	WithVotes bool
-	PrevURL   string
-	NextURL   string
+	Motions    []motion
+	Total      int
+	Limit      int
+	Offset     int
+	Search     string
+	WithVotes  bool
+	Category   string
+	Categories []categorize.Category
+	PrevURL    string
+	NextURL    string
 }
 
 type motionPage struct {
-	Motion    motion
-	Decisions []decision
-	Positions []partyPosition
+	Motion     motion
+	Decisions  []decision
+	Positions  []partyPosition
+	Categories []motionCategory
+}
+
+type motionCategory struct {
+	CategoryKey string
+	Name        string
+	Kind        string
 }
 
 type partyLikenessPage struct {
@@ -639,6 +797,17 @@ type partyLikenessPage struct {
 	DateFrom  string
 	DateTo    string
 	MinCommon int
+}
+
+type partyFocusPage struct {
+	Parties   []analysis.Party
+	Periods   []analysis.CabinetPeriod
+	Period    string
+	Party     string
+	DateFrom  string
+	DateTo    string
+	MinCommon int
+	Focus     *analysis.PartyFocus
 }
 
 type coalitionAnalysisPage struct {
@@ -666,6 +835,10 @@ type coalitionMotionsPage struct {
 
 type votingCompassPage struct {
 	Periods []analysis.CabinetPeriod
+}
+
+type compassResultsPage struct {
+	Results analysis.CompassResults
 }
 
 type dataQualityPage struct {
@@ -702,6 +875,7 @@ type motionListOptions struct {
 	Jurisdiction string
 	Search       string
 	WithVotes    bool
+	Category     string
 	Limit        int
 	Offset       int
 }
@@ -744,13 +918,16 @@ type partyPosition struct {
 	TotalVotes    int
 }
 
-func motionsURL(search string, withVotes bool, limit int, offset int) string {
+func motionsURL(search string, withVotes bool, category string, limit int, offset int) string {
 	query := url.Values{}
 	if search != "" {
 		query.Set("search", search)
 	}
 	if withVotes {
 		query.Set("withVotes", "true")
+	}
+	if category != "" {
+		query.Set("category", category)
 	}
 	if limit != 25 {
 		query.Set("limit", strconv.Itoa(limit))

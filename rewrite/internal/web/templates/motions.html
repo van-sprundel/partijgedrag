@@ -8,6 +8,16 @@
 
     <form class="filters" method="get" action="/motions">
       <input type="search" name="search" value="{{ .Search }}" placeholder="Search motions">
+      <label>
+        Category
+        <select name="category">
+          <option value="">All categories</option>
+          {{ $selected := .Category }}
+          {{ range .Categories }}
+            <option value="{{ .CategoryKey }}" {{ if eq .CategoryKey $selected }}selected{{ end }}>{{ .Name }}{{ if eq .Kind "hot_topic" }} (hot topic){{ end }}</option>
+          {{ end }}
+        </select>
+      </label>
       <label class="checkbox">
         <input type="checkbox" name="withVotes" value="true" {{ if .WithVotes }}checked{{ end }}>
         With votes

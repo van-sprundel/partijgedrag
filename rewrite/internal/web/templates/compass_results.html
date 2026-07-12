@@ -1,0 +1,96 @@
+{{ define "title" }}Compass Results - Partijgedrag{{ end }}
+{{ define "content" }}
+  <section class="section">
+    <div class="section-heading">
+      <h1>Compass Results</h1>
+      <span class="muted">{{ len .Results.Session.Answers }} answers · {{ time .Results.Session.CreatedAt }}</span>
+    </div>
+    <p class="muted">
+      This page has a stable address — copy the link to share your results.
+      <button type="button" id="copy-link">Copy link</button>
+    </p>
+  </section>
+
+  <section class="section">
+    <h2>Matches</h2>
+    <p class="muted">Minimum overlap: {{ .Results.Threshold }}</p>
+    <table>
+      <thead>
+        <tr>
+          <th>Party</th>
+          <th>Match</th>
+          <th>Same</th>
+          <th>Overlap</th>
+        </tr>
+      </thead>
+      <tbody>
+        {{ range .Results.Matches }}
+          <tr>
+            <td>{{ .PartyName }}</td>
+            <td>{{ printf "%.1f%%" .Match }}</td>
+            <td>{{ .SameVotes }}</td>
+            <td>{{ .Overlap }}</td>
+          </tr>
+        {{ else }}
+          <tr><td colspan="4">No parties have enough overlap.</td></tr>
+        {{ end }}
+      </tbody>
+    </table>
+
+    {{ if .Results.Inconclusive }}
+      <details class="inconclusive">
+        <summary>Inconclusive</summary>
+        <table>
+          <thead>
+            <tr>
+              <th>Party</th>
+              <th>Same</th>
+              <th>Overlap</th>
+            </tr>
+          </thead>
+          <tbody>
+            {{ range .Results.Inconclusive }}
+              <tr>
+                <td>{{ .PartyName }}</td>
+                <td>{{ .SameVotes }}</td>
+                <td>{{ .Overlap }}</td>
+              </tr>
+            {{ end }}
+          </tbody>
+        </table>
+      </details>
+    {{ end }}
+  </section>
+
+  <section class="section">
+    <h2>Your answers</h2>
+    <div class="motion-list">
+      {{ range .Results.Motions }}
+        <article class="motion-row">
+          <div>
+            <a class="motion-title" href="/motions/{{ .Motion.MotionKey }}">{{ fallback .Motion.Title .Motion.Subject .Motion.MotionKey }}</a>
+            <p>
+              You answered
+              <span class="position position-{{ .UserAnswer }}">{{ .UserAnswer }}</span>
+            </p>
+            <div class="tags">
+              {{ $userAnswer := .UserAnswer }}
+              {{ range .Positions }}
+                <span class="tag {{ if .AgreesWithUser }}tag-agree{{ else }}tag-disagree{{ end }}" title="{{ .PartyName }}: {{ .Position }}">{{ .PartyName }}</span>
+              {{ else }}
+                <span class="muted">No clear party positions for this motion.</span>
+              {{ end }}
+            </div>
+          </div>
+        </article>
+      {{ end }}
+    </div>
+  </section>
+
+  <script>
+    document.querySelector("#copy-link").addEventListener("click", async () => {
+      await navigator.clipboard.writeText(window.location.href);
+      document.querySelector("#copy-link").textContent = "Copied";
+    });
+  </script>
+{{ end }}
