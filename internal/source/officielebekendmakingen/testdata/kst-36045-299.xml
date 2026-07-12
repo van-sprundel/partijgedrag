@@ -1,0 +1,42 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<officiele-publicatie xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:noNamespaceSchemaLocation="http://technische-documentatie.oep.overheid.nl/repository/schemas/op-consolidated/op-consolidated_2014-05-15/xsd/op-xsd-2014-05-15.xsd">
+  <metadata>
+    <meta name="OVERHEIDop.externMetadataRecord" scheme="" content="https://zoek.officielebekendmakingen.nl/kst-36045-299/metadata.xml" />
+  </metadata>
+  <kamerstuk>
+    <kamerstukkop>
+      <tekstregel inhoud="vergaderjaar">Vergaderjaar 2025-2026</tekstregel>
+      <tekstregel inhoud="kameraanduiding">Tweede Kamer der Staten-Generaal</tekstregel>
+      <tekstregel inhoud="kamernummer">2</tekstregel>
+      <tekstregel inhoud="documenttype">Kamerstukken</tekstregel>
+    </kamerstukkop>
+    <dossier>
+      <dossiernummer>
+        <dossiernr>36 045</dossiernr>
+      </dossiernummer>
+      <titel>Situatie in Oekraïne</titel>
+    </dossier>
+    <stuk>
+      <stuknr>Nr. <ondernummer kamer="2">299</ondernummer></stuknr>
+      <titel>MOTIE VAN DE LEDEN DASSEN EN PIRI</titel>
+      <datumtekst>Voorgesteld <datum isodatum="2026-07-02">2 juli 2026</datum></datumtekst>
+      <algemeen>
+        <vrije-tekst>
+          <tekst status="goed">
+            <al>De Kamer,</al>
+            <al>gehoord de beraadslaging,</al>
+            <al>constaterende dat het Matra-programma al decennialang bijdraagt aan de versterking van de democratische rechtsstaat, goed bestuur en maatschappelijke organisaties in (potentiële) kandidaat-lidstaten van de Europese Unie;</al>
+            <al>overwegende dat het versterken van democratie en rechtsstaat in de Europese buurlanden van strategisch belang is voor de veiligheid, stabiliteit en toekomstige uitbreiding van de Europese Unie;</al>
+            <al>overwegende dat er nog bezuinigingen ingepland staan op het Matra-fonds;</al>
+            <al>verzoekt de regering niet te bezuinigen op het Matra-fonds,</al>
+            <al>en gaat over tot de orde van de dag.</al>
+            <al-groep>
+              <al>Dassen</al>
+              <al>Piri</al>
+            </al-groep>
+          </tekst>
+        </vrije-tekst>
+      </algemeen>
+    </stuk>
+  </kamerstuk>
+</officiele-publicatie>

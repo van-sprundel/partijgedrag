@@ -1,0 +1,13 @@
+{
+  "Id": "30fa3782-d2b3-40a7-b1a4-ebeaa9da9d06",
+  "Agendapunt_Id": "0a25a2b0-40e0-41ff-b096-a87f6b2bb3f4",
+  "StemmingsSoort": "Hoofdelijk",
+  "BesluitSoort": "Stemming",
+  "BesluitTekst": "Aangenomen.",
+  "Opmerking": "Voorbeeldopmerking",
+  "Status": "Besluit genomen",
+  "AgendapuntZaakBesluitVolgorde": 2,
+  "GewijzigdOp": "2026-02-25T11:00:00Z",
+  "ApiGewijzigdOp": "2026-04-29T14:24:00Z",
+  "Verwijderd": false
+}
