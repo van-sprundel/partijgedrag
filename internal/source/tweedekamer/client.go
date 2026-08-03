@@ -266,10 +266,10 @@ type PartyLogo struct {
 	ContentType string
 }
 
-// FetchPartyLogo downloads a party logo. The endpoint's own Content-Type header
-// is unreliable — it announces image/jpeg while serving PNG bytes — so the type
-// is sniffed from the content and anything that is not an image is rejected
-// rather than stored and later handed to a browser.
+// FetchPartyLogo downloads a party logo. The endpoint's Content-Type header is
+// unreliable: it announces image/jpeg while serving PNG bytes. The type is
+// sniffed from the content. Anything that is not an image is rejected before it
+// reaches a browser.
 func (client *Client) FetchPartyLogo(ctx context.Context, partySourceID string) (PartyLogo, error) {
 	requestURL := fmt.Sprintf("%s/fractie/%s/resource", client.baseURL, url.PathEscape(partySourceID))
 
