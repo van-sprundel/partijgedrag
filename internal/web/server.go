@@ -831,7 +831,7 @@ func loadPartyPositions(ctx context.Context, pool *pgxpool.Pool, motionKey strin
 func loadRecentVotedMotions(ctx context.Context, pool *pgxpool.Pool, jurisdiction string, limit int) ([]votedMotion, error) {
 	rows, err := pool.Query(ctx, `
 		WITH recent AS (
-			SELECT motion_key, number, title, subject, proposed_at
+			SELECT motion_key, number, title, subject, proposed_at, source_updated_at
 			FROM motions
 			WHERE jurisdiction_key = $1
 			  AND source_deleted = false
@@ -843,7 +843,7 @@ func loadRecentVotedMotions(ctx context.Context, pool *pgxpool.Pool, jurisdictio
 			      AND v.mistake = false
 			      AND v.vote_type IN ('Voor', 'Tegen')
 			  )
-			ORDER BY proposed_at DESC NULLS LAST
+			ORDER BY proposed_at DESC NULLS LAST, source_updated_at DESC NULLS LAST, motion_key
 			LIMIT $2
 		)
 		SELECT m.motion_key,
@@ -858,8 +858,8 @@ func loadRecentVotedMotions(ctx context.Context, pool *pgxpool.Pool, jurisdictio
 		            AND v.source_deleted = false
 		            AND v.mistake = false
 		            AND v.vote_type IN ('Voor', 'Tegen')
-		GROUP BY m.motion_key, m.number, m.title, m.subject, m.proposed_at
-		ORDER BY m.proposed_at DESC NULLS LAST
+		GROUP BY m.motion_key, m.number, m.title, m.subject, m.proposed_at, m.source_updated_at
+		ORDER BY m.proposed_at DESC NULLS LAST, m.source_updated_at DESC NULLS LAST, m.motion_key
 	`, jurisdiction, limit)
 	if err != nil {
 		return nil, err
