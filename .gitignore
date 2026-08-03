@@ -1,4 +1,4 @@
 .old-postgres_data
 .DS_Store
 .env
-partijgedrag
+./partijgedrag

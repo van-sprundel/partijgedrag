@@ -23,11 +23,12 @@ const shutdownTimeout = 10 * time.Second
 
 type Server struct {
 	Pool *pgxpool.Pool
+	Dev  bool
 }
 
 func (server Server) Handler() http.Handler {
 	mux := http.NewServeMux()
-	web.MustNew(server.Pool).Register(mux)
+	web.MustNew(server.Pool, server.Dev).Register(mux)
 	mux.HandleFunc("GET /health", server.health)
 	mux.HandleFunc("GET /api/summary", server.summary)
 	mux.HandleFunc("GET /api/cabinet-periods", server.listCabinetPeriods)

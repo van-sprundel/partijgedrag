@@ -3,7 +3,7 @@ package web
 import "testing"
 
 func TestNewParsesTemplates(t *testing.T) {
-	server, err := New(nil)
+	server, err := New(nil, false)
 	if err != nil {
 		t.Fatalf("New() returned error: %v", err)
 	}

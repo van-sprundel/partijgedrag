@@ -9,6 +9,7 @@ import (
 	"io/fs"
 	"net/http"
 	"net/url"
+	"os"
 	"sort"
 	"strconv"
 	"strings"
@@ -24,25 +25,39 @@ import (
 )
 
 //go:embed templates/*.html static
-var files embed.FS
+var embedded embed.FS
+
+// diskRoot is where this package's templates and static files live on disk,
+// relative to the repo root. Dev mode serves from here instead of the
+// embedded copies, so edits show up on browser refresh without a rebuild.
+const diskRoot = "internal/web"
 
 type Server struct {
 	Pool      *pgxpool.Pool
 	templates map[string]*template.Template
+	dev       bool
 }
 
-func MustNew(pool *pgxpool.Pool) Server {
-	server, err := New(pool)
+func MustNew(pool *pgxpool.Pool, dev bool) Server {
+	server, err := New(pool, dev)
 	if err != nil {
 		panic(err)
 	}
 	return server
 }
 
-func New(pool *pgxpool.Pool) (Server, error) {
+func New(pool *pgxpool.Pool, dev bool) (Server, error) {
+	source := fs.FS(embedded)
+	if dev {
+		if _, err := os.Stat(diskRoot + "/templates"); err != nil {
+			return Server{}, fmt.Errorf("dev mode serves templates from ./%s, run from the repo root: %w", diskRoot, err)
+		}
+		source = os.DirFS(diskRoot)
+	}
+
 	templates := make(map[string]*template.Template)
 	for _, name := range []string{"home", "about", "motions", "motion", "party_likeness", "party_focus", "coalition_analysis", "coalition_motions", "voting_compass", "voting_compass_settings", "compass_results", "data_quality"} {
-		parsed, err := parseTemplate(name)
+		parsed, err := parseTemplate(source, name)
 		if err != nil {
 			return Server{}, err
 		}
@@ -52,15 +67,20 @@ func New(pool *pgxpool.Pool) (Server, error) {
 	return Server{
 		Pool:      pool,
 		templates: templates,
+		dev:       dev,
 	}, nil
 }
 
 func (server Server) Register(mux *http.ServeMux) {
-	staticFiles, err := fs.Sub(files, "static")
-	if err != nil {
-		panic(err)
+	if server.dev {
+		mux.Handle("GET /static/", http.StripPrefix("/static/", http.FileServer(http.Dir(diskRoot+"/static"))))
+	} else {
+		staticFiles, err := fs.Sub(embedded, "static")
+		if err != nil {
+			panic(err)
+		}
+		mux.Handle("GET /static/", http.StripPrefix("/static/", http.FileServerFS(staticFiles)))
 	}
-	mux.Handle("GET /static/", http.StripPrefix("/static/", http.FileServerFS(staticFiles)))
 	mux.HandleFunc("GET /", server.home)
 	mux.HandleFunc("GET /about", server.about)
 	mux.HandleFunc("GET /party-likeness", server.partyLikeness)
@@ -75,12 +95,12 @@ func (server Server) Register(mux *http.ServeMux) {
 	mux.HandleFunc("GET /motions/{motionKey}", server.motion)
 }
 
-func parseTemplate(name string) (*template.Template, error) {
-	base, err := files.ReadFile("templates/base.html")
+func parseTemplate(source fs.FS, name string) (*template.Template, error) {
+	base, err := fs.ReadFile(source, "templates/base.html")
 	if err != nil {
 		return nil, err
 	}
-	page, err := files.ReadFile("templates/" + name + ".html")
+	page, err := fs.ReadFile(source, "templates/"+name+".html")
 	if err != nil {
 		return nil, err
 	}
@@ -104,7 +124,7 @@ func (server Server) home(response http.ResponseWriter, request *http.Request) {
 		return
 	}
 
-	summary, err := status.LoadSummary(request.Context(), server.Pool)
+	summary, err := status.LoadSiteStats(request.Context(), server.Pool)
 	if err != nil {
 		writeError(response, err)
 		return
@@ -122,7 +142,7 @@ func (server Server) home(response http.ResponseWriter, request *http.Request) {
 }
 
 func (server Server) about(response http.ResponseWriter, request *http.Request) {
-	summary, err := status.LoadSummary(request.Context(), server.Pool)
+	summary, err := status.LoadSiteStats(request.Context(), server.Pool)
 	if err != nil {
 		writeError(response, err)
 		return
@@ -554,8 +574,18 @@ func (server Server) dataQuality(response http.ResponseWriter, request *http.Req
 }
 
 func (server Server) render(response http.ResponseWriter, name string, data any) {
+	tmpl := server.templates[name]
+	if server.dev {
+		parsed, err := parseTemplate(os.DirFS(diskRoot), name)
+		if err != nil {
+			http.Error(response, err.Error(), http.StatusInternalServerError)
+			return
+		}
+		tmpl = parsed
+	}
+
 	var buffer bytes.Buffer
-	if err := server.templates[name].ExecuteTemplate(&buffer, "base", data); err != nil {
+	if err := tmpl.ExecuteTemplate(&buffer, "base", data); err != nil {
 		writeError(response, err)
 		return
 	}
@@ -800,6 +830,22 @@ func loadPartyPositions(ctx context.Context, pool *pgxpool.Pool, motionKey strin
 
 func loadRecentVotedMotions(ctx context.Context, pool *pgxpool.Pool, jurisdiction string, limit int) ([]votedMotion, error) {
 	rows, err := pool.Query(ctx, `
+		WITH recent AS (
+			SELECT motion_key, number, title, subject, proposed_at
+			FROM motions
+			WHERE jurisdiction_key = $1
+			  AND source_deleted = false
+			  AND EXISTS (
+			    SELECT 1
+			    FROM votes v
+			    WHERE v.motion_key = motions.motion_key
+			      AND v.source_deleted = false
+			      AND v.mistake = false
+			      AND v.vote_type IN ('Voor', 'Tegen')
+			  )
+			ORDER BY proposed_at DESC NULLS LAST
+			LIMIT $2
+		)
 		SELECT m.motion_key,
 		       m.number,
 		       m.title,
@@ -807,16 +853,13 @@ func loadRecentVotedMotions(ctx context.Context, pool *pgxpool.Pool, jurisdictio
 		       m.proposed_at,
 		       COALESCE(SUM(CASE WHEN v.person_source_id IS NULL THEN COALESCE(v.party_size, 1) ELSE 1 END) FILTER (WHERE v.vote_type = 'Voor'), 0)::int AS votes_for,
 		       COALESCE(SUM(CASE WHEN v.person_source_id IS NULL THEN COALESCE(v.party_size, 1) ELSE 1 END) FILTER (WHERE v.vote_type = 'Tegen'), 0)::int AS votes_against
-		FROM motions m
+		FROM recent m
 		JOIN votes v ON v.motion_key = m.motion_key
 		            AND v.source_deleted = false
 		            AND v.mistake = false
 		            AND v.vote_type IN ('Voor', 'Tegen')
-		WHERE m.jurisdiction_key = $1
-		  AND m.source_deleted = false
-		GROUP BY m.motion_key
+		GROUP BY m.motion_key, m.number, m.title, m.subject, m.proposed_at
 		ORDER BY m.proposed_at DESC NULLS LAST
-		LIMIT $2
 	`, jurisdiction, limit)
 	if err != nil {
 		return nil, err
@@ -883,12 +926,12 @@ func scanMotion(scan scanner, motion *motion) error {
 }
 
 type homePage struct {
-	Summary status.Summary
+	Summary status.SiteStats
 	Recent  []votedMotion
 }
 
 type aboutPage struct {
-	Summary     status.Summary
+	Summary     status.SiteStats
 	FirstMotion *time.Time
 	LastMotion  *time.Time
 }
