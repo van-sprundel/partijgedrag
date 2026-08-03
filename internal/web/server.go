@@ -645,7 +645,18 @@ func loadMotions(ctx context.Context, pool *pgxpool.Pool, options motionListOpti
 			LIMIT $3
 			OFFSET $4
 		)
-		SELECT p.*,
+		SELECT p.motion_key,
+		       p.source_id,
+		       p.number,
+		       p.title,
+		       p.subject,
+		       p.status,
+		       p.kind,
+		       p.parliamentary_year,
+		       p.proposed_at,
+		       p.source_updated_at,
+		       p.source_deleted,
+		       p.votes_synced_at,
 		       (SELECT count(*)::int
 		          FROM decisions d
 		         WHERE d.motion_key = p.motion_key AND d.source_deleted = false) AS decision_count,
@@ -657,7 +668,8 @@ func loadMotions(ctx context.Context, pool *pgxpool.Pool, options motionListOpti
 		         WHERE v.motion_key = p.motion_key AND v.source_deleted = false AND v.mistake = false AND v.vote_type = 'Voor') AS votes_for,
 		       (SELECT COALESCE(SUM(CASE WHEN v.person_source_id IS NULL THEN COALESCE(v.party_size, 1) ELSE 1 END), 0)::int
 		          FROM votes v
-		         WHERE v.motion_key = p.motion_key AND v.source_deleted = false AND v.mistake = false AND v.vote_type = 'Tegen') AS votes_against
+		         WHERE v.motion_key = p.motion_key AND v.source_deleted = false AND v.mistake = false AND v.vote_type = 'Tegen') AS votes_against,
+		       p.total
 		FROM paged p
 		ORDER BY p.proposed_at DESC NULLS LAST, p.source_updated_at DESC NULLS LAST
 	`, options.Jurisdiction, search, options.Limit, options.Offset, options.WithVotes, options.Category)
