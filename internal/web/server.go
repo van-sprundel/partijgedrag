@@ -263,33 +263,17 @@ func (server Server) partyLikeness(response http.ResponseWriter, request *http.R
 		return
 	}
 
-	dateFrom, err := parseDate(query.Get("dateFrom"))
-	if err != nil {
-		http.Error(response, "invalid dateFrom", http.StatusBadRequest)
-		return
-	}
-	dateTo, err := parseDate(query.Get("dateTo"))
-	if err != nil {
-		http.Error(response, "invalid dateTo", http.StatusBadRequest)
-		return
-	}
 	minCommon := clamp(parseInt(query.Get("minCommon"), 10), 1, 1000)
-	periodKey := query.Get("period")
-	if periodKey != "custom" {
-		period, err := selectedCabinetPeriod(periods, periodKey)
-		if err != nil {
-			http.Error(response, "invalid period", http.StatusBadRequest)
-			return
-		}
-		periodKey = period.PeriodKey
-		dateFrom = &period.StartedOn
-		dateTo = period.EndedOn
+	period, err := selectedCabinetPeriod(periods, query.Get("period"))
+	if err != nil {
+		http.Error(response, "invalid period", http.StatusBadRequest)
+		return
 	}
 
 	rows, err := analysis.LoadPartyLikeness(request.Context(), server.Pool, analysis.PartyLikenessOptions{
 		Jurisdiction: "nl-tweede-kamer",
-		DateFrom:     dateFrom,
-		DateTo:       dateTo,
+		DateFrom:     &period.StartedOn,
+		DateTo:       period.EndedOn,
 		MinCommon:    minCommon,
 	})
 	if err != nil {
@@ -308,9 +292,7 @@ func (server Server) partyLikeness(response http.ResponseWriter, request *http.R
 		TopRows:   topRows,
 		Matrix:    likenessMatrix(rows),
 		Periods:   periods,
-		Period:    periodKey,
-		DateFrom:  query.Get("dateFrom"),
-		DateTo:    query.Get("dateTo"),
+		Period:    period.PeriodKey,
 		MinCommon: minCommon,
 	})
 }
@@ -330,36 +312,18 @@ func (server Server) partyFocus(response http.ResponseWriter, request *http.Requ
 		return
 	}
 
-	dateFrom, err := parseDate(query.Get("dateFrom"))
-	if err != nil {
-		http.Error(response, "invalid dateFrom", http.StatusBadRequest)
-		return
-	}
-	dateTo, err := parseDate(query.Get("dateTo"))
-	if err != nil {
-		http.Error(response, "invalid dateTo", http.StatusBadRequest)
-		return
-	}
 	minCommon := clamp(parseInt(query.Get("minCommon"), 10), 1, 1000)
-	periodKey := query.Get("period")
-	if periodKey != "custom" {
-		period, err := selectedCabinetPeriod(periods, periodKey)
-		if err != nil {
-			http.Error(response, "invalid period", http.StatusBadRequest)
-			return
-		}
-		periodKey = period.PeriodKey
-		dateFrom = &period.StartedOn
-		dateTo = period.EndedOn
+	period, err := selectedCabinetPeriod(periods, query.Get("period"))
+	if err != nil {
+		http.Error(response, "invalid period", http.StatusBadRequest)
+		return
 	}
 
 	page := partyFocusPage{
 		Parties:   parties,
 		Periods:   periods,
-		Period:    periodKey,
+		Period:    period.PeriodKey,
 		Party:     query.Get("party"),
-		DateFrom:  query.Get("dateFrom"),
-		DateTo:    query.Get("dateTo"),
 		MinCommon: minCommon,
 	}
 
@@ -367,8 +331,8 @@ func (server Server) partyFocus(response http.ResponseWriter, request *http.Requ
 		focus, err := analysis.LoadPartyFocus(request.Context(), server.Pool, analysis.PartyFocusOptions{
 			Jurisdiction:  "nl-tweede-kamer",
 			PartySourceID: page.Party,
-			DateFrom:      dateFrom,
-			DateTo:        dateTo,
+			DateFrom:      &period.StartedOn,
+			DateTo:        period.EndedOn,
 			MinCommon:     minCommon,
 		})
 		if err != nil {
@@ -984,8 +948,6 @@ type partyLikenessPage struct {
 	Matrix    map[string]map[string]analysis.PartyLikeness
 	Periods   []analysis.CabinetPeriod
 	Period    string
-	DateFrom  string
-	DateTo    string
 	MinCommon int
 }
 
@@ -994,8 +956,6 @@ type partyFocusPage struct {
 	Periods   []analysis.CabinetPeriod
 	Period    string
 	Party     string
-	DateFrom  string
-	DateTo    string
 	MinCommon int
 	Focus     *analysis.PartyFocus
 }
@@ -1355,17 +1315,6 @@ func ceilDiv(numerator int64, denominator int64) int64 {
 		return 0
 	}
 	return (numerator + denominator - 1) / denominator
-}
-
-func parseDate(value string) (*time.Time, error) {
-	if value == "" {
-		return nil, nil
-	}
-	parsed, err := time.Parse("2006-01-02", value)
-	if err != nil {
-		return nil, err
-	}
-	return &parsed, nil
 }
 
 func writeError(response http.ResponseWriter, err error) {

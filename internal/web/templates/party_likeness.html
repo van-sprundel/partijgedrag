@@ -11,19 +11,10 @@
       <label>
         Kabinetsperiode
         <select name="period">
-          <option value="custom" {{ if eq $.Period "custom" }}selected{{ end }}>Eigen datums</option>
           {{ range .Periods }}
             <option value="{{ .PeriodKey }}" {{ if eq $.Period .PeriodKey }}selected{{ end }}>{{ .Name }}</option>
           {{ end }}
         </select>
-      </label>
-      <label>
-        Vanaf
-        <input type="date" name="dateFrom" value="{{ .DateFrom }}">
-      </label>
-      <label>
-        Tot
-        <input type="date" name="dateTo" value="{{ .DateTo }}">
       </label>
       <label>
         Min. gedeelde moties
