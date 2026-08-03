@@ -14,47 +14,49 @@
 
   <section class="section">
     <h2>Uw matches</h2>
-    <p class="muted mono">Min. overlap: {{ .Results.Threshold }}</p>
-    <table>
+    <p class="compass-threshold">Alleen partijen die over minstens {{ .Results.Threshold }} van uw stellingen meestemden.</p>
+    <table class="match-table">
       <thead>
         <tr>
           <th>Partij</th>
           <th class="num">Match</th>
-          <th class="num">Gelijk</th>
-          <th class="num">Overlap</th>
+          <th class="num">Zelfde</th>
         </tr>
       </thead>
       <tbody>
         {{ range .Results.Matches }}
           <tr>
             <td>{{ .PartyName }}</td>
-            <td class="num">{{ printf "%.1f%%" .Match }}</td>
-            <td class="num">{{ .SameVotes }}</td>
-            <td class="num">{{ .Overlap }}</td>
+            <td class="num">
+              <span class="match">
+                <span class="match-track"><span style="width: {{ printf "%.1f%%" .Match }}"></span></span>
+                {{ printf "%.0f%%" .Match }}
+              </span>
+            </td>
+            <td class="num muted" title="{{ .SameVotes }} van {{ .Overlap }} gedeelde stellingen">{{ .SameVotes }}/{{ .Overlap }}</td>
           </tr>
         {{ else }}
-          <tr><td colspan="4">Geen partijen met genoeg overlap.</td></tr>
+          <tr><td colspan="3">Geen partijen die genoeg van uw stellingen meestemden.</td></tr>
         {{ end }}
       </tbody>
     </table>
 
     {{ if .Results.Inconclusive }}
       <details class="inconclusive">
-        <summary>Te weinig overlap</summary>
-        <table>
+        <summary>Te weinig gedeelde stellingen</summary>
+        <p class="hint">Deze partijen zaten niet in de Kamer bij genoeg van uw stellingen om ze eerlijk te vergelijken.</p>
+        <table class="match-table">
           <thead>
             <tr>
               <th>Partij</th>
-              <th class="num">Gelijk</th>
-              <th class="num">Overlap</th>
+              <th class="num">Zelfde</th>
             </tr>
           </thead>
           <tbody>
             {{ range .Results.Inconclusive }}
               <tr>
                 <td>{{ .PartyName }}</td>
-                <td class="num">{{ .SameVotes }}</td>
-                <td class="num">{{ .Overlap }}</td>
+                <td class="num muted" title="{{ .SameVotes }} van {{ .Overlap }} gedeelde stellingen">{{ .SameVotes }}/{{ .Overlap }}</td>
               </tr>
             {{ end }}
           </tbody>

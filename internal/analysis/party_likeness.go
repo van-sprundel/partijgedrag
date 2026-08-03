@@ -80,6 +80,36 @@ func LoadParties(ctx context.Context, pool *pgxpool.Pool, options PartyListOptio
 	return parties, rows.Err()
 }
 
+// LoadPartyLogoAvailability reports which parties have a logo on file, keyed by
+// source id. Pages that label a party use it to choose between the icon and a
+// text fallback without pulling the image bytes into the page query.
+func LoadPartyLogoAvailability(ctx context.Context, pool *pgxpool.Pool, jurisdiction string) (map[string]bool, error) {
+	if jurisdiction == "" {
+		jurisdiction = "nl-tweede-kamer"
+	}
+
+	rows, err := pool.Query(ctx, `
+		SELECT source_id
+		FROM parties
+		WHERE jurisdiction_key = $1
+		  AND logo_data IS NOT NULL
+	`, jurisdiction)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	available := map[string]bool{}
+	for rows.Next() {
+		var sourceID string
+		if err := rows.Scan(&sourceID); err != nil {
+			return nil, err
+		}
+		available[sourceID] = true
+	}
+	return available, rows.Err()
+}
+
 func LoadPartyLikeness(ctx context.Context, pool *pgxpool.Pool, options PartyLikenessOptions) ([]PartyLikeness, error) {
 	jurisdiction := options.Jurisdiction
 	if jurisdiction == "" {

@@ -5,7 +5,7 @@
       <h1>Partijgelijkenis</h1>
       <span class="muted mono">{{ len .Rows }} paren</span>
     </div>
-    <p class="lead">Hoe vaak stemden twee partijen hetzelfde over dezelfde moties? Hoe donkerder de cel, hoe gelijker het stemgedrag.</p>
+    <p class="lead">Hoe vaak stemden twee partijen hetzelfde over dezelfde moties? Hoe donkerder de cel, hoe gelijker het stemgedrag. De kolommen staan in dezelfde volgorde als de rijen; wijs een logo aan om de partijnaam te zien.</p>
 
     <form class="filters" method="get" action="/party-likeness">
       <label>
@@ -30,9 +30,15 @@
       <table class="matrix">
         <thead>
           <tr>
-            <th></th>
+            <th><span class="visually-hidden">Partij</span></th>
             {{ range .Parties }}
-              <th title="{{ .ShortName }}">{{ .ShortName }}</th>
+              <th scope="col">
+                {{ if .HasLogo }}
+                  <img class="party-mark" src="/parties/{{ .SourceID }}/logo" width="24" height="24" alt="{{ .ShortName }}" title="{{ .ShortName }}" loading="lazy">
+                {{ else }}
+                  <span class="party-mark party-mark-text" title="{{ .ShortName }}" aria-label="{{ .ShortName }}">{{ .Monogram }}</span>
+                {{ end }}
+              </th>
             {{ end }}
           </tr>
         </thead>
@@ -40,7 +46,16 @@
           {{ range .Parties }}
             {{$row := .}}
             <tr>
-              <th title="{{ .ShortName }}">{{ .ShortName }}</th>
+              <th scope="row">
+                <span class="party-label">
+                  {{ if .HasLogo }}
+                    <img class="party-mark" src="/parties/{{ .SourceID }}/logo" width="24" height="24" alt="" loading="lazy">
+                  {{ else }}
+                    <span class="party-mark party-mark-text" aria-hidden="true">{{ .Monogram }}</span>
+                  {{ end }}
+                  {{ .ShortName }}
+                </span>
+              </th>
               {{ range $.Parties }}
                 <td style="{{ tint $.Matrix $row.SourceID .SourceID }}">{{ likeness $.Matrix $row.SourceID .SourceID }}</td>
               {{ end }}
@@ -71,8 +86,18 @@
       <tbody>
         {{ range .TopRows }}
           <tr>
-            <td>{{ .Party1Name }}</td>
-            <td>{{ .Party2Name }}</td>
+            <td>
+              <span class="party-label">
+                {{ if index $.Logos .Party1SourceID }}<img class="party-mark" src="/parties/{{ .Party1SourceID }}/logo" width="24" height="24" alt="" loading="lazy">{{ end }}
+                {{ .Party1Name }}
+              </span>
+            </td>
+            <td>
+              <span class="party-label">
+                {{ if index $.Logos .Party2SourceID }}<img class="party-mark" src="/parties/{{ .Party2SourceID }}/logo" width="24" height="24" alt="" loading="lazy">{{ end }}
+                {{ .Party2Name }}
+              </span>
+            </td>
             <td class="num">{{ printf "%.1f%%" .Similarity }}</td>
             <td class="num">{{ .SameVotes }}</td>
             <td class="num">{{ .CommonMotions }}</td>

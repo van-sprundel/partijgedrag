@@ -3,6 +3,7 @@ package tweedekamer
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"net/http"
@@ -75,19 +76,28 @@ type MotionRecord struct {
 }
 
 type PartyRecord struct {
-	ID             string  `json:"Id"`
-	Nummer         *int    `json:"Nummer"`
-	Afkorting      *string `json:"Afkorting"`
-	NaamNL         *string `json:"NaamNL"`
-	NaamEN         *string `json:"NaamEN"`
-	AantalZetels   *int    `json:"AantalZetels"`
-	AantalStemmen  *int    `json:"AantalStemmen"`
-	DatumActief    *Time   `json:"DatumActief"`
-	DatumInactief  *Time   `json:"DatumInactief"`
+	ID            string  `json:"Id"`
+	Nummer        *int    `json:"Nummer"`
+	Afkorting     *string `json:"Afkorting"`
+	NaamNL        *string `json:"NaamNL"`
+	NaamEN        *string `json:"NaamEN"`
+	AantalZetels  *int    `json:"AantalZetels"`
+	AantalStemmen *int    `json:"AantalStemmen"`
+	DatumActief   *Time   `json:"DatumActief"`
+	DatumInactief *Time   `json:"DatumInactief"`
+	// ContentType/ContentLength describe the party logo the API keeps as a
+	// separate resource. They are the only way to tell, without fetching, that a
+	// party has a logo at all: most historical fracties have none.
+	ContentType    *string `json:"ContentType"`
+	ContentLength  *int64  `json:"ContentLength"`
 	GewijzigdOp    *Time   `json:"GewijzigdOp"`
 	ApiGewijzigdOp *Time   `json:"ApiGewijzigdOp"`
 	Verwijderd     *bool   `json:"Verwijderd"`
 	Raw            json.RawMessage
+}
+
+func (record PartyRecord) HasLogo() bool {
+	return record.ContentType != nil && strings.TrimSpace(*record.ContentType) != ""
 }
 
 func (record *PartyRecord) UnmarshalJSON(data []byte) error {
@@ -242,6 +252,80 @@ func (client *Client) FetchChangedParties(ctx context.Context, since time.Time, 
 	}, nil
 }
 
+// maxLogoBytes caps what we accept for a party logo. The largest logo the API
+// currently serves is ~160 KB; anything far beyond that is not an icon and has
+// no business being stored inline in the parties table.
+const maxLogoBytes = 2 << 20
+
+// ErrNoLogo means the party has no logo resource. It is an expected outcome for
+// most historical fracties, not a failure.
+var ErrNoLogo = errors.New("party has no logo resource")
+
+type PartyLogo struct {
+	Data        []byte
+	ContentType string
+}
+
+// FetchPartyLogo downloads a party logo. The endpoint's own Content-Type header
+// is unreliable — it announces image/jpeg while serving PNG bytes — so the type
+// is sniffed from the content and anything that is not an image is rejected
+// rather than stored and later handed to a browser.
+func (client *Client) FetchPartyLogo(ctx context.Context, partySourceID string) (PartyLogo, error) {
+	requestURL := fmt.Sprintf("%s/fractie/%s/resource", client.baseURL, url.PathEscape(partySourceID))
+
+	request, err := http.NewRequestWithContext(ctx, http.MethodGet, requestURL, nil)
+	if err != nil {
+		return PartyLogo{}, err
+	}
+	request.Header.Set("Accept", "image/*")
+	request.Header.Set("User-Agent", "partijgedrag-rewrite/0.1")
+
+	response, err := client.httpClient.Do(request)
+	if err != nil {
+		return PartyLogo{}, err
+	}
+	defer response.Body.Close()
+
+	if response.StatusCode == http.StatusNotFound {
+		return PartyLogo{}, ErrNoLogo
+	}
+	if response.StatusCode != http.StatusOK {
+		body, _ := io.ReadAll(io.LimitReader(response.Body, 2048))
+		return PartyLogo{}, fmt.Errorf("tweede kamer logo returned %d for %s: %s", response.StatusCode, requestURL, strings.TrimSpace(string(body)))
+	}
+
+	data, err := io.ReadAll(io.LimitReader(response.Body, maxLogoBytes+1))
+	if err != nil {
+		return PartyLogo{}, err
+	}
+	if len(data) == 0 {
+		return PartyLogo{}, ErrNoLogo
+	}
+	if len(data) > maxLogoBytes {
+		return PartyLogo{}, fmt.Errorf("party logo %s exceeds %d bytes", partySourceID, maxLogoBytes)
+	}
+
+	contentType := sniffImageType(data)
+	if contentType == "" {
+		return PartyLogo{}, fmt.Errorf("party logo %s is not an image", partySourceID)
+	}
+
+	return PartyLogo{Data: data, ContentType: contentType}, nil
+}
+
+func sniffImageType(data []byte) string {
+	detected := http.DetectContentType(data)
+	if index := strings.IndexByte(detected, ';'); index >= 0 {
+		detected = strings.TrimSpace(detected[:index])
+	}
+	switch detected {
+	case "image/png", "image/jpeg", "image/gif", "image/webp":
+		return detected
+	default:
+		return ""
+	}
+}
+
 func (client *Client) FetchMotionDecisions(ctx context.Context, motionSourceID string) ([]DecisionRecord, error) {
 	requestURL := client.motionDecisionsURL(motionSourceID)
 	var records []DecisionRecord
@@ -345,6 +429,8 @@ func (client *Client) changedPartiesURL(since time.Time, top int, skip int) stri
 		"AantalStemmen",
 		"DatumActief",
 		"DatumInactief",
+		"ContentType",
+		"ContentLength",
 		"GewijzigdOp",
 		"ApiGewijzigdOp",
 		"Verwijderd",

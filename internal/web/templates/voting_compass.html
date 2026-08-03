@@ -20,38 +20,37 @@
     </div>
     <aside class="compass-results">
       <h2>Uw matches</h2>
-      <p class="muted mono" id="compass-threshold">Min. overlap: 5</p>
-      <table>
+      <p class="compass-threshold" id="compass-threshold"></p>
+      <table class="match-table">
         <thead>
           <tr>
             <th>Partij</th>
             <th class="num">Match</th>
-            <th class="num">Gelijk</th>
-            <th class="num">Overlap</th>
+            <th class="num">Zelfde</th>
           </tr>
         </thead>
         <tbody id="compass-results">
-          <tr><td colspan="4">Nog geen antwoorden.</td></tr>
+          <tr><td colspan="3">Nog geen antwoorden.</td></tr>
         </tbody>
       </table>
       <details class="inconclusive" id="compass-inconclusive" hidden>
-        <summary>Te weinig overlap</summary>
-        <table>
+        <summary>Te weinig gedeelde stellingen</summary>
+        <p class="hint">Deze partijen zaten niet in de Kamer bij genoeg van uw stellingen om ze eerlijk te vergelijken.</p>
+        <table class="match-table">
           <thead>
             <tr>
               <th>Partij</th>
-              <th class="num">Gelijk</th>
-              <th class="num">Overlap</th>
+              <th class="num">Zelfde</th>
             </tr>
           </thead>
           <tbody id="compass-inconclusive-results"></tbody>
         </table>
       </details>
-      <p>
+      <div class="compass-actions-stack">
         <button type="button" class="btn" id="compass-share" disabled>Bewaar &amp; deel resultaat</button>
-        <span class="muted" id="compass-share-status"></span>
-      </p>
-      <p><button type="button" class="btn btn-secondary" id="compass-reset">Opnieuw beginnen</button></p>
+        <p class="muted" id="compass-share-status"></p>
+        <button type="button" class="btn btn-secondary" id="compass-reset">Opnieuw beginnen</button>
+      </div>
     </aside>
   </section>
 
@@ -215,8 +214,10 @@
         motionsNode.innerHTML = `
           <article class="compass-motion" data-motion-key="${escapeHTML(motion.motionKey)}">
             <div class="compass-question">
-              <p class="eyebrow">Stelling ${current + 1} van ${motions.length}${motion.title ? ` · ${escapeHTML(motion.title)}` : ""}</p>
+              <p class="eyebrow">Stelling ${current + 1} van ${motions.length}</p>
               <h2><a href="/motions/${encodeURIComponent(motion.motionKey)}" target="_blank" rel="noopener">${escapeHTML(formatTitle(motion.subject) || label(motion.title) || motion.motionKey)}</a></h2>
+              ${motion.title ? `<p class="compass-topic">${escapeHTML(motion.title)}</p>` : ""}
+              <p class="compass-ask-label">Letterlijk in de motie</p>
               <ul class="compass-bullets">
                 ${shownBullets.map((bullet) => `<li>${escapeHTML(bullet)}</li>`).join("")}
               </ul>
@@ -324,7 +325,7 @@
           ? `Nog ${requiredAnswers - answers.size} antwoorden nodig.`
           : "";
         const overlapThreshold = Math.max(1, Math.min(profile.minOverlap, answers.size || 1));
-        threshold.textContent = `Min. overlap: ${overlapThreshold}`;
+        threshold.textContent = `Alleen partijen die over minstens ${overlapThreshold} van uw stellingen meestemden.`;
         const scores = new Map();
         for (const motion of motions) {
           const answer = answers.get(motion.motionKey);
@@ -351,17 +352,28 @@
           .sort((a, b) => b.overlap - a.overlap || a.party.localeCompare(b.party));
 
         if (rows.length === 0) {
-          resultsNode.innerHTML = `<tr><td colspan="4">${answers.size === 0 ? "Nog geen antwoorden." : "Nog geen partijen met genoeg overlap."}</td></tr>`;
+          resultsNode.innerHTML = `<tr><td colspan="3">${answers.size === 0 ? "Nog geen antwoorden." : "Nog geen partijen die genoeg van uw stellingen meestemden."}</td></tr>`;
         } else {
+          // A short bar next to each percentage makes the ranking scannable, and
+          // reuses the voor/tegen bar language from the rest of the site.
           resultsNode.innerHTML = rows.map((score) => {
-            const match = Math.round((score.same / score.overlap) * 1000) / 10;
-            return `<tr><td>${escapeHTML(score.party)}</td><td class="num">${match.toFixed(1)}%</td><td class="num">${score.same}</td><td class="num">${score.overlap}</td></tr>`;
+            const match = (score.same / score.overlap) * 100;
+            return `<tr>
+              <td>${escapeHTML(score.party)}</td>
+              <td class="num">
+                <span class="match">
+                  <span class="match-track"><span style="width: ${match.toFixed(1)}%"></span></span>
+                  ${Math.round(match)}%
+                </span>
+              </td>
+              <td class="num muted" title="${score.same} van ${score.overlap} gedeelde stellingen">${score.same}/${score.overlap}</td>
+            </tr>`;
           }).join("");
         }
 
         inconclusive.hidden = inconclusiveRows.length === 0;
         inconclusiveResults.innerHTML = inconclusiveRows.map((score) => `
-          <tr><td>${escapeHTML(score.party)}</td><td class="num">${score.same}</td><td class="num">${score.overlap}</td></tr>
+          <tr><td>${escapeHTML(score.party)}</td><td class="num muted" title="${score.same} van ${score.overlap} gedeelde stellingen">${score.same}/${score.overlap}</td></tr>
         `).join("");
       };
 

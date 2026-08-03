@@ -195,6 +195,8 @@ func runIngest(ctx context.Context, cfg config.Config, database *db.DB, args []s
 	switch args[1] {
 	case "parties":
 		return runIngestParties(ctx, cfg, database, args[2:])
+	case "party-logos":
+		return runIngestPartyLogos(ctx, cfg, database, args[2:])
 	case "motions":
 		return runIngestMotions(ctx, cfg, database, args[2:])
 	case "motion-votes":
@@ -241,6 +243,35 @@ func runIngestParties(ctx context.Context, cfg config.Config, database *db.DB, a
 		CursorOverlap: cfg.CursorOverlap,
 		SinceOverride: sinceOverride,
 		ResetCursor:   *resetCursor,
+	}
+	return job.Run(ctx)
+}
+
+func runIngestPartyLogos(ctx context.Context, cfg config.Config, database *db.DB, args []string) error {
+	flags := flag.NewFlagSet("ingest tweedekamer party-logos", flag.ContinueOnError)
+	flags.SetOutput(os.Stderr)
+	batchSize := flags.Int("batch-size", cfg.TweedeKamerBatchSize, "records per OData page while listing parties")
+	concurrency := flags.Int("concurrency", 4, "number of logos to download in parallel")
+	resyncAfter := flags.Duration("resync-after", 0, "also refetch logos synced before this duration, e.g. 720h; 0 means only missing")
+	if err := flags.Parse(args); err != nil {
+		return err
+	}
+	if *batchSize <= 0 {
+		return fmt.Errorf("--batch-size must be greater than 0")
+	}
+	if *concurrency <= 0 {
+		return fmt.Errorf("--concurrency must be greater than 0")
+	}
+	if *resyncAfter < 0 {
+		return fmt.Errorf("--resync-after must be 0 or greater")
+	}
+
+	job := ingest.TweedeKamerPartyLogoIngest{
+		Pool:        database.Pool,
+		Client:      tweedekamer.NewClient(cfg.TweedeKamerODataBaseURL),
+		BatchSize:   *batchSize,
+		Concurrency: *concurrency,
+		ResyncAfter: *resyncAfter,
 	}
 	return job.Run(ctx)
 }
@@ -354,6 +385,7 @@ func runSync(ctx context.Context, cfg config.Config, database *db.DB, args []str
 	motionBatchSize := flags.Int("motion-batch-size", cfg.TweedeKamerBatchSize, "motion records per OData page")
 	partyMaxPages := flags.Int("party-max-pages", cfg.TweedeKamerMaxPages, "maximum party OData pages to process, 0 means all")
 	partyBatchSize := flags.Int("party-batch-size", cfg.TweedeKamerBatchSize, "party records per OData page")
+	partyLogoConcurrency := flags.Int("party-logo-concurrency", 4, "number of party logos to download in parallel")
 	motionVoteLimit := flags.Int("motion-vote-limit", 100, "number of known motions to sync votes for")
 	motionVoteConcurrency := flags.Int("motion-vote-concurrency", 4, "number of motions to sync votes for in parallel")
 	motionVoteResyncAfter := flags.Duration("motion-vote-resync-after", 0, "also resync motions whose votes were synced before this duration, e.g. 168h; 0 means only unsynced")
@@ -383,6 +415,9 @@ func runSync(ctx context.Context, cfg config.Config, database *db.DB, args []str
 	if *partyBatchSize <= 0 {
 		return fmt.Errorf("--party-batch-size must be greater than 0")
 	}
+	if *partyLogoConcurrency <= 0 {
+		return fmt.Errorf("--party-logo-concurrency must be greater than 0")
+	}
 	if *motionVoteLimit <= 0 {
 		return fmt.Errorf("--motion-vote-limit must be greater than 0")
 	}
@@ -408,6 +443,7 @@ func runSync(ctx context.Context, cfg config.Config, database *db.DB, args []str
 	return syncTweedeKamer(ctx, cfg, database, tweedeKamerSyncSettings{
 		PartyMaxPages:             *partyMaxPages,
 		PartyBatchSize:            *partyBatchSize,
+		PartyLogoConcurrency:      *partyLogoConcurrency,
 		MotionMaxPages:            *motionMaxPages,
 		MotionBatchSize:           *motionBatchSize,
 		MotionVoteLimit:           *motionVoteLimit,
@@ -427,6 +463,7 @@ func runSync(ctx context.Context, cfg config.Config, database *db.DB, args []str
 type tweedeKamerSyncSettings struct {
 	PartyMaxPages             int
 	PartyBatchSize            int
+	PartyLogoConcurrency      int
 	MotionMaxPages            int
 	MotionBatchSize           int
 	MotionVoteLimit           int
@@ -446,6 +483,7 @@ func defaultSyncSettings(cfg config.Config) tweedeKamerSyncSettings {
 	return tweedeKamerSyncSettings{
 		PartyMaxPages:             cfg.TweedeKamerMaxPages,
 		PartyBatchSize:            cfg.TweedeKamerBatchSize,
+		PartyLogoConcurrency:      4,
 		MotionMaxPages:            cfg.TweedeKamerMaxPages,
 		MotionBatchSize:           cfg.TweedeKamerBatchSize,
 		MotionVoteLimit:           cfg.SyncMotionVoteLimit,
@@ -469,6 +507,23 @@ func syncTweedeKamer(ctx context.Context, cfg config.Config, database *db.DB, se
 		}
 		if err := job.Run(ctx); err != nil {
 			return err
+		}
+
+		// Logos only decorate the party pages, and only parties missing one cost
+		// a request, so a failure here must not hold up the motions and votes
+		// that the site actually depends on.
+		fmt.Println("sync step=party-logos")
+		logos := ingest.TweedeKamerPartyLogoIngest{
+			Pool:        database.Pool,
+			Client:      client,
+			BatchSize:   settings.PartyBatchSize,
+			Concurrency: settings.PartyLogoConcurrency,
+		}
+		if err := logos.Run(ctx); err != nil {
+			if ctx.Err() != nil {
+				return err
+			}
+			fmt.Printf("sync step=party-logos failed, continuing: %v\n", err)
 		}
 	}
 
@@ -716,10 +771,11 @@ func usage() error {
 	return fmt.Errorf(`usage:
   partijgedrag migrate
   partijgedrag ingest tweedekamer parties [--max-pages=N] [--batch-size=N] [--since=RFC3339] [--reset-cursor]
+  partijgedrag ingest tweedekamer party-logos [--batch-size=N] [--concurrency=N] [--resync-after=720h]
   partijgedrag ingest tweedekamer motions [--max-pages=N] [--batch-size=N] [--since=RFC3339] [--reset-cursor]
   partijgedrag ingest tweedekamer motion-votes [--limit=N] [--concurrency=N] [--resync-after=168h]
   partijgedrag ingest tweedekamer motion-documents [--limit=N] [--concurrency=N] [--resync-after=168h]
-  partijgedrag sync tweedekamer [--party-max-pages=N] [--party-batch-size=N] [--motion-max-pages=N] [--motion-batch-size=N] [--motion-vote-limit=N] [--motion-vote-concurrency=N] [--motion-vote-resync-after=168h] [--motion-document-limit=N] [--motion-document-concurrency=N] [--motion-document-resync-after=168h] [--skip-parties] [--skip-motions] [--skip-motion-votes] [--skip-motion-documents] [--skip-categorize]
+  partijgedrag sync tweedekamer [--party-max-pages=N] [--party-batch-size=N] [--party-logo-concurrency=N] [--motion-max-pages=N] [--motion-batch-size=N] [--motion-vote-limit=N] [--motion-vote-concurrency=N] [--motion-vote-resync-after=168h] [--motion-document-limit=N] [--motion-document-concurrency=N] [--motion-document-resync-after=168h] [--skip-parties] [--skip-motions] [--skip-motion-votes] [--skip-motion-documents] [--skip-categorize]
   partijgedrag maintenance fail-stale-runs [--older-than=1h] [--limit=N] [--apply]
   partijgedrag maintenance categorize [--batch-size=N] [--max-motions=N] [--recategorize]
   partijgedrag status ingestion-runs [--limit=N] [--pipeline=NAME] [--failed]

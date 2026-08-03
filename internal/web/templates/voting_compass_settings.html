@@ -2,29 +2,38 @@
 {{ define "content" }}
   <section class="section">
     <div class="section-heading">
-      <h1>Stemwijzer instellingen</h1>
-      <a href="/voting-compass" id="settings-cancel">Terug naar de stemwijzer</a>
+      <h1>Stemwijzer</h1>
+      <a href="/voting-compass" id="settings-cancel" hidden>Terug naar de stellingen</a>
     </div>
-    <p class="lead">Stel uw voorkeuren in voor de stellingen. U kunt dit profiel tussendoor aanpassen; uw antwoorden blijven bewaard.</p>
+    <p class="lead">
+      Stel eerst in waarover u wilt stemmen. Daarna legt de stemwijzer u echte moties
+      uit de Tweede Kamer voor. U kunt dit hierna aanpassen zonder uw antwoorden te
+      verliezen; na 20 antwoorden kunt u uw resultaat bewaren en delen.
+    </p>
 
     <form class="filters" id="settings-form" method="get" action="/voting-compass">
-      <label>
-        Kabinetsperiode
-        <select name="period" id="settings-period">
-          <option value="">Alle beschikbare moties</option>
-          {{ range .Periods }}
-            <option value="{{ .PeriodKey }}">{{ .Name }}</option>
-          {{ end }}
-        </select>
-      </label>
-      <label>
-        Aantal moties per ronde
-        <input type="number" name="limit" id="settings-limit" value="20" min="1" max="50">
-      </label>
-      <label>
-        Min. overlap
-        <input type="number" name="minOverlap" id="settings-min-overlap" value="5" min="1" max="50">
-      </label>
+      <div class="setting-grid">
+        <label class="setting">
+          <span class="setting-label">Kabinetsperiode</span>
+          <select name="period" id="settings-period">
+            <option value="">Alle beschikbare moties</option>
+            {{ range .Periods }}
+              <option value="{{ .PeriodKey }}">{{ .Name }}</option>
+            {{ end }}
+          </select>
+          <span class="setting-hint">Beperkt de stellingen tot moties uit die regeerperiode.</span>
+        </label>
+        <label class="setting">
+          <span class="setting-label">Stellingen per ronde</span>
+          <input type="number" name="limit" id="settings-limit" value="20" min="1" max="50">
+          <span class="setting-hint">Hoeveel moties u achter elkaar krijgt. Daarna kunt u een nieuwe ronde laden.</span>
+        </label>
+        <label class="setting">
+          <span class="setting-label">Minimale overlap</span>
+          <input type="number" name="minOverlap" id="settings-min-overlap" value="5" min="1" max="50">
+          <span class="setting-hint">Een partij komt pas in uw uitslag als zij over zoveel van uw stellingen heeft meegestemd. Zo krijgt een partij die één keer met u meestemde geen 100%.</span>
+        </label>
+      </div>
 
       <details class="filter-group" open>
         <summary>Onderwerpen <span id="settings-topics-count"></span></summary>
@@ -137,12 +146,15 @@
       });
       if (period.value) period.dispatchEvent(new Event("change"));
 
-      // Cancelling goes back to the compass with the unchanged profile.
-      document.querySelector("#settings-cancel").setAttribute("href", `/voting-compass${location.search}`);
-
-      // When editing an existing profile (incoming query string), the submit
-      // button reflects that the user is resuming rather than starting fresh.
-      if (location.search) document.querySelector("#settings-submit").textContent = "Doorgaan";
+      // This page is both the way in and the way to adjust a profile mid-run. It
+      // only offers a way back, and calls itself a continuation, once there is a
+      // profile in the URL to go back to.
+      if (location.search) {
+        const cancel = document.querySelector("#settings-cancel");
+        cancel.setAttribute("href", `/voting-compass${location.search}`);
+        cancel.hidden = false;
+        document.querySelector("#settings-submit").textContent = "Doorgaan";
+      }
     })();
   </script>
 {{ end }}

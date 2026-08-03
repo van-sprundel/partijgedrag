@@ -83,6 +83,7 @@ func (server Server) Register(mux *http.ServeMux) {
 	}
 	mux.HandleFunc("GET /", server.home)
 	mux.HandleFunc("GET /about", server.about)
+	mux.HandleFunc("GET /parties/{sourceID}/logo", server.partyLogo)
 	mux.HandleFunc("GET /party-likeness", server.partyLikeness)
 	mux.HandleFunc("GET /party-focus", server.partyFocus)
 	mux.HandleFunc("GET /coalition-analysis", server.coalitionAnalysis)
@@ -255,6 +256,45 @@ func (server Server) motion(response http.ResponseWriter, request *http.Request)
 	})
 }
 
+// partyLogo serves a party logo straight from the parties table. Logos change
+// about as often as a party is founded, so they are cached hard; ServeContent
+// handles conditional requests off the sync timestamp.
+func (server Server) partyLogo(response http.ResponseWriter, request *http.Request) {
+	var data []byte
+	var contentType *string
+	var syncedAt *time.Time
+	err := server.Pool.QueryRow(request.Context(), `
+		SELECT logo_data, logo_content_type, logo_synced_at
+		FROM parties
+		WHERE jurisdiction_key = $1
+		  AND source_id = $2
+		  AND logo_data IS NOT NULL
+	`, "nl-tweede-kamer", request.PathValue("sourceID")).Scan(&data, &contentType, &syncedAt)
+	if err == pgx.ErrNoRows {
+		http.NotFound(response, request)
+		return
+	}
+	if err != nil {
+		writeError(response, err)
+		return
+	}
+
+	// The stored type is sniffed at ingestion time and constrained to image
+	// types, so it is safe to echo back; the fallback only guards older rows.
+	mediaType := "application/octet-stream"
+	if contentType != nil && strings.HasPrefix(*contentType, "image/") {
+		mediaType = *contentType
+	}
+	modTime := time.Time{}
+	if syncedAt != nil {
+		modTime = *syncedAt
+	}
+
+	response.Header().Set("Content-Type", mediaType)
+	response.Header().Set("Cache-Control", "public, max-age=86400")
+	http.ServeContent(response, request, "", modTime, bytes.NewReader(data))
+}
+
 func (server Server) partyLikeness(response http.ResponseWriter, request *http.Request) {
 	query := request.URL.Query()
 	periods, err := analysis.LoadCabinetPeriods(request.Context(), server.Pool, "nl-tweede-kamer")
@@ -281,16 +321,23 @@ func (server Server) partyLikeness(response http.ResponseWriter, request *http.R
 		return
 	}
 
+	logos, err := analysis.LoadPartyLogoAvailability(request.Context(), server.Pool, "nl-tweede-kamer")
+	if err != nil {
+		writeError(response, err)
+		return
+	}
+
 	topRows := rows
 	if len(topRows) > 10 {
 		topRows = topRows[:10]
 	}
 
 	server.render(response, "party_likeness", partyLikenessPage{
-		Parties:   likenessParties(rows),
+		Parties:   likenessParties(rows, logos),
 		Rows:      rows,
 		TopRows:   topRows,
 		Matrix:    likenessMatrix(rows),
+		Logos:     logos,
 		Periods:   periods,
 		Period:    period.PeriodKey,
 		MinCommon: minCommon,
@@ -437,6 +484,14 @@ func (server Server) coalitionMotions(response http.ResponseWriter, request *htt
 }
 
 func (server Server) votingCompass(response http.ResponseWriter, request *http.Request) {
+	// Arriving without a profile means the visitor has not chosen a period,
+	// subject, or party yet. The profile is required to answer, so redirect to
+	// the settings page.
+	if request.URL.RawQuery == "" {
+		http.Redirect(response, request, "/voting-compass/settings", http.StatusSeeOther)
+		return
+	}
+
 	periods, err := analysis.LoadCabinetPeriods(request.Context(), server.Pool, "nl-tweede-kamer")
 	if err != nil {
 		writeError(response, err)
@@ -958,6 +1013,7 @@ type partyLikenessPage struct {
 	Rows      []analysis.PartyLikeness
 	TopRows   []analysis.PartyLikeness
 	Matrix    map[string]map[string]analysis.PartyLikeness
+	Logos     map[string]bool
 	Periods   []analysis.CabinetPeriod
 	Period    string
 	MinCommon int
@@ -1028,6 +1084,10 @@ type coalitionPartyAlignmentView struct {
 type likenessParty struct {
 	SourceID  string
 	ShortName string
+	HasLogo   bool
+	// Monogram stands in for the logo of parties that have none, so every axis
+	// label occupies the same square regardless.
+	Monogram string
 }
 
 type ingestionRun struct {
@@ -1112,7 +1172,7 @@ func motionsURL(search string, withVotes bool, category string, limit int, offse
 	return "/motions"
 }
 
-func likenessParties(rows []analysis.PartyLikeness) []likenessParty {
+func likenessParties(rows []analysis.PartyLikeness, logos map[string]bool) []likenessParty {
 	seen := map[string]string{}
 	for _, row := range rows {
 		seen[row.Party1SourceID] = row.Party1Name
@@ -1124,12 +1184,43 @@ func likenessParties(rows []analysis.PartyLikeness) []likenessParty {
 		parties = append(parties, likenessParty{
 			SourceID:  sourceID,
 			ShortName: name,
+			HasLogo:   logos[sourceID],
+			Monogram:  partyMonogram(name),
 		})
 	}
 	sort.Slice(parties, func(i, j int) bool {
 		return strings.ToLower(parties[i].ShortName) < strings.ToLower(parties[j].ShortName)
 	})
 	return parties
+}
+
+// partyMonogram shortens a party name to something that still fits a logo-sized
+// square: an existing abbreviation is kept whole, a longer name collapses to the
+// initials of its words ("Groep Markuszower" -> "GM").
+func partyMonogram(name string) string {
+	trimmed := strings.TrimSpace(name)
+	if trimmed == "" {
+		return "?"
+	}
+	if len([]rune(trimmed)) <= 4 {
+		return strings.ToUpper(trimmed)
+	}
+
+	words := strings.FieldsFunc(trimmed, func(character rune) bool {
+		return character == ' ' || character == '-' || character == '/'
+	})
+	if len(words) > 1 {
+		initials := make([]rune, 0, 3)
+		for _, word := range words {
+			if len(initials) == 3 {
+				break
+			}
+			initials = append(initials, []rune(strings.ToUpper(word))[0])
+		}
+		return string(initials)
+	}
+
+	return string([]rune(strings.ToUpper(trimmed))[:3])
 }
 
 func likenessMatrix(rows []analysis.PartyLikeness) map[string]map[string]analysis.PartyLikeness {
