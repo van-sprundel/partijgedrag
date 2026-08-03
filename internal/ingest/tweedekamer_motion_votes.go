@@ -25,6 +25,23 @@ type TweedeKamerMotionVotesIngest struct {
 	Limit       int
 	Concurrency int
 	ResyncAfter time.Duration
+	// ResyncGrace re-polls motions whose outcome is not settled, and settled
+	// ones until this long after they were settled. Votes can still be amended
+	// after a motion is decided; a vergissing is typically filed a week later.
+	// Zero disables outcome-scoped resync.
+	ResyncGrace time.Duration
+}
+
+// settledDecisionTypes are the Besluit types that terminate a motion. These key
+// on decision_type; the free-text decision_text carries punctuation variants
+// ("Verworpen." vs "Verworpen") that would split the buckets.
+var settledDecisionTypes = []string{
+	"Stemmen - aangenomen",
+	"Stemmen - verworpen",
+	"Stemmen - ingetrokken",
+	"Stemmen - ingetrokken (al tijdens debat)",
+	"Overgenomen",
+	"Termijn - vervallen in verband met verstrijken termijn",
 }
 
 func (ingest TweedeKamerMotionVotesIngest) Run(ctx context.Context) error {
@@ -40,13 +57,14 @@ func (ingest TweedeKamerMotionVotesIngest) Run(ctx context.Context) error {
 	}
 
 	resyncBefore := ingest.resyncBefore()
-	pendingBefore, err := ingest.pendingCount(ctx, resyncBefore)
+	settledBefore := ingest.settledBefore()
+	pendingBefore, err := ingest.pendingCount(ctx, resyncBefore, settledBefore)
 	if err != nil {
 		_ = finishPipelineRun(ctx, ingest.Pool, runID, motionVotesPipeline, "failed", 0, 0, false, "error", err.Error())
 		return err
 	}
 
-	motions, err := ingest.motionCandidates(ctx, resyncBefore)
+	motions, err := ingest.motionCandidates(ctx, resyncBefore, settledBefore)
 	if err != nil {
 		_ = finishPipelineRun(ctx, ingest.Pool, runID, motionVotesPipeline, "failed", 0, 0, false, "error", err.Error())
 		return err
@@ -58,14 +76,16 @@ func (ingest TweedeKamerMotionVotesIngest) Run(ctx context.Context) error {
 		return err
 	}
 
-	pendingAfter, err := ingest.pendingCount(ctx, resyncBefore)
+	pendingAfter, err := ingest.pendingCount(ctx, resyncBefore, settledBefore)
 	if err != nil {
 		_ = finishPipelineRun(ctx, ingest.Pool, runID, motionVotesPipeline, "failed", recordsSeen, recordsChanged, false, "error", err.Error())
 		return err
 	}
 
+	// The candidate set is a steady-state polling set, so pendingAfter no longer
+	// drains to zero. Only a filled batch means we were cut short.
 	stopReason := "complete"
-	if pendingAfter > 0 {
+	if ingest.Limit > 0 && len(motions) >= ingest.Limit {
 		stopReason = "batch_limit"
 	}
 
@@ -186,16 +206,23 @@ type motionCandidate struct {
 	SourceID  string
 }
 
-func (ingest TweedeKamerMotionVotesIngest) motionCandidates(ctx context.Context, resyncBefore *time.Time) ([]motionCandidate, error) {
+func (ingest TweedeKamerMotionVotesIngest) motionCandidates(ctx context.Context, resyncBefore, settledBefore *time.Time) ([]motionCandidate, error) {
 	rows, err := ingest.Pool.Query(ctx, `
-		SELECT motion_key, source_id
-		FROM motions
-		WHERE source_key = $1
-		  AND source_deleted = false
-		  AND (votes_synced_at IS NULL OR ($3::timestamptz IS NOT NULL AND votes_synced_at < $3))
-		ORDER BY votes_synced_at ASC NULLS FIRST, proposed_at DESC NULLS LAST
+		SELECT m.motion_key, m.source_id
+		FROM motions m
+		WHERE m.source_key = $1
+		  AND m.source_deleted = false
+		  AND (m.votes_synced_at IS NULL
+		       OR ($3::timestamptz IS NOT NULL AND m.votes_synced_at < $3)
+		       OR ($4::timestamptz IS NOT NULL AND NOT EXISTS (
+		             SELECT 1 FROM decisions d
+		             WHERE d.motion_key = m.motion_key
+		               AND d.source_deleted = false
+		               AND d.decision_type = ANY($5::text[])
+		               AND d.source_updated_at <= $4)))
+		ORDER BY m.votes_synced_at ASC NULLS FIRST, m.proposed_at DESC NULLS LAST
 		LIMIT $2
-	`, tweedeKamerSourceKey, ingest.Limit, resyncBefore)
+	`, tweedeKamerSourceKey, ingest.Limit, resyncBefore, settledBefore, settledDecisionTypes)
 	if err != nil {
 		return nil, err
 	}
@@ -212,15 +239,22 @@ func (ingest TweedeKamerMotionVotesIngest) motionCandidates(ctx context.Context,
 	return motions, rows.Err()
 }
 
-func (ingest TweedeKamerMotionVotesIngest) pendingCount(ctx context.Context, resyncBefore *time.Time) (int, error) {
+func (ingest TweedeKamerMotionVotesIngest) pendingCount(ctx context.Context, resyncBefore, settledBefore *time.Time) (int, error) {
 	var count int
 	err := ingest.Pool.QueryRow(ctx, `
 		SELECT count(*)::int
-		FROM motions
-		WHERE source_key = $1
-		  AND source_deleted = false
-		  AND (votes_synced_at IS NULL OR ($2::timestamptz IS NOT NULL AND votes_synced_at < $2))
-	`, tweedeKamerSourceKey, resyncBefore).Scan(&count)
+		FROM motions m
+		WHERE m.source_key = $1
+		  AND m.source_deleted = false
+		  AND (m.votes_synced_at IS NULL
+		       OR ($2::timestamptz IS NOT NULL AND m.votes_synced_at < $2)
+		       OR ($3::timestamptz IS NOT NULL AND NOT EXISTS (
+		             SELECT 1 FROM decisions d
+		             WHERE d.motion_key = m.motion_key
+		               AND d.source_deleted = false
+		               AND d.decision_type = ANY($4::text[])
+		               AND d.source_updated_at <= $3)))
+	`, tweedeKamerSourceKey, resyncBefore, settledBefore, settledDecisionTypes).Scan(&count)
 	return count, err
 }
 
@@ -229,6 +263,17 @@ func (ingest TweedeKamerMotionVotesIngest) resyncBefore() *time.Time {
 		return nil
 	}
 	value := time.Now().Add(-ingest.ResyncAfter)
+	return &value
+}
+
+// settledBefore is the cutoff a motion's terminating decision must predate for
+// the motion to count as done. A motion settled more recently than this stays
+// in the candidate set so late vote amendments are still picked up.
+func (ingest TweedeKamerMotionVotesIngest) settledBefore() *time.Time {
+	if ingest.ResyncGrace <= 0 {
+		return nil
+	}
+	value := time.Now().Add(-ingest.ResyncGrace)
 	return &value
 }
 

@@ -31,6 +31,18 @@ type Config struct {
 	SyncInterval            time.Duration
 	SyncMotionVoteLimit     int
 	SyncMotionDocumentLimit int
+
+	// SyncMotionVoteResyncGrace re-polls votes for motions that are not settled
+	// yet, and for settled ones until this long after their terminating
+	// decision. Without it a motion is vote-synced once and never revisited, so
+	// a motion ingested before its vote keeps zero votes forever. Zero disables.
+	SyncMotionVoteResyncGrace time.Duration
+
+	// SyncMotionDocumentResyncGrace retries motions that still have no bullet
+	// points, until this long after they were proposed. Published documents are
+	// immutable, so only the not-yet-published window needs revisiting. Zero
+	// disables.
+	SyncMotionDocumentResyncGrace time.Duration
 }
 
 func Load() (Config, error) {
@@ -49,6 +61,22 @@ func Load() (Config, error) {
 		return Config{}, fmt.Errorf("SYNC_INTERVAL must be 0 or greater")
 	}
 
+	voteResyncGrace, err := time.ParseDuration(getEnv("SYNC_MOTION_VOTE_RESYNC_GRACE", "720h"))
+	if err != nil {
+		return Config{}, fmt.Errorf("parse SYNC_MOTION_VOTE_RESYNC_GRACE: %w", err)
+	}
+	if voteResyncGrace < 0 {
+		return Config{}, fmt.Errorf("SYNC_MOTION_VOTE_RESYNC_GRACE must be 0 or greater")
+	}
+
+	documentResyncGrace, err := time.ParseDuration(getEnv("SYNC_MOTION_DOCUMENT_RESYNC_GRACE", "2160h"))
+	if err != nil {
+		return Config{}, fmt.Errorf("parse SYNC_MOTION_DOCUMENT_RESYNC_GRACE: %w", err)
+	}
+	if documentResyncGrace < 0 {
+		return Config{}, fmt.Errorf("SYNC_MOTION_DOCUMENT_RESYNC_GRACE must be 0 or greater")
+	}
+
 	return Config{
 		DatabaseURL:             getEnv("DATABASE_URL", "postgres://etl_user:etl_password@localhost:5432/partijgedrag"),
 		HTTPHost:                getEnv("HTTP_HOST", "0.0.0.0"),
@@ -62,6 +90,9 @@ func Load() (Config, error) {
 		SyncInterval:            syncInterval,
 		SyncMotionVoteLimit:     getEnvInt("SYNC_MOTION_VOTE_LIMIT", 250),
 		SyncMotionDocumentLimit: getEnvInt("SYNC_MOTION_DOCUMENT_LIMIT", 500),
+
+		SyncMotionVoteResyncGrace:     voteResyncGrace,
+		SyncMotionDocumentResyncGrace: documentResyncGrace,
 	}, nil
 }
 

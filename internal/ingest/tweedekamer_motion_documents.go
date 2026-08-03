@@ -29,6 +29,11 @@ type TweedeKamerMotionDocumentsIngest struct {
 	Limit       int
 	Concurrency int
 	ResyncAfter time.Duration
+	// ResyncGrace retries motions that still have no bullet points, until this
+	// long after they were proposed. A published document never changes, so a
+	// successful extraction is never revisited. This covers motions ingested
+	// before their text appeared on officielebekendmakingen. Zero disables.
+	ResyncGrace time.Duration
 }
 
 func (ingest TweedeKamerMotionDocumentsIngest) Run(ctx context.Context) error {
@@ -44,13 +49,14 @@ func (ingest TweedeKamerMotionDocumentsIngest) Run(ctx context.Context) error {
 	}
 
 	resyncBefore := ingest.resyncBefore()
-	pendingBefore, err := ingest.pendingCount(ctx, resyncBefore)
+	proposedAfter := ingest.proposedAfter()
+	pendingBefore, err := ingest.pendingCount(ctx, resyncBefore, proposedAfter)
 	if err != nil {
 		_ = finishPipelineRun(ctx, ingest.Pool, runID, motionDocumentsPipeline, "failed", 0, 0, false, "error", err.Error())
 		return err
 	}
 
-	motions, err := ingest.motionCandidates(ctx, resyncBefore)
+	motions, err := ingest.motionCandidates(ctx, resyncBefore, proposedAfter)
 	if err != nil {
 		_ = finishPipelineRun(ctx, ingest.Pool, runID, motionDocumentsPipeline, "failed", 0, 0, false, "error", err.Error())
 		return err
@@ -62,14 +68,16 @@ func (ingest TweedeKamerMotionDocumentsIngest) Run(ctx context.Context) error {
 		return err
 	}
 
-	pendingAfter, err := ingest.pendingCount(ctx, resyncBefore)
+	pendingAfter, err := ingest.pendingCount(ctx, resyncBefore, proposedAfter)
 	if err != nil {
 		_ = finishPipelineRun(ctx, ingest.Pool, runID, motionDocumentsPipeline, "failed", recordsSeen, recordsChanged, false, "error", err.Error())
 		return err
 	}
 
+	// Blank retries keep motions eligible across runs, so pendingAfter no
+	// longer drains to zero. Only a filled batch means we were cut short.
 	stopReason := "complete"
-	if pendingAfter > 0 {
+	if ingest.Limit > 0 && len(motions) >= ingest.Limit {
 		stopReason = "batch_limit"
 	}
 
@@ -303,16 +311,18 @@ type motionDocumentCandidate struct {
 	SourceID  string
 }
 
-func (ingest TweedeKamerMotionDocumentsIngest) motionCandidates(ctx context.Context, resyncBefore *time.Time) ([]motionDocumentCandidate, error) {
+func (ingest TweedeKamerMotionDocumentsIngest) motionCandidates(ctx context.Context, resyncBefore, proposedAfter *time.Time) ([]motionDocumentCandidate, error) {
 	rows, err := ingest.Pool.Query(ctx, `
 		SELECT motion_key, source_id
 		FROM motions
 		WHERE source_key = $1
 		  AND source_deleted = false
-		  AND (document_synced_at IS NULL OR ($3::timestamptz IS NOT NULL AND document_synced_at < $3))
+		  AND (document_synced_at IS NULL
+		       OR ($3::timestamptz IS NOT NULL AND document_synced_at < $3)
+		       OR ($4::timestamptz IS NOT NULL AND bullet_points IS NULL AND proposed_at > $4))
 		ORDER BY document_synced_at ASC NULLS FIRST, proposed_at DESC NULLS LAST
 		LIMIT $2
-	`, tweedeKamerSourceKey, ingest.Limit, resyncBefore)
+	`, tweedeKamerSourceKey, ingest.Limit, resyncBefore, proposedAfter)
 	if err != nil {
 		return nil, err
 	}
@@ -329,15 +339,17 @@ func (ingest TweedeKamerMotionDocumentsIngest) motionCandidates(ctx context.Cont
 	return motions, rows.Err()
 }
 
-func (ingest TweedeKamerMotionDocumentsIngest) pendingCount(ctx context.Context, resyncBefore *time.Time) (int, error) {
+func (ingest TweedeKamerMotionDocumentsIngest) pendingCount(ctx context.Context, resyncBefore, proposedAfter *time.Time) (int, error) {
 	var count int
 	err := ingest.Pool.QueryRow(ctx, `
 		SELECT count(*)::int
 		FROM motions
 		WHERE source_key = $1
 		  AND source_deleted = false
-		  AND (document_synced_at IS NULL OR ($2::timestamptz IS NOT NULL AND document_synced_at < $2))
-	`, tweedeKamerSourceKey, resyncBefore).Scan(&count)
+		  AND (document_synced_at IS NULL
+		       OR ($2::timestamptz IS NOT NULL AND document_synced_at < $2)
+		       OR ($3::timestamptz IS NOT NULL AND bullet_points IS NULL AND proposed_at > $3))
+	`, tweedeKamerSourceKey, resyncBefore, proposedAfter).Scan(&count)
 	return count, err
 }
 
@@ -346,5 +358,16 @@ func (ingest TweedeKamerMotionDocumentsIngest) resyncBefore() *time.Time {
 		return nil
 	}
 	value := time.Now().Add(-ingest.ResyncAfter)
+	return &value
+}
+
+// proposedAfter is the earliest proposal date for which a still-blank motion is
+// worth retrying. Past it the document counts as permanently absent, which stops
+// the long tail of non-motion documents from being refetched forever.
+func (ingest TweedeKamerMotionDocumentsIngest) proposedAfter() *time.Time {
+	if ingest.ResyncGrace <= 0 {
+		return nil
+	}
+	value := time.Now().Add(-ingest.ResyncGrace)
 	return &value
 }

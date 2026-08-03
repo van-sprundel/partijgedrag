@@ -389,9 +389,11 @@ func runSync(ctx context.Context, cfg config.Config, database *db.DB, args []str
 	motionVoteLimit := flags.Int("motion-vote-limit", 100, "number of known motions to sync votes for")
 	motionVoteConcurrency := flags.Int("motion-vote-concurrency", 4, "number of motions to sync votes for in parallel")
 	motionVoteResyncAfter := flags.Duration("motion-vote-resync-after", 0, "also resync motions whose votes were synced before this duration, e.g. 168h; 0 means only unsynced")
+	motionVoteResyncGrace := flags.Duration("motion-vote-resync-grace", cfg.SyncMotionVoteResyncGrace, "keep resyncing votes for unsettled motions, and for settled ones until this long after their decision; 0 disables")
 	motionDocumentLimit := flags.Int("motion-document-limit", 100, "number of known motions to sync documents for")
 	motionDocumentConcurrency := flags.Int("motion-document-concurrency", 4, "number of motions to sync documents for in parallel")
 	motionDocumentResyncAfter := flags.Duration("motion-document-resync-after", 0, "also resync motions whose documents were synced before this duration, e.g. 168h; 0 means only unsynced")
+	motionDocumentResyncGrace := flags.Duration("motion-document-resync-grace", cfg.SyncMotionDocumentResyncGrace, "retry motions that still have no bullet points, until this long after they were proposed; 0 disables")
 	skipParties := flags.Bool("skip-parties", false, "skip party ingestion")
 	skipMotions := flags.Bool("skip-motions", false, "skip motion ingestion")
 	skipMotionVotes := flags.Bool("skip-motion-votes", false, "skip motion vote ingestion")
@@ -427,6 +429,9 @@ func runSync(ctx context.Context, cfg config.Config, database *db.DB, args []str
 	if *motionVoteResyncAfter < 0 {
 		return fmt.Errorf("--motion-vote-resync-after must be 0 or greater")
 	}
+	if *motionVoteResyncGrace < 0 {
+		return fmt.Errorf("--motion-vote-resync-grace must be 0 or greater")
+	}
 	if *motionDocumentLimit <= 0 {
 		return fmt.Errorf("--motion-document-limit must be greater than 0")
 	}
@@ -435,6 +440,9 @@ func runSync(ctx context.Context, cfg config.Config, database *db.DB, args []str
 	}
 	if *motionDocumentResyncAfter < 0 {
 		return fmt.Errorf("--motion-document-resync-after must be 0 or greater")
+	}
+	if *motionDocumentResyncGrace < 0 {
+		return fmt.Errorf("--motion-document-resync-grace must be 0 or greater")
 	}
 	if *skipParties && *skipMotions && *skipMotionVotes && *skipMotionDocuments && *skipCategorize {
 		return fmt.Errorf("sync has nothing to do when --skip-parties, --skip-motions, --skip-motion-votes, --skip-motion-documents, and --skip-categorize are set")
@@ -449,9 +457,11 @@ func runSync(ctx context.Context, cfg config.Config, database *db.DB, args []str
 		MotionVoteLimit:           *motionVoteLimit,
 		MotionVoteConcurrency:     *motionVoteConcurrency,
 		MotionVoteResyncAfter:     *motionVoteResyncAfter,
+		MotionVoteResyncGrace:     *motionVoteResyncGrace,
 		MotionDocumentLimit:       *motionDocumentLimit,
 		MotionDocumentConcurrency: *motionDocumentConcurrency,
 		MotionDocumentResyncAfter: *motionDocumentResyncAfter,
+		MotionDocumentResyncGrace: *motionDocumentResyncGrace,
 		SkipParties:               *skipParties,
 		SkipMotions:               *skipMotions,
 		SkipMotionVotes:           *skipMotionVotes,
@@ -469,9 +479,11 @@ type tweedeKamerSyncSettings struct {
 	MotionVoteLimit           int
 	MotionVoteConcurrency     int
 	MotionVoteResyncAfter     time.Duration
+	MotionVoteResyncGrace     time.Duration
 	MotionDocumentLimit       int
 	MotionDocumentConcurrency int
 	MotionDocumentResyncAfter time.Duration
+	MotionDocumentResyncGrace time.Duration
 	SkipParties               bool
 	SkipMotions               bool
 	SkipMotionVotes           bool
@@ -488,8 +500,10 @@ func defaultSyncSettings(cfg config.Config) tweedeKamerSyncSettings {
 		MotionBatchSize:           cfg.TweedeKamerBatchSize,
 		MotionVoteLimit:           cfg.SyncMotionVoteLimit,
 		MotionVoteConcurrency:     4,
+		MotionVoteResyncGrace:     cfg.SyncMotionVoteResyncGrace,
 		MotionDocumentLimit:       cfg.SyncMotionDocumentLimit,
 		MotionDocumentConcurrency: 4,
+		MotionDocumentResyncGrace: cfg.SyncMotionDocumentResyncGrace,
 	}
 }
 
@@ -550,6 +564,7 @@ func syncTweedeKamer(ctx context.Context, cfg config.Config, database *db.DB, se
 			Limit:       settings.MotionVoteLimit,
 			Concurrency: settings.MotionVoteConcurrency,
 			ResyncAfter: settings.MotionVoteResyncAfter,
+			ResyncGrace: settings.MotionVoteResyncGrace,
 		}
 		if err := job.Run(ctx); err != nil {
 			return err
@@ -565,6 +580,7 @@ func syncTweedeKamer(ctx context.Context, cfg config.Config, database *db.DB, se
 			Limit:       settings.MotionDocumentLimit,
 			Concurrency: settings.MotionDocumentConcurrency,
 			ResyncAfter: settings.MotionDocumentResyncAfter,
+			ResyncGrace: settings.MotionDocumentResyncGrace,
 		}
 		if err := job.Run(ctx); err != nil {
 			return err
