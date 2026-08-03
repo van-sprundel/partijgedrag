@@ -57,7 +57,7 @@ func New(pool *pgxpool.Pool, dev bool) (Server, error) {
 
 	templates := make(map[string]*template.Template)
 	for _, name := range []string{"home", "about", "motions", "motion", "party_likeness", "party_focus", "coalition_analysis", "coalition_motions", "voting_compass", "voting_compass_settings", "compass_results", "data_quality"} {
-		parsed, err := parseTemplate(source, name)
+		parsed, err := parseTemplate(source, name, dev)
 		if err != nil {
 			return Server{}, err
 		}
@@ -90,12 +90,16 @@ func (server Server) Register(mux *http.ServeMux) {
 	mux.HandleFunc("GET /voting-compass", server.votingCompass)
 	mux.HandleFunc("GET /voting-compass/settings", server.votingCompassSettings)
 	mux.HandleFunc("GET /compass/results/{sessionKey}", server.compassResults)
-	mux.HandleFunc("GET /data-quality", server.dataQuality)
+	// Internal ingestion diagnostics, including the CLI commands to run against
+	// the host. Nothing there is meaningful to a visitor, so it stays in dev.
+	if server.dev {
+		mux.HandleFunc("GET /data-quality", server.dataQuality)
+	}
 	mux.HandleFunc("GET /motions", server.motions)
 	mux.HandleFunc("GET /motions/{motionKey}", server.motion)
 }
 
-func parseTemplate(source fs.FS, name string) (*template.Template, error) {
+func parseTemplate(source fs.FS, name string, dev bool) (*template.Template, error) {
 	base, err := fs.ReadFile(source, "templates/base.html")
 	if err != nil {
 		return nil, err
@@ -107,6 +111,7 @@ func parseTemplate(source fs.FS, name string) (*template.Template, error) {
 
 	tmpl := template.New(name).Funcs(template.FuncMap{
 		"date":     dateValue,
+		"dev":      func() bool { return dev },
 		"fallback": fallback,
 		"likeness": likenessValue,
 		"percent":  percentValue,
@@ -576,7 +581,7 @@ func (server Server) dataQuality(response http.ResponseWriter, request *http.Req
 func (server Server) render(response http.ResponseWriter, name string, data any) {
 	tmpl := server.templates[name]
 	if server.dev {
-		parsed, err := parseTemplate(os.DirFS(diskRoot), name)
+		parsed, err := parseTemplate(os.DirFS(diskRoot), name, server.dev)
 		if err != nil {
 			http.Error(response, err.Error(), http.StatusInternalServerError)
 			return
