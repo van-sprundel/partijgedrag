@@ -2,9 +2,12 @@ package analysis
 
 import (
 	"context"
+	"fmt"
 	"time"
 
 	"github.com/jackc/pgx/v5/pgxpool"
+
+	"partijgedrag/internal/cache"
 )
 
 type PartyFocusOptions struct {
@@ -42,6 +45,11 @@ func LoadPartyFocus(ctx context.Context, pool *pgxpool.Pool, options PartyFocusO
 	jurisdiction := options.Jurisdiction
 	if jurisdiction == "" {
 		jurisdiction = "nl-tweede-kamer"
+	}
+
+	cacheKey := fmt.Sprintf("analysis:party_focus:%s:%s:%s:%s:%d", jurisdiction, options.PartySourceID, formatOptTime(options.DateFrom), formatOptTime(options.DateTo), options.MinCommon)
+	if cached, ok := cache.Global().Get(cacheKey); ok {
+		return cached.(PartyFocus), nil
 	}
 
 	focus := PartyFocus{}
@@ -84,6 +92,7 @@ func LoadPartyFocus(ctx context.Context, pool *pgxpool.Pool, options PartyFocusO
 	}
 	focus.Likeness = likeness
 
+	cache.Global().Set(cacheKey, focus)
 	return focus, nil
 }
 

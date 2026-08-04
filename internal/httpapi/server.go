@@ -13,6 +13,7 @@ import (
 	"github.com/jackc/pgx/v5/pgxpool"
 
 	"partijgedrag/internal/analysis"
+	"partijgedrag/internal/cache"
 	"partijgedrag/internal/categorize"
 	"partijgedrag/internal/politics"
 	"partijgedrag/internal/status"
@@ -29,22 +30,24 @@ type Server struct {
 func (server Server) Handler() http.Handler {
 	mux := http.NewServeMux()
 	web.MustNew(server.Pool, server.Dev).Register(mux)
-	mux.HandleFunc("GET /health", server.health)
-	mux.HandleFunc("GET /api/summary", server.summary)
-	mux.HandleFunc("GET /api/cabinet-periods", server.listCabinetPeriods)
-	mux.HandleFunc("GET /api/coalition-analysis", server.getCoalitionAnalysis)
-	mux.HandleFunc("GET /api/coalition-analysis/motions", server.listCoalitionMotions)
-	mux.HandleFunc("GET /api/ingestion-runs", server.listIngestionRuns)
-	mux.HandleFunc("GET /api/categories", server.listCategories)
-	mux.HandleFunc("GET /api/parties", server.listParties)
-	mux.HandleFunc("GET /api/party-likeness", server.listPartyLikeness)
-	mux.HandleFunc("GET /api/party-focus", server.getPartyFocus)
-	mux.HandleFunc("GET /api/voting-compass/motions", server.listVotingCompassMotions)
+
+	c := cache.Global()
+	mux.HandleFunc("GET /health", c.Middleware(cache.PolicyNoStore, server.health))
+	mux.HandleFunc("GET /api/summary", c.Middleware(cache.PolicyDynamic, server.summary))
+	mux.HandleFunc("GET /api/cabinet-periods", c.Middleware(cache.PolicyDynamic, server.listCabinetPeriods))
+	mux.HandleFunc("GET /api/coalition-analysis", c.Middleware(cache.PolicyDynamic, server.getCoalitionAnalysis))
+	mux.HandleFunc("GET /api/coalition-analysis/motions", c.Middleware(cache.PolicyDynamic, server.listCoalitionMotions))
+	mux.HandleFunc("GET /api/ingestion-runs", c.Middleware(cache.PolicyDynamic, server.listIngestionRuns))
+	mux.HandleFunc("GET /api/categories", c.Middleware(cache.PolicyDynamic, server.listCategories))
+	mux.HandleFunc("GET /api/parties", c.Middleware(cache.PolicyDynamic, server.listParties))
+	mux.HandleFunc("GET /api/party-likeness", c.Middleware(cache.PolicyDynamic, server.listPartyLikeness))
+	mux.HandleFunc("GET /api/party-focus", c.Middleware(cache.PolicyDynamic, server.getPartyFocus))
+	mux.HandleFunc("GET /api/voting-compass/motions", c.Middleware(cache.PolicyDynamic, server.listVotingCompassMotions))
 	mux.HandleFunc("POST /api/compass-sessions", server.createCompassSession)
-	mux.HandleFunc("GET /api/compass-sessions/{sessionKey}", server.getCompassSession)
-	mux.HandleFunc("GET /api/motions", server.listMotions)
-	mux.HandleFunc("GET /api/motions/{motionKey}/party-positions", server.getMotionPartyPositions)
-	mux.HandleFunc("GET /api/motions/{motionKey}", server.getMotion)
+	mux.HandleFunc("GET /api/compass-sessions/{sessionKey}", c.Middleware(cache.PolicyImmutable, server.getCompassSession))
+	mux.HandleFunc("GET /api/motions", c.Middleware(cache.PolicyDynamic, server.listMotions))
+	mux.HandleFunc("GET /api/motions/{motionKey}/party-positions", c.Middleware(cache.PolicyDynamic, server.getMotionPartyPositions))
+	mux.HandleFunc("GET /api/motions/{motionKey}", c.Middleware(cache.PolicyDynamic, server.getMotion))
 	return mux
 }
 

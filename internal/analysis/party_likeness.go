@@ -2,9 +2,12 @@ package analysis
 
 import (
 	"context"
+	"fmt"
 	"time"
 
 	"github.com/jackc/pgx/v5/pgxpool"
+
+	"partijgedrag/internal/cache"
 )
 
 type Party struct {
@@ -48,6 +51,11 @@ func LoadParties(ctx context.Context, pool *pgxpool.Pool, options PartyListOptio
 		jurisdiction = "nl-tweede-kamer"
 	}
 
+	cacheKey := fmt.Sprintf("analysis:parties:%s:%t:%s:%s", jurisdiction, options.ActiveOnly, formatOptTime(options.ActiveFrom), formatOptTime(options.ActiveTo))
+	if cached, ok := cache.Global().Get(cacheKey); ok {
+		return copyParties(cached.([]Party)), nil
+	}
+
 	rows, err := pool.Query(ctx, `
 		SELECT party_key,
 		       source_id,
@@ -77,7 +85,12 @@ func LoadParties(ctx context.Context, pool *pgxpool.Pool, options PartyListOptio
 		}
 		parties = append(parties, party)
 	}
-	return parties, rows.Err()
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+
+	cache.Global().Set(cacheKey, copyParties(parties))
+	return parties, nil
 }
 
 // LoadPartyLogoAvailability reports which parties have a logo on file, keyed by
@@ -86,6 +99,11 @@ func LoadParties(ctx context.Context, pool *pgxpool.Pool, options PartyListOptio
 func LoadPartyLogoAvailability(ctx context.Context, pool *pgxpool.Pool, jurisdiction string) (map[string]bool, error) {
 	if jurisdiction == "" {
 		jurisdiction = "nl-tweede-kamer"
+	}
+
+	cacheKey := "analysis:party_logo_availability:" + jurisdiction
+	if cached, ok := cache.Global().Get(cacheKey); ok {
+		return copyMapBool(cached.(map[string]bool)), nil
 	}
 
 	rows, err := pool.Query(ctx, `
@@ -107,7 +125,12 @@ func LoadPartyLogoAvailability(ctx context.Context, pool *pgxpool.Pool, jurisdic
 		}
 		available[sourceID] = true
 	}
-	return available, rows.Err()
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+
+	cache.Global().Set(cacheKey, copyMapBool(available))
+	return available, nil
 }
 
 func LoadPartyLikeness(ctx context.Context, pool *pgxpool.Pool, options PartyLikenessOptions) ([]PartyLikeness, error) {
@@ -118,6 +141,11 @@ func LoadPartyLikeness(ctx context.Context, pool *pgxpool.Pool, options PartyLik
 	minCommon := options.MinCommon
 	if minCommon <= 0 {
 		minCommon = 10
+	}
+
+	cacheKey := fmt.Sprintf("analysis:party_likeness:%s:%s:%s:%d", jurisdiction, formatOptTime(options.DateFrom), formatOptTime(options.DateTo), minCommon)
+	if cached, ok := cache.Global().Get(cacheKey); ok {
+		return copyPartyLikeness(cached.([]PartyLikeness)), nil
 	}
 
 	rows, err := pool.Query(ctx, `
@@ -187,5 +215,46 @@ func LoadPartyLikeness(ctx context.Context, pool *pgxpool.Pool, options PartyLik
 		}
 		rowsOut = append(rowsOut, row)
 	}
-	return rowsOut, rows.Err()
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+
+	cache.Global().Set(cacheKey, copyPartyLikeness(rowsOut))
+	return rowsOut, nil
+}
+
+func formatOptTime(t *time.Time) string {
+	if t == nil {
+		return "nil"
+	}
+	return t.Format(time.RFC3339)
+}
+
+func copyParties(src []Party) []Party {
+	if src == nil {
+		return nil
+	}
+	dst := make([]Party, len(src))
+	copy(dst, src)
+	return dst
+}
+
+func copyPartyLikeness(src []PartyLikeness) []PartyLikeness {
+	if src == nil {
+		return nil
+	}
+	dst := make([]PartyLikeness, len(src))
+	copy(dst, src)
+	return dst
+}
+
+func copyMapBool(src map[string]bool) map[string]bool {
+	if src == nil {
+		return nil
+	}
+	dst := make(map[string]bool, len(src))
+	for k, v := range src {
+		dst[k] = v
+	}
+	return dst
 }

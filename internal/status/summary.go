@@ -5,6 +5,8 @@ import (
 	"time"
 
 	"github.com/jackc/pgx/v5/pgxpool"
+
+	"partijgedrag/internal/cache"
 )
 
 type Summary struct {
@@ -50,6 +52,11 @@ type IngestionRunHealth struct {
 }
 
 func LoadSiteStats(ctx context.Context, pool *pgxpool.Pool) (SiteStats, error) {
+	cacheKey := "status:site_stats"
+	if cached, ok := cache.Global().Get(cacheKey); ok {
+		return cached.(SiteStats), nil
+	}
+
 	var stats SiteStats
 	err := pool.QueryRow(ctx, `
 		WITH motion_stats AS (
@@ -70,10 +77,20 @@ func LoadSiteStats(ctx context.Context, pool *pgxpool.Pool) (SiteStats, error) {
 		&stats.MotionsWithVotes,
 		&stats.Votes,
 	)
-	return stats, err
+	if err != nil {
+		return SiteStats{}, err
+	}
+
+	cache.Global().Set(cacheKey, stats)
+	return stats, nil
 }
 
 func LoadSummary(ctx context.Context, pool *pgxpool.Pool) (Summary, error) {
+	cacheKey := "status:summary"
+	if cached, ok := cache.Global().Get(cacheKey); ok {
+		return cached.(Summary), nil
+	}
+
 	var summary Summary
 	err := pool.QueryRow(ctx, `
 		WITH motion_stats AS (
@@ -114,7 +131,12 @@ func LoadSummary(ctx context.Context, pool *pgxpool.Pool) (Summary, error) {
 		&summary.DeletedVotes,
 		&summary.RawRecords,
 	)
-	return summary, err
+	if err != nil {
+		return Summary{}, err
+	}
+
+	cache.Global().Set(cacheKey, summary)
+	return summary, nil
 }
 
 func LoadVoteBackfill(ctx context.Context, pool *pgxpool.Pool, resyncAfter time.Duration) (VoteBackfill, error) {

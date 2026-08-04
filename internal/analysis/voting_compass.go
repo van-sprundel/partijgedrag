@@ -2,9 +2,12 @@ package analysis
 
 import (
 	"context"
+	"fmt"
 	"time"
 
 	"github.com/jackc/pgx/v5/pgxpool"
+
+	"partijgedrag/internal/cache"
 )
 
 type VotingCompassPosition struct {
@@ -65,6 +68,11 @@ func LoadVotingCompassMotions(ctx context.Context, pool *pgxpool.Pool, options V
 	partySourceIDs := options.PartySourceIDs
 	if partySourceIDs == nil {
 		partySourceIDs = []string{}
+	}
+
+	cacheKey := fmt.Sprintf("analysis:voting_compass_motions:%s:%s:%s:%d:%d:%v:%v:%v", jurisdiction, formatOptTime(options.DateFrom), formatOptTime(options.DateTo), limit, minParties, excludeKeys, categoryKeys, partySourceIDs)
+	if cached, ok := cache.Global().Get(cacheKey); ok {
+		return copyVotingCompassMotions(cached.([]VotingCompassMotion)), nil
 	}
 
 	rows, err := pool.Query(ctx, `
@@ -189,5 +197,19 @@ func LoadVotingCompassMotions(ctx context.Context, pool *pgxpool.Pool, options V
 		}
 		motions[index].Positions = append(motions[index].Positions, position)
 	}
-	return motions, rows.Err()
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+
+	cache.Global().Set(cacheKey, copyVotingCompassMotions(motions))
+	return motions, nil
+}
+
+func copyVotingCompassMotions(src []VotingCompassMotion) []VotingCompassMotion {
+	if src == nil {
+		return nil
+	}
+	dst := make([]VotingCompassMotion, len(src))
+	copy(dst, src)
+	return dst
 }

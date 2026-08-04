@@ -1,6 +1,10 @@
 package web
 
-import "testing"
+import (
+	"net/http"
+	"net/http/httptest"
+	"testing"
+)
 
 func TestNewParsesTemplates(t *testing.T) {
 	server, err := New(nil, false)
@@ -28,5 +32,25 @@ func TestCoalitionMotionsURL(t *testing.T) {
 	want := "/coalition-analysis/motions?limit=25&minCommon=10&offset=50&partyName=ChristenUnie&partySourceId=party-id&period=rutte-iv&relation=against"
 	if got != want {
 		t.Fatalf("coalitionMotionsURL() = %q, want %q", got, want)
+	}
+}
+
+func TestStaticCacheControl(t *testing.T) {
+	server, err := New(nil, false)
+	if err != nil {
+		t.Fatalf("New() error: %v", err)
+	}
+
+	mux := http.NewServeMux()
+	server.Register(mux)
+
+	req := httptest.NewRequest("GET", "/static/styles.css", nil)
+	rec := httptest.NewRecorder()
+	mux.ServeHTTP(rec, req)
+
+	got := rec.Header().Get("Cache-Control")
+	want := "public, max-age=31536000, immutable"
+	if got != want {
+		t.Fatalf("expected Cache-Control %q for static files, got %q", want, got)
 	}
 }

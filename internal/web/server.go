@@ -19,6 +19,7 @@ import (
 	"github.com/jackc/pgx/v5/pgxpool"
 
 	"partijgedrag/internal/analysis"
+	"partijgedrag/internal/cache"
 	"partijgedrag/internal/categorize"
 	"partijgedrag/internal/politics"
 	"partijgedrag/internal/status"
@@ -72,32 +73,39 @@ func New(pool *pgxpool.Pool, dev bool) (Server, error) {
 }
 
 func (server Server) Register(mux *http.ServeMux) {
+	var staticFS http.Handler
 	if server.dev {
-		mux.Handle("GET /static/", http.StripPrefix("/static/", http.FileServer(http.Dir(diskRoot+"/static"))))
+		staticFS = http.StripPrefix("/static/", http.FileServer(http.Dir(diskRoot+"/static")))
 	} else {
 		staticFiles, err := fs.Sub(embedded, "static")
 		if err != nil {
 			panic(err)
 		}
-		mux.Handle("GET /static/", http.StripPrefix("/static/", http.FileServerFS(staticFiles)))
+		staticFS = http.StripPrefix("/static/", http.FileServerFS(staticFiles))
 	}
-	mux.HandleFunc("GET /", server.home)
-	mux.HandleFunc("GET /about", server.about)
+	mux.Handle("GET /static/", http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Cache-Control", "public, max-age=31536000, immutable")
+		staticFS.ServeHTTP(w, r)
+	}))
+
+	c := cache.Global()
+	mux.HandleFunc("GET /", c.Middleware(cache.PolicyDynamic, server.home))
+	mux.HandleFunc("GET /about", c.Middleware(cache.PolicyDynamic, server.about))
 	mux.HandleFunc("GET /parties/{sourceID}/logo", server.partyLogo)
-	mux.HandleFunc("GET /party-likeness", server.partyLikeness)
-	mux.HandleFunc("GET /party-focus", server.partyFocus)
-	mux.HandleFunc("GET /coalition-analysis", server.coalitionAnalysis)
-	mux.HandleFunc("GET /coalition-analysis/motions", server.coalitionMotions)
-	mux.HandleFunc("GET /voting-compass", server.votingCompass)
-	mux.HandleFunc("GET /voting-compass/settings", server.votingCompassSettings)
-	mux.HandleFunc("GET /compass/results/{sessionKey}", server.compassResults)
+	mux.HandleFunc("GET /party-likeness", c.Middleware(cache.PolicyDynamic, server.partyLikeness))
+	mux.HandleFunc("GET /party-focus", c.Middleware(cache.PolicyDynamic, server.partyFocus))
+	mux.HandleFunc("GET /coalition-analysis", c.Middleware(cache.PolicyDynamic, server.coalitionAnalysis))
+	mux.HandleFunc("GET /coalition-analysis/motions", c.Middleware(cache.PolicyDynamic, server.coalitionMotions))
+	mux.HandleFunc("GET /voting-compass", c.Middleware(cache.PolicyDynamic, server.votingCompass))
+	mux.HandleFunc("GET /voting-compass/settings", c.Middleware(cache.PolicyDynamic, server.votingCompassSettings))
+	mux.HandleFunc("GET /compass/results/{sessionKey}", c.Middleware(cache.PolicyImmutable, server.compassResults))
 	// Internal ingestion diagnostics, including the CLI commands to run against
 	// the host. Nothing there is meaningful to a visitor, so it stays in dev.
 	if server.dev {
-		mux.HandleFunc("GET /data-quality", server.dataQuality)
+		mux.HandleFunc("GET /data-quality", c.Middleware(cache.PolicyNoStore, server.dataQuality))
 	}
-	mux.HandleFunc("GET /motions", server.motions)
-	mux.HandleFunc("GET /motions/{motionKey}", server.motion)
+	mux.HandleFunc("GET /motions", c.Middleware(cache.PolicyDynamic, server.motions))
+	mux.HandleFunc("GET /motions/{motionKey}", c.Middleware(cache.PolicyDynamic, server.motion))
 }
 
 func parseTemplate(source fs.FS, name string, dev bool) (*template.Template, error) {
@@ -291,7 +299,7 @@ func (server Server) partyLogo(response http.ResponseWriter, request *http.Reque
 	}
 
 	response.Header().Set("Content-Type", mediaType)
-	response.Header().Set("Cache-Control", "public, max-age=86400")
+	response.Header().Set("Cache-Control", "public, max-age=31536000, immutable")
 	http.ServeContent(response, request, "", modTime, bytes.NewReader(data))
 }
 

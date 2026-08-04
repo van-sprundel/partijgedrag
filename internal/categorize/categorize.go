@@ -8,6 +8,8 @@ import (
 
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
+
+	"partijgedrag/internal/cache"
 )
 
 type Category struct {
@@ -74,6 +76,15 @@ func (matcher *Matcher) Match(title *string, subject *string) []string {
 }
 
 func LoadCategories(ctx context.Context, pool *pgxpool.Pool, jurisdiction string) ([]Category, error) {
+	if jurisdiction == "" {
+		jurisdiction = "nl-tweede-kamer"
+	}
+
+	cacheKey := "categorize:categories:" + jurisdiction
+	if cached, ok := cache.Global().Get(cacheKey); ok {
+		return copyCategories(cached.([]Category)), nil
+	}
+
 	rows, err := pool.Query(ctx, `
 		SELECT category_key, name, kind, keywords
 		FROM categories
@@ -93,7 +104,21 @@ func LoadCategories(ctx context.Context, pool *pgxpool.Pool, jurisdiction string
 		}
 		categories = append(categories, category)
 	}
-	return categories, rows.Err()
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+
+	cache.Global().Set(cacheKey, copyCategories(categories))
+	return categories, nil
+}
+
+func copyCategories(src []Category) []Category {
+	if src == nil {
+		return nil
+	}
+	dst := make([]Category, len(src))
+	copy(dst, src)
+	return dst
 }
 
 type Options struct {

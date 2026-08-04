@@ -2,10 +2,13 @@ package analysis
 
 import (
 	"context"
+	"fmt"
 	"strings"
 	"time"
 
 	"github.com/jackc/pgx/v5/pgxpool"
+
+	"partijgedrag/internal/cache"
 )
 
 type CoalitionSummary struct {
@@ -65,6 +68,11 @@ func LoadCoalitionAnalysis(ctx context.Context, pool *pgxpool.Pool, options Coal
 		minCommon = 5
 	}
 
+	cacheKey := fmt.Sprintf("analysis:coalition_analysis:%s:%d", options.Period.PeriodKey, minCommon)
+	if cached, ok := cache.Global().Get(cacheKey); ok {
+		return cached.(CoalitionAnalysis), nil
+	}
+
 	coalitionParties := normalizedPartyNames(options.Period.Parties)
 	analysis := CoalitionAnalysis{}
 
@@ -80,6 +88,7 @@ func LoadCoalitionAnalysis(ctx context.Context, pool *pgxpool.Pool, options Coal
 	}
 	analysis.Parties = parties
 
+	cache.Global().Set(cacheKey, analysis)
 	return analysis, nil
 }
 
@@ -98,7 +107,12 @@ func LoadCoalitionMotions(ctx context.Context, pool *pgxpool.Pool, options Coali
 
 	relation, ok := NormalizeCoalitionRelation(options.Relation)
 	if !ok {
-		relation = "all"
+		return nil, fmt.Errorf("invalid relation %q", options.Relation)
+	}
+
+	cacheKey := fmt.Sprintf("analysis:coalition_motions:%s:%s:%s:%d:%d", options.Period.PeriodKey, options.PartySourceID, relation, limit, offset)
+	if cached, ok := cache.Global().Get(cacheKey); ok {
+		return copyCoalitionMotions(cached.([]CoalitionMotion)), nil
 	}
 
 	rows, err := pool.Query(ctx, coalitionPositionSQL()+`
@@ -172,7 +186,21 @@ func LoadCoalitionMotions(ctx context.Context, pool *pgxpool.Pool, options Coali
 		}
 		motions = append(motions, motion)
 	}
-	return motions, rows.Err()
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+
+	cache.Global().Set(cacheKey, copyCoalitionMotions(motions))
+	return motions, nil
+}
+
+func copyCoalitionMotions(src []CoalitionMotion) []CoalitionMotion {
+	if src == nil {
+		return nil
+	}
+	dst := make([]CoalitionMotion, len(src))
+	copy(dst, src)
+	return dst
 }
 
 func loadCoalitionSummary(ctx context.Context, pool *pgxpool.Pool, period CabinetPeriod, coalitionParties []string) (CoalitionSummary, error) {

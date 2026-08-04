@@ -6,6 +6,8 @@ import (
 
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
+
+	"partijgedrag/internal/cache"
 )
 
 type CabinetPeriod struct {
@@ -20,6 +22,11 @@ type CabinetPeriod struct {
 func LoadCabinetPeriods(ctx context.Context, pool *pgxpool.Pool, jurisdiction string) ([]CabinetPeriod, error) {
 	if jurisdiction == "" {
 		jurisdiction = "nl-tweede-kamer"
+	}
+
+	cacheKey := "analysis:cabinet_periods:" + jurisdiction
+	if cached, ok := cache.Global().Get(cacheKey); ok {
+		return copyCabinetPeriods(cached.([]CabinetPeriod)), nil
 	}
 
 	rows, err := pool.Query(ctx, `
@@ -46,7 +53,21 @@ func LoadCabinetPeriods(ctx context.Context, pool *pgxpool.Pool, jurisdiction st
 		}
 		periods = append(periods, period)
 	}
-	return periods, rows.Err()
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+
+	cache.Global().Set(cacheKey, copyCabinetPeriods(periods))
+	return periods, nil
+}
+
+func copyCabinetPeriods(src []CabinetPeriod) []CabinetPeriod {
+	if src == nil {
+		return nil
+	}
+	dst := make([]CabinetPeriod, len(src))
+	copy(dst, src)
+	return dst
 }
 
 func LoadCabinetPeriod(ctx context.Context, pool *pgxpool.Pool, jurisdiction string, periodKey string) (CabinetPeriod, error) {

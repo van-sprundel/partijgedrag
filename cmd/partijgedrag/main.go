@@ -11,6 +11,7 @@ import (
 	"syscall"
 	"time"
 
+	"partijgedrag/internal/cache"
 	"partijgedrag/internal/categorize"
 	"partijgedrag/internal/config"
 	"partijgedrag/internal/db"
@@ -67,6 +68,7 @@ func run() error {
 		if err := migrate.Run(ctx, database.Pool); err != nil {
 			return fmt.Errorf("migrate on startup: %w", err)
 		}
+		cache.Global().Init(ctx, database.Pool)
 
 		if cfg.SyncInterval > 0 {
 			fmt.Printf("built-in sync scheduler enabled interval=%s (set SYNC_INTERVAL=0 to disable)\n", cfg.SyncInterval)
@@ -596,6 +598,7 @@ func syncTweedeKamer(ctx context.Context, cfg config.Config, database *db.DB, se
 		fmt.Printf("categorize complete seen=%d matched=%d assignments=%d\n", stats.MotionsSeen, stats.MotionsMatched, stats.Assignments)
 	}
 
+	cache.Global().Invalidate()
 	fmt.Println("sync complete source=tweedekamer")
 	return nil
 }
