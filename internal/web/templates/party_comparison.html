@@ -1,0 +1,157 @@
+{{ define "title" }}{{ .Party1.ShortName }} tegenover {{ .Party2.ShortName }} - Partijgedrag{{ end }}
+{{ define "content" }}
+  <section class="section">
+    <a class="back-link" href="{{ .BackURL }}">← Terug naar partijgelijkenis</a>
+
+    <div class="versus">
+      <span class="versus-party">
+        {{ if .Party1.HasLogo }}
+          <img class="party-mark party-mark-lg" src="/parties/{{ .Party1.SourceID }}/logo" width="44" height="44" alt="" loading="lazy">
+        {{ else }}
+          <span class="party-mark party-mark-lg party-mark-text" aria-hidden="true">{{ .Party1.Monogram }}</span>
+        {{ end }}
+        <h1>{{ .Party1.ShortName }}</h1>
+      </span>
+      <span class="versus-vs">tegenover</span>
+      <span class="versus-party">
+        {{ if .Party2.HasLogo }}
+          <img class="party-mark party-mark-lg" src="/parties/{{ .Party2.SourceID }}/logo" width="44" height="44" alt="" loading="lazy">
+        {{ else }}
+          <span class="party-mark party-mark-lg party-mark-text" aria-hidden="true">{{ .Party2.Monogram }}</span>
+        {{ end }}
+        <h1>{{ .Party2.ShortName }}</h1>
+      </span>
+    </div>
+
+    <p class="eyebrow">{{ .Period.Name }} · {{ .Comparison.CommonMotions }} gedeelde moties</p>
+
+    {{ if .Comparison.CommonMotions }}
+      <div class="agreebar" role="img" aria-label="{{ printf "%.0f" .Comparison.Similarity }} procent eens">
+        <span class="eens" style="width: {{ share .Comparison.SameVotes .Comparison.DifferentVotes }}"></span>
+        <span class="oneens" style="width: {{ share .Comparison.DifferentVotes .Comparison.SameVotes }}"></span>
+      </div>
+      <div class="votebar-legend">
+        <span class="eens-count">{{ .Comparison.SameVotes }} keer hetzelfde gestemd</span>
+        <span class="oneens-count">{{ .Comparison.DifferentVotes }} keer verschillend</span>
+      </div>
+      <p class="lead">
+        {{ .Party1.ShortName }} en {{ .Party2.ShortName }} stemden
+        <strong>{{ printf "%.0f%%" .Comparison.Similarity }}</strong> van de tijd hetzelfde.
+        Hieronder staan de moties waar ze uit elkaar liepen.
+      </p>
+    {{ else }}
+      <p class="lead">Deze twee partijen stemden in {{ .Period.Name }} niet over dezelfde moties met een duidelijke positie. Kies een andere kabinetsperiode.</p>
+    {{ end }}
+
+    <form class="filters" method="get" action="/party-likeness/compare">
+      <input type="hidden" name="party1" value="{{ .Party1.SourceID }}">
+      <input type="hidden" name="party2" value="{{ .Party2.SourceID }}">
+      <input type="hidden" name="relation" value="{{ .Relation }}">
+      <label>
+        Kabinetsperiode
+        <select name="period">
+          {{ range .Periods }}
+            <option value="{{ .PeriodKey }}" {{ if eq $.Period.PeriodKey .PeriodKey }}selected{{ end }}>{{ .Name }}</option>
+          {{ end }}
+        </select>
+      </label>
+      <button type="submit">Toon periode</button>
+      <a class="chip-link" href="{{ .SwapURL }}">⇄ Draai om</a>
+    </form>
+  </section>
+
+  {{ if .Categories }}
+    <section class="section">
+      <h2>Per onderwerp</h2>
+      <p class="lead">Waar zit het verschil? Kies een onderwerp om de motielijst hieronder te filteren.</p>
+      <table>
+        <thead>
+          <tr>
+            <th>Onderwerp</th>
+            <th class="num">Moties</th>
+            <th style="width: 28%;">Eens / oneens</th>
+            <th class="num">Eens</th>
+            <th class="num">Oneens</th>
+          </tr>
+        </thead>
+        <tbody>
+          {{ range .Categories }}
+            <tr {{ if .Selected }}class="row-selected"{{ end }}>
+              <td><a class="tag tag-{{ .Kind }}" href="{{ .URL }}">{{ .Name }}</a></td>
+              <td class="num">{{ .CommonMotions }}</td>
+              <td>
+                <div class="agreebar" role="img" aria-label="{{ printf "%.0f" .Agreement }} procent eens">
+                  <span class="eens" style="width: {{ share .SameVotes .DifferentVotes }}"></span>
+                  <span class="oneens" style="width: {{ share .DifferentVotes .SameVotes }}"></span>
+                </div>
+              </td>
+              <td class="num">{{ .SameVotes }}</td>
+              <td class="num">{{ .DifferentVotes }}</td>
+            </tr>
+          {{ end }}
+        </tbody>
+      </table>
+    </section>
+  {{ end }}
+
+  <section class="section">
+    <div class="section-heading">
+      <h2>
+        {{ if eq .Relation "disagree" }}Waar ze verschillen
+        {{ else if eq .Relation "agree" }}Waar ze het eens zijn
+        {{ else }}Alle gedeelde moties{{ end }}
+      </h2>
+      <span class="muted mono">{{ .Total }} moties</span>
+    </div>
+
+    <div class="toggle-row">
+      {{ range .Relations }}
+        <a class="toggle{{ if .Selected }} toggle-on{{ end }}" href="{{ .URL }}">{{ .Label }} <span class="toggle-count">{{ .Count }}</span></a>
+      {{ end }}
+      {{ if .Category }}
+        <a class="toggle toggle-clear" href="{{ .ClearURL }}">{{ .CategoryName }} ✕</a>
+      {{ end }}
+    </div>
+
+    <div class="motion-list">
+      {{ range .Motions }}
+        <article class="motion-row">
+          <div>
+            <p class="eyebrow">{{ fallback .Number .MotionKey }} · {{ date .ProposedAt }}</p>
+            <a class="motion-title" href="/motions/{{ .MotionKey }}">{{ fallback .Subject .Title .MotionKey }}</a>
+            <div class="tags">
+              {{ range .Categories }}
+                <span class="tag tag-{{ .Kind }}">{{ .Name }}</span>
+              {{ end }}
+            </div>
+          </div>
+          <div class="motion-meta">
+            <div class="stance">
+              <span class="stance-party">{{ $.Party1.ShortName }}</span>
+              <span class="position position-{{ .Party1Position }}">{{ positie .Party1Position }}</span>
+            </div>
+            <div class="stance">
+              <span class="stance-party">{{ $.Party2.ShortName }}</span>
+              <span class="position position-{{ .Party2Position }}">{{ positie .Party2Position }}</span>
+            </div>
+            <div class="votebar" role="img" aria-label="{{ .VotesFor }} zetels voor, {{ .VotesAgainst }} zetels tegen">
+              <span class="voor" style="width: {{ share .VotesFor .VotesAgainst }}"></span>
+              <span class="tegen" style="width: {{ share .VotesAgainst .VotesFor }}"></span>
+            </div>
+            <div class="votebar-legend">
+              <span class="voor-count">{{ .VotesFor }} voor</span>
+              <span class="tegen-count">{{ .VotesAgainst }} tegen</span>
+            </div>
+          </div>
+        </article>
+      {{ else }}
+        <p class="muted">Geen moties gevonden voor deze selectie.</p>
+      {{ end }}
+    </div>
+
+    <nav class="pagination">
+      {{ if .PrevURL }}<a href="{{ .PrevURL }}">← Vorige</a>{{ end }}
+      {{ if .NextURL }}<a href="{{ .NextURL }}">Volgende →</a>{{ end }}
+    </nav>
+  </section>
+{{ end }}

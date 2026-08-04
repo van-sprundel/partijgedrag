@@ -5,7 +5,7 @@
       <h1>Partijgelijkenis</h1>
       <span class="muted mono">{{ len .Rows }} paren</span>
     </div>
-    <p class="lead">Hoe vaak stemden twee partijen hetzelfde over dezelfde moties? Hoe donkerder de cel, hoe gelijker het stemgedrag. De kolommen staan in dezelfde volgorde als de rijen; wijs een logo aan om de partijnaam te zien.</p>
+    <p class="lead">Hoe vaak stemden twee partijen hetzelfde over dezelfde moties? Hoe donkerder de cel, hoe gelijker het stemgedrag. De kolommen staan in dezelfde volgorde als de rijen; wijs een logo aan om de partijnaam te zien. Klik een percentage om te zien over welke moties die twee partijen het oneens zijn.</p>
 
     <form class="filters" method="get" action="/party-likeness">
       <label>
@@ -57,7 +57,14 @@
                 </span>
               </th>
               {{ range $.Parties }}
-                <td style="{{ tint $.Matrix $row.SourceID .SourceID }}">{{ likeness $.Matrix $row.SourceID .SourceID }}</td>
+                {{ $url := compare $.Matrix $row.SourceID .SourceID $.Period $.MinCommon }}
+                <td style="{{ tint $.Matrix $row.SourceID .SourceID }}">
+                  {{ if $url }}
+                    <a href="{{ $url }}" title="Vergelijk {{ $row.ShortName }} met {{ .ShortName }}">{{ likeness $.Matrix $row.SourceID .SourceID }}</a>
+                  {{ else }}
+                    {{ likeness $.Matrix $row.SourceID .SourceID }}
+                  {{ end }}
+                </td>
               {{ end }}
             </tr>
           {{ else }}
@@ -81,6 +88,7 @@
           <th class="num">Gelijkenis</th>
           <th class="num">Zelfde stem</th>
           <th class="num">Gedeelde moties</th>
+          <th></th>
         </tr>
       </thead>
       <tbody>
@@ -101,9 +109,10 @@
             <td class="num">{{ printf "%.1f%%" .Similarity }}</td>
             <td class="num">{{ .SameVotes }}</td>
             <td class="num">{{ .CommonMotions }}</td>
+            <td class="num"><a href="{{ compare $.Matrix .Party1SourceID .Party2SourceID $.Period $.MinCommon }}">Verschillen →</a></td>
           </tr>
         {{ else }}
-          <tr><td colspan="5">Nog geen gelijkenisdata. Synchroniseer eerst stemmingen.</td></tr>
+          <tr><td colspan="6">Nog geen gelijkenisdata. Synchroniseer eerst stemmingen.</td></tr>
         {{ end }}
       </tbody>
     </table>

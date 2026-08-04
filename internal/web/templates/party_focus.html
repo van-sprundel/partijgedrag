@@ -98,18 +98,20 @@
               <th class="num">Gelijkenis</th>
               <th class="num">Zelfde stem</th>
               <th class="num">Gedeelde moties</th>
+              <th></th>
             </tr>
           </thead>
           <tbody>
-            {{ range .Likeness }}
+            {{ range $.Likeness }}
               <tr>
                 <td>{{ .Party2Name }}</td>
                 <td class="num">{{ printf "%.1f%%" .Similarity }}</td>
                 <td class="num">{{ .SameVotes }}</td>
                 <td class="num">{{ .CommonMotions }}</td>
+                <td class="num"><a href="{{ .CompareURL }}">Verschillen →</a></td>
               </tr>
             {{ else }}
-              <tr><td colspan="4">Te weinig gedeelde stemmingen met andere partijen.</td></tr>
+              <tr><td colspan="5">Te weinig gedeelde stemmingen met andere partijen.</td></tr>
             {{ end }}
           </tbody>
         </table>

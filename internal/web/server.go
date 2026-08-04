@@ -57,7 +57,7 @@ func New(pool *pgxpool.Pool, dev bool) (Server, error) {
 	}
 
 	templates := make(map[string]*template.Template)
-	for _, name := range []string{"home", "about", "motions", "motion", "party_likeness", "party_focus", "coalition_analysis", "coalition_motions", "voting_compass", "voting_compass_settings", "compass_results", "data_quality"} {
+	for _, name := range []string{"home", "about", "motions", "motion", "party_likeness", "party_comparison", "party_focus", "coalition_analysis", "coalition_motions", "voting_compass", "voting_compass_settings", "compass_results", "data_quality"} {
 		parsed, err := parseTemplate(source, name, dev)
 		if err != nil {
 			return Server{}, err
@@ -93,6 +93,7 @@ func (server Server) Register(mux *http.ServeMux) {
 	mux.HandleFunc("GET /about", c.Middleware(cache.PolicyDynamic, server.about))
 	mux.HandleFunc("GET /parties/{sourceID}/logo", server.partyLogo)
 	mux.HandleFunc("GET /party-likeness", c.Middleware(cache.PolicyDynamic, server.partyLikeness))
+	mux.HandleFunc("GET /party-likeness/compare", c.Middleware(cache.PolicyDynamic, server.partyComparison))
 	mux.HandleFunc("GET /party-focus", c.Middleware(cache.PolicyDynamic, server.partyFocus))
 	mux.HandleFunc("GET /coalition-analysis", c.Middleware(cache.PolicyDynamic, server.coalitionAnalysis))
 	mux.HandleFunc("GET /coalition-analysis/motions", c.Middleware(cache.PolicyDynamic, server.coalitionMotions))
@@ -119,6 +120,7 @@ func parseTemplate(source fs.FS, name string, dev bool) (*template.Template, err
 	}
 
 	tmpl := template.New(name).Funcs(template.FuncMap{
+		"compare":  compareURL,
 		"date":     dateValue,
 		"dev":      func() bool { return dev },
 		"fallback": fallback,
@@ -352,6 +354,122 @@ func (server Server) partyLikeness(response http.ResponseWriter, request *http.R
 	})
 }
 
+// partyComparison drills into a single cell of the likeness matrix: two parties,
+// the motions they split on, and where those splits sit per onderwerp. It is the
+// answer to "I am torn between these two, where do they actually differ?".
+func (server Server) partyComparison(response http.ResponseWriter, request *http.Request) {
+	query := request.URL.Query()
+	party1SourceID := strings.TrimSpace(query.Get("party1"))
+	party2SourceID := strings.TrimSpace(query.Get("party2"))
+	if party1SourceID == "" || party2SourceID == "" {
+		http.Error(response, "missing party1 or party2", http.StatusBadRequest)
+		return
+	}
+	if party1SourceID == party2SourceID {
+		http.Error(response, "party1 and party2 must differ", http.StatusBadRequest)
+		return
+	}
+	relation, ok := analysis.NormalizeComparisonRelation(query.Get("relation"))
+	if !ok {
+		http.Error(response, "invalid relation", http.StatusBadRequest)
+		return
+	}
+
+	periods, err := analysis.LoadCabinetPeriods(request.Context(), server.Pool, "nl-tweede-kamer")
+	if err != nil {
+		writeError(response, err)
+		return
+	}
+	period, err := selectedCabinetPeriod(periods, query.Get("period"))
+	if err != nil {
+		http.Error(response, "invalid period", http.StatusBadRequest)
+		return
+	}
+
+	minCommon := clamp(parseInt(query.Get("minCommon"), 10), 1, 1000)
+	limit := clamp(parseInt(query.Get("limit"), 25), 1, 200)
+	offset := max(parseInt(query.Get("offset"), 0), 0)
+	category := query.Get("category")
+
+	parties, err := analysis.LoadParties(request.Context(), server.Pool, analysis.PartyListOptions{
+		Jurisdiction: "nl-tweede-kamer",
+	})
+	if err != nil {
+		writeError(response, err)
+		return
+	}
+	logos, err := analysis.LoadPartyLogoAvailability(request.Context(), server.Pool, "nl-tweede-kamer")
+	if err != nil {
+		writeError(response, err)
+		return
+	}
+	party1, found1 := findParty(parties, party1SourceID)
+	party2, found2 := findParty(parties, party2SourceID)
+	if !found1 || !found2 {
+		http.NotFound(response, request)
+		return
+	}
+
+	options := analysis.PartyComparisonOptions{
+		Jurisdiction:   "nl-tweede-kamer",
+		Party1SourceID: party1SourceID,
+		Party2SourceID: party2SourceID,
+		DateFrom:       &period.StartedOn,
+		DateTo:         period.EndedOn,
+	}
+	comparison, err := analysis.LoadPartyComparison(request.Context(), server.Pool, options)
+	if err != nil {
+		writeError(response, err)
+		return
+	}
+	motions, total, err := analysis.LoadComparisonMotions(request.Context(), server.Pool, analysis.ComparisonMotionOptions{
+		PartyComparisonOptions: options,
+		Relation:               relation,
+		Category:               category,
+		Limit:                  limit,
+		Offset:                 offset,
+	})
+	if err != nil {
+		writeError(response, err)
+		return
+	}
+
+	link := func(relation string, category string, offset int) string {
+		return partyComparisonURL(period.PeriodKey, minCommon, party1SourceID, party2SourceID, relation, category, limit, offset)
+	}
+
+	page := partyComparisonPage{
+		Periods:    periods,
+		Period:     period,
+		MinCommon:  minCommon,
+		Party1:     comparisonPartyView(party1, logos),
+		Party2:     comparisonPartyView(party2, logos),
+		Comparison: comparison,
+		Categories: comparisonCategoryViews(comparison.Categories, category, link),
+		Category:   category,
+		Motions:    motions,
+		Total:      total,
+		Relation:   relation,
+		Relations:  comparisonRelationViews(comparison, category, relation, link),
+		Limit:      limit,
+		Offset:     offset,
+		BackURL:    partyLikenessURL(period.PeriodKey, minCommon),
+		ClearURL:   link(relation, "", 0),
+		SwapURL:    partyComparisonURL(period.PeriodKey, minCommon, party2SourceID, party1SourceID, relation, category, limit, 0),
+	}
+	if category != "" {
+		page.CategoryName = comparisonCategoryName(comparison.Categories, category)
+	}
+	if offset > 0 {
+		page.PrevURL = link(relation, category, max(offset-limit, 0))
+	}
+	if offset+limit < total {
+		page.NextURL = link(relation, category, offset+limit)
+	}
+
+	server.render(response, "party_comparison", page)
+}
+
 func (server Server) partyFocus(response http.ResponseWriter, request *http.Request) {
 	query := request.URL.Query()
 	parties, err := analysis.LoadParties(request.Context(), server.Pool, analysis.PartyListOptions{
@@ -399,6 +517,7 @@ func (server Server) partyFocus(response http.ResponseWriter, request *http.Requ
 			return
 		}
 		page.Focus = &focus
+		page.Likeness = partyFocusLikenessViews(period.PeriodKey, minCommon, page.Party, focus.Likeness)
 	}
 
 	server.render(response, "party_focus", page)
@@ -1027,6 +1146,46 @@ type partyLikenessPage struct {
 	MinCommon int
 }
 
+type partyComparisonPage struct {
+	Periods      []analysis.CabinetPeriod
+	Period       analysis.CabinetPeriod
+	MinCommon    int
+	Party1       likenessParty
+	Party2       likenessParty
+	Comparison   analysis.PartyComparison
+	Categories   []comparisonCategoryView
+	Category     string
+	CategoryName string
+	Motions      []analysis.ComparisonMotion
+	Total        int
+	Relation     string
+	Relations    []comparisonRelationView
+	Limit        int
+	Offset       int
+	BackURL      string
+	ClearURL     string
+	SwapURL      string
+	PrevURL      string
+	NextURL      string
+}
+
+type comparisonCategoryView struct {
+	analysis.ComparisonCategory
+	URL      string
+	Selected bool
+}
+
+// comparisonRelationView is one option of the oneens/eens/alles toggle above the
+// motion list. Counts follow the category filter so the toggle never promises
+// more motions than the list can show.
+type comparisonRelationView struct {
+	Key      string
+	Label    string
+	Count    int
+	URL      string
+	Selected bool
+}
+
 type partyFocusPage struct {
 	Parties   []analysis.Party
 	Periods   []analysis.CabinetPeriod
@@ -1034,6 +1193,12 @@ type partyFocusPage struct {
 	Party     string
 	MinCommon int
 	Focus     *analysis.PartyFocus
+	Likeness  []partyFocusLikenessView
+}
+
+type partyFocusLikenessView struct {
+	analysis.PartyLikeness
+	CompareURL string
 }
 
 type coalitionAnalysisPage struct {
@@ -1284,6 +1449,131 @@ func coalitionPartyAlignmentViews(periodKey string, minCommon int, parties []ana
 		views = append(views, view)
 	}
 	return views
+}
+
+func findParty(parties []analysis.Party, sourceID string) (analysis.Party, bool) {
+	for _, party := range parties {
+		if party.SourceID == sourceID {
+			return party, true
+		}
+	}
+	return analysis.Party{}, false
+}
+
+func comparisonPartyView(party analysis.Party, logos map[string]bool) likenessParty {
+	return likenessParty{
+		SourceID:  party.SourceID,
+		ShortName: party.ShortName,
+		HasLogo:   logos[party.SourceID],
+		Monogram:  partyMonogram(party.ShortName),
+	}
+}
+
+func comparisonCategoryViews(categories []analysis.ComparisonCategory, selected string, link func(relation string, category string, offset int) string) []comparisonCategoryView {
+	views := make([]comparisonCategoryView, 0, len(categories))
+	for _, category := range categories {
+		views = append(views, comparisonCategoryView{
+			ComparisonCategory: category,
+			// A category is a lens on the disagreements, so following one always
+			// lands on the oneens list rather than keeping a stale relation.
+			URL:      link("disagree", category.CategoryKey, 0),
+			Selected: category.CategoryKey == selected,
+		})
+	}
+	return views
+}
+
+func comparisonCategoryName(categories []analysis.ComparisonCategory, categoryKey string) string {
+	for _, category := range categories {
+		if category.CategoryKey == categoryKey {
+			return category.Name
+		}
+	}
+	return categoryKey
+}
+
+func comparisonRelationViews(comparison analysis.PartyComparison, category string, selected string, link func(relation string, category string, offset int) string) []comparisonRelationView {
+	same, different, common := comparison.SameVotes, comparison.DifferentVotes, comparison.CommonMotions
+	if category != "" {
+		same, different, common = 0, 0, 0
+		for _, row := range comparison.Categories {
+			if row.CategoryKey == category {
+				same, different, common = row.SameVotes, row.DifferentVotes, row.CommonMotions
+				break
+			}
+		}
+	}
+
+	views := []comparisonRelationView{
+		{Key: "disagree", Label: "Oneens", Count: different},
+		{Key: "agree", Label: "Eens", Count: same},
+		{Key: "all", Label: "Alles", Count: common},
+	}
+	for index := range views {
+		views[index].URL = link(views[index].Key, category, 0)
+		views[index].Selected = views[index].Key == selected
+	}
+	return views
+}
+
+func partyFocusLikenessViews(periodKey string, minCommon int, partySourceID string, rows []analysis.PartyLikeness) []partyFocusLikenessView {
+	views := make([]partyFocusLikenessView, 0, len(rows))
+	for _, row := range rows {
+		views = append(views, partyFocusLikenessView{
+			PartyLikeness: row,
+			CompareURL:    partyComparisonURL(periodKey, minCommon, partySourceID, row.Party2SourceID, "disagree", "", 25, 0),
+		})
+	}
+	return views
+}
+
+func partyLikenessURL(periodKey string, minCommon int) string {
+	query := url.Values{}
+	query.Set("period", periodKey)
+	if minCommon != 10 {
+		query.Set("minCommon", strconv.Itoa(minCommon))
+	}
+	return "/party-likeness?" + query.Encode()
+}
+
+func partyComparisonURL(periodKey string, minCommon int, party1SourceID string, party2SourceID string, relation string, category string, limit int, offset int) string {
+	query := url.Values{}
+	query.Set("period", periodKey)
+	query.Set("party1", party1SourceID)
+	query.Set("party2", party2SourceID)
+	if minCommon != 10 {
+		query.Set("minCommon", strconv.Itoa(minCommon))
+	}
+	if relation != "" && relation != "disagree" {
+		query.Set("relation", relation)
+	}
+	if category != "" {
+		query.Set("category", category)
+	}
+	if limit != 25 {
+		query.Set("limit", strconv.Itoa(limit))
+	}
+	if offset > 0 {
+		query.Set("offset", strconv.Itoa(offset))
+	}
+	return "/party-likeness/compare?" + query.Encode()
+}
+
+// compareURL links a likeness matrix cell to the comparison page, and returns
+// empty for the diagonal and for pairs with too little shared history — those
+// cells have no number to click.
+func compareURL(matrix map[string]map[string]analysis.PartyLikeness, rowID string, columnID string, periodKey string, minCommon int) string {
+	if rowID == columnID {
+		return ""
+	}
+	row, ok := matrix[rowID]
+	if !ok {
+		return ""
+	}
+	if _, ok := row[columnID]; !ok {
+		return ""
+	}
+	return partyComparisonURL(periodKey, minCommon, rowID, columnID, "disagree", "", 25, 0)
 }
 
 func coalitionAnalysisURL(periodKey string, minCommon int) string {

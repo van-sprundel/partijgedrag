@@ -1103,6 +1103,165 @@ code {
   color: var(--muted);
 }
 
+/* ---------- partijvergelijker ---------- */
+
+.versus {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 12px 20px;
+  margin-bottom: 6px;
+}
+
+.versus-party {
+  display: inline-flex;
+  align-items: center;
+  gap: 12px;
+  min-width: 0;
+}
+
+.versus-party h1 {
+  margin: 0;
+}
+
+.versus-vs {
+  font: 400 13px/1.4 var(--font-mono);
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+
+.party-mark-lg {
+  width: 44px;
+  height: 44px;
+  font-size: 14px;
+}
+
+/* The agreebar answers a different question than the votebar, so it stays out
+   of the voor/tegen palette: two identical red segments on one row would read
+   as two tallies of the same thing. Agreement is Kamer blue, the gap is grey. */
+.agreebar {
+  display: flex;
+  height: 10px;
+  border-radius: 2px;
+  overflow: hidden;
+  background: var(--neutraal-soft);
+  margin-top: 12px;
+}
+
+.agreebar .eens {
+  background: var(--kamer);
+}
+
+.agreebar .oneens {
+  background: #b6bcc8;
+}
+
+.votebar-legend .eens-count {
+  color: var(--kamer);
+}
+
+.votebar-legend .oneens-count {
+  color: var(--muted);
+}
+
+.toggle-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-bottom: 18px;
+}
+
+.toggle {
+  border: 1px solid var(--line);
+  border-radius: 2px;
+  padding: 6px 12px;
+  font: 500 13px/1.4 var(--font-sans);
+  color: var(--muted);
+  background: var(--surface);
+}
+
+.toggle:hover {
+  text-decoration: none;
+  border-color: var(--kamer);
+  color: var(--kamer);
+}
+
+.toggle-on {
+  background: var(--kamer);
+  border-color: var(--kamer);
+  color: #fff;
+}
+
+.toggle-on:hover {
+  color: #fff;
+}
+
+.toggle-count {
+  font-family: var(--font-mono);
+  font-size: 12px;
+  opacity: 0.75;
+}
+
+.toggle-clear {
+  margin-left: auto;
+  background: var(--kamer-soft);
+  border-color: var(--kamer-soft);
+  color: var(--kamer);
+}
+
+.chip-link {
+  align-self: end;
+  padding: 8px 12px;
+  border: 1px solid var(--line);
+  border-radius: 2px;
+  font: 500 13px/1.4 var(--font-sans);
+  color: var(--muted);
+}
+
+.chip-link:hover {
+  text-decoration: none;
+  border-color: var(--kamer);
+  color: var(--kamer);
+}
+
+.row-selected {
+  background: var(--kamer-soft);
+}
+
+/* Each listed motion carries both parties' positions, stacked so the pair reads
+   top-to-bottom in the same order as the page heading. */
+.stance {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  margin-bottom: 6px;
+}
+
+.stance-party {
+  font: 500 12px/1.4 var(--font-mono);
+  color: var(--muted);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* Matrix cells become links to the comparison page; the anchor fills the cell
+   so the whole number is a target, and the underline stays off until hover. */
+.matrix td a {
+  display: block;
+  margin: -7px -10px;
+  padding: 7px 10px;
+  color: inherit;
+}
+
+.matrix td a:hover {
+  text-decoration: none;
+  background: var(--kamer);
+  color: #fff;
+}
+
 /* ---------- responsive ---------- */
 
 @media (max-width: 860px) {
@@ -1132,6 +1291,14 @@ code {
 
   h1 {
     font-size: 32px;
+  }
+
+  .versus-party h1 {
+    font-size: 26px;
+  }
+
+  .toggle-clear {
+    margin-left: 0;
   }
 
   .compass-question {
@@ -1180,7 +1347,9 @@ code {
 
 @media (prefers-reduced-motion: no-preference) {
   .votebar .voor,
-  .votebar .tegen {
+  .votebar .tegen,
+  .agreebar .eens,
+  .agreebar .oneens {
     transition: width 0.4s ease;
   }
 }
