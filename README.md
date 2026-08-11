@@ -1,4 +1,6 @@
-<img width="2880" height="1800" alt="01-home" src="https://github.com/user-attachments/assets/53d1c0c8-c210-4414-a367-f862dbf90f8e" /># Partijgedrag
+# Partijgedrag
+
+<img width="2880" height="1800" alt="01-home" src="https://github.com/user-attachments/assets/53d1c0c8-c210-4414-a367-f862dbf90f8e" />
 
 Partijgedrag is a web application that provides insight into the voting behavior of political parties in the Dutch parliament. It was originally created by Elwin Oost, later rebuilt in TypeScript, and has now become a final implementation that runs as a single Go binary.
 
