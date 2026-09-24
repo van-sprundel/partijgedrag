@@ -6,6 +6,7 @@ import (
 	"encoding/hex"
 	"fmt"
 	"net/http"
+	"strconv"
 	"sync"
 	"time"
 
@@ -26,6 +27,7 @@ type Cache struct {
 	syncVersion  uint64
 	lastSyncedAt time.Time
 	appVersion   string
+	startedAt    time.Time
 }
 
 var globalCache = New()
@@ -35,11 +37,13 @@ func Global() *Cache {
 }
 
 func New() *Cache {
+	now := time.Now().UTC()
 	return &Cache{
 		items:        make(map[string]any),
 		syncVersion:  1,
-		lastSyncedAt: time.Now().UTC(),
-		appVersion:   "1.0.0",
+		lastSyncedAt: now,
+		appVersion:   strconv.FormatInt(now.UnixNano(), 36),
+		startedAt:    now,
 	}
 }
 
@@ -139,7 +143,11 @@ func (c *Cache) Middleware(policy CachePolicy, next http.HandlerFunc) http.Handl
 
 		routeKey := r.URL.RequestURI()
 		etag := c.GenerateETag(routeKey)
-		lastMod := c.GetLastSyncedAt().Truncate(time.Second)
+		lastMod := c.GetLastSyncedAt()
+		if c.startedAt.After(lastMod) {
+			lastMod = c.startedAt
+		}
+		lastMod = lastMod.Truncate(time.Second)
 
 		w.Header().Set("ETag", etag)
 		w.Header().Set("Last-Modified", lastMod.Format(http.TimeFormat))

@@ -20,6 +20,11 @@
     </div>
     <aside class="compass-results">
       <h2>Uw matches</h2>
+      <div class="compass-actions-row">
+        <button type="button" class="btn" id="compass-share" disabled>Bekijk resultaat</button>
+        <button type="button" class="btn btn-secondary" id="compass-reset">Opnieuw beginnen</button>
+      </div>
+      <p class="muted compass-share-status" id="compass-share-status"></p>
       <p class="compass-threshold" id="compass-threshold"></p>
       <table class="match-table">
         <thead>
@@ -46,14 +51,10 @@
           <tbody id="compass-inconclusive-results"></tbody>
         </table>
       </details>
-      <div class="compass-actions-stack">
-        <button type="button" class="btn" id="compass-share" disabled>Bewaar &amp; deel resultaat</button>
-        <p class="muted" id="compass-share-status"></p>
-        <button type="button" class="btn btn-secondary" id="compass-reset">Opnieuw beginnen</button>
-      </div>
     </aside>
   </section>
 
+  <script src="{{ static "compass-history.js" }}"></script>
   <script>
     (() => {
       const count = document.querySelector("#compass-count");
@@ -123,6 +124,66 @@
         return cleaned.charAt(0).toUpperCase() + cleaned.slice(1);
       };
       const isVerzoek = (bullet) => bullet.trimStart().toLowerCase().startsWith("verzoekt");
+
+      // Every request reads "verzoekt <addressee> [tevens] [om] … te <verb>".
+      // The card names the addressee once and lists only the requests, split
+      // where one sentence bundles several ("…, en …" or "…; …").
+      const ADDRESSEE = /^(de (?:demissionaire )?regering|het (?:demissionaire )?kabinet|de minister-president|de premier|de ministers?|de staatssecretaris(?:sen)?|het presidium|de voorzitter|de griffier|de kamer)\b/i;
+      const PORTFOLIO = /^ (?:van|voor) (?:de |het )?[A-Z][^\s,]*(?:(?:,| en| van| voor)? (?:de |het )?[A-Z][^\s,]*)*/;
+      const LINKING = /^,?\s*(?:(?:tevens|voorts|daarnaast|eveneens|bovendien|verder|ook|ten slotte|tot slot|daarbij)\s+)*(?:om\s+)?/i;
+      const tidy = (text) => text.replace(/\s*\(\s*\)/g, "").replace(/\s+/g, " ").replace(/[\s;,.:]+$/, "").trim();
+      const parseAsk = (bullet) => {
+        let rest = bullet.trim().replace(/^verzoekt\s+/i, "");
+        let addressee = "";
+        const who = rest.match(ADDRESSEE);
+        if (who) {
+          addressee = who[0].toLowerCase().replace("kamer", "Kamer");
+          rest = rest.slice(who[0].length);
+          const portfolio = /minister|staatssecretaris|voorzitter/.test(addressee) && rest.match(PORTFOLIO);
+          if (portfolio) {
+            addressee += portfolio[0];
+            rest = rest.slice(portfolio[0].length);
+          }
+        }
+        rest = tidy(rest.replace(LINKING, ""));
+        // Only split when every part is its own "te <verb>" request, so
+        // enumerations like "de VNG, de NLPO, en de WOS" stay intact.
+        const parts = rest.split(/\s*;\s*(?:en\s+)?|,\s+en\s+/).map((part) => tidy(part.replace(LINKING, ""))).filter(Boolean);
+        const items = parts.length > 1 && parts.every((part) => /\bte\s/.test(part)) ? parts : [rest];
+        return { addressee, items };
+      };
+      // Follow-up requests like "de Kamer hierover voor de zomer te
+      // informeren" are procedure, not a position; they stay visible but quiet.
+      const isReporting = (item) => /\b(kamer|hierover|daarover)\b/i.test(item)
+        && /\bte (informeren|rapporteren|sturen|delen)\b|op de hoogte te (houden|brengen)/i.test(item)
+        && (item.match(/\bte\s/g) || []).length === 1;
+      // The headline is the Kamer's own paraphrase of the request and often
+      // repeats it nearly word for word. The request box is then only shown
+      // when it adds something: a detail the paraphrase drops, or a second
+      // request that is more than reporting back.
+      const contentWords = (text) => new Set(text.toLowerCase().match(/[\p{L}\d-]{4,}/gu) || []);
+      const repeatsHeadline = (headline, asks) => {
+        const items = asks.flatMap((ask) => ask.items);
+        if (items.slice(1).some((item) => !isReporting(item))) return false;
+        const headlineWords = contentWords(headline);
+        const askWords = contentWords(items[0]);
+        const covered = [...headlineWords].filter((word) => askWords.has(word)).length;
+        return headlineWords.size > 0 && covered / headlineWords.size >= 0.9 && items[0].length <= headline.length * 1.3;
+      };
+      const groupAsks = (verzoeken) => verzoeken.map(parseAsk).reduce((groups, ask) => {
+        const last = groups[groups.length - 1];
+        // A request without its own addressee ("verzoekt daarnaast …")
+        // continues the one before it.
+        if (last && (!ask.addressee || last.addressee.toLowerCase() === ask.addressee.toLowerCase())) {
+          last.items.push(...ask.items);
+        } else {
+          groups.push(ask);
+        }
+        return groups;
+      }, []);
+      const formatDate = (value) => value
+        ? new Date(value).toLocaleDateString("nl-NL", { day: "numeric", month: "long", year: "numeric" })
+        : "";
       const escapeHTML = (value) => String(value ?? "").replace(/[&<>"']/g, (character) => ({
         "&": "&amp;",
         "<": "&lt;",
@@ -161,18 +222,36 @@
         }
       };
 
-      const loadMore = async () => {
-        const known = new Set(motions.map((motion) => motion.motionKey));
-        const fresh = (await fetchMotions(motions.map((motion) => motion.motionKey)))
-          .filter((motion) => !known.has(motion.motionKey));
-        exhausted = fresh.length === 0;
-        motions = motions.concat(fresh);
-        renderCurrent();
-        renderResults();
+      // The next batch is fetched in the background a few stellingen before
+      // the queue runs out, so answering never stops at a "load more" wall.
+      const PREFETCH_AHEAD = 5;
+      let loadingMore = null;
+      const loadMore = () => {
+        if (!loadingMore) {
+          loadingMore = fetchMotions(motions.map((motion) => motion.motionKey))
+            .then((batch) => {
+              // Checked on arrival: a reset may have replaced the queue meanwhile.
+              const known = new Set(motions.map((motion) => motion.motionKey));
+              const fresh = batch.filter((motion) => !known.has(motion.motionKey));
+              exhausted = batch.length < profile.limit;
+              const waiting = current >= motions.length;
+              motions = motions.concat(fresh);
+              if (waiting) renderCurrent();
+              renderResults();
+            })
+            .finally(() => {
+              loadingMore = null;
+            });
+        }
+        return loadingMore;
       };
 
       const renderCurrent = () => {
-        progressNode.style.width = motions.length === 0 ? "0%" : `${(seen.size / motions.length) * 100}%`;
+        // Progress toward the answers needed to share; the queue itself is open-ended.
+        progressNode.style.width = `${Math.min(answers.size / REQUIRED_ANSWERS, 1) * 100}%`;
+        if (!exhausted && motions.length > 0 && motions.length - current <= PREFETCH_AHEAD) {
+          loadMore().catch(() => { /* the done card offers a retry */ });
+        }
 
         if (motions.length === 0) {
           motionsNode.innerHTML = `<p class="muted">Geen moties met stemuitslag gevonden voor deze selectie.</p>`;
@@ -180,15 +259,24 @@
         }
 
         if (current >= motions.length) {
+          // One set of choices: see the result, keep going, or go back.
+          const missing = missingAnswers();
           motionsNode.innerHTML = `
             <article class="compass-motion compass-done">
-              <p class="eyebrow">Klaar</p>
-              <h2>U heeft alle geladen stellingen gehad.</h2>
-              <p>Bekijk uw matches hiernaast${exhausted ? "" : ", ga verder met nieuwe stellingen"}, of bewaar het resultaat om het te delen.</p>
-              ${exhausted ? "" : `<button type="button" id="compass-more" class="btn">Meer stellingen</button> `}
-              <button type="button" id="compass-restart" class="btn btn-secondary">Bekijk stellingen opnieuw</button>
+              <p class="eyebrow">${exhausted ? "Klaar" : "Even geduld"}</p>
+              <h2>${exhausted ? "U heeft alle stellingen voor dit profiel gehad." : "Nieuwe stellingen laden…"}</h2>
+              <p>${missing > 0
+                ? `Nog ${missing} ${missing === 1 ? "antwoord" : "antwoorden"} nodig voor een resultaat${exhausted ? "; pas uw profiel aan voor andere stellingen" : ""}.`
+                : "Bekijk uw resultaat, of beantwoord meer stellingen voor een preciezere match."}</p>
+              <div class="compass-done-actions">
+                ${missing > 0 ? "" : `<button type="button" id="compass-done-results" class="btn">Bekijk resultaat</button>`}
+                ${exhausted ? "" : `<button type="button" id="compass-more" class="btn btn-secondary">Meer stellingen</button>`}
+                <button type="button" id="compass-back" class="btn btn-secondary">← Vorige stelling</button>
+              </div>
             </article>
           `;
+          const results = motionsNode.querySelector("#compass-done-results");
+          if (results) results.addEventListener("click", saveResult);
           const more = motionsNode.querySelector("#compass-more");
           if (more) {
             more.addEventListener("click", () => {
@@ -198,8 +286,8 @@
               });
             });
           }
-          motionsNode.querySelector("#compass-restart").addEventListener("click", () => {
-            current = 0;
+          motionsNode.querySelector("#compass-back").addEventListener("click", () => {
+            current = motions.length - 1;
             renderCurrent();
           });
           return;
@@ -209,23 +297,35 @@
         const chosen = answers.get(motion.motionKey);
         const bullets = motion.bulletPoints || [];
         const verzoeken = bullets.filter(isVerzoek);
-        const motivation = verzoeken.length > 0 ? bullets.filter((bullet) => !isVerzoek(bullet)) : [];
-        const shownBullets = verzoeken.length > 0 ? verzoeken : bullets;
+        const asks = verzoeken.length > 0 ? groupAsks(verzoeken) : [{ addressee: null, items: bullets.map(tidy) }];
+        const askLabel = (addressee) => addressee === null ? "" : addressee
+          ? `<p class="compass-ask-label">De motie vraagt ${escapeHTML(addressee)} om:</p>`
+          : `<p class="compass-ask-label">De motie verzoekt:</p>`;
+        const proposed = formatDate(motion.proposedAt);
+        const statement = formatTitle(motion.subject);
+        const showAsks = verzoeken.length === 0 || !statement || !repeatsHeadline(statement, asks);
         motionsNode.innerHTML = `
           <article class="compass-motion" data-motion-key="${escapeHTML(motion.motionKey)}">
             <div class="compass-question">
-              <p class="eyebrow">Stelling ${current + 1} van ${motions.length}</p>
-              <h2><a href="/motions/${encodeURIComponent(motion.motionKey)}" target="_blank" rel="noopener">${escapeHTML(formatTitle(motion.subject) || label(motion.title) || motion.motionKey)}</a></h2>
-              ${motion.title ? `<p class="compass-topic">${escapeHTML(motion.title)}</p>` : ""}
-              <p class="compass-ask-label">Letterlijk in de motie</p>
-              <ul class="compass-bullets">
-                ${shownBullets.map((bullet) => `<li>${escapeHTML(bullet)}</li>`).join("")}
-              </ul>
-              <ul class="compass-bullets compass-motivation" id="compass-motivation" hidden>
-                ${motivation.map((bullet) => `<li>${escapeHTML(bullet)}</li>`).join("")}
+              <p class="eyebrow">Stelling ${current + 1}</p>
+              <h2><a href="/motions/${encodeURIComponent(motion.motionKey)}" target="_blank" rel="noopener">${escapeHTML(statement || label(motion.title) || motion.motionKey)}</a></h2>
+              ${proposed || motion.title ? `<p class="compass-topic">
+                ${proposed ? `<span class="compass-date">${escapeHTML(proposed)}</span>` : ""}
+                ${motion.title ? `<span class="compass-dossier" title="${escapeHTML(motion.title)}">${escapeHTML(motion.title)}</span>` : ""}
+              </p>` : ""}
+              ${showAsks ? `<div class="compass-asks">
+                ${asks.map((ask) => `
+                  ${askLabel(ask.addressee)}
+                  <ul class="compass-bullets">
+                    ${ask.items.map((item, index) => `<li${index > 0 && isReporting(item) ? ' class="is-reporting"' : ""}>${escapeHTML(item)}</li>`).join("")}
+                  </ul>
+                `).join("")}
+              </div>` : ""}
+              <ul class="compass-fulltext" id="compass-motivation" hidden>
+                ${bullets.map((bullet) => `<li${isVerzoek(bullet) ? ' class="is-verzoek"' : ""}>${escapeHTML(bullet)}</li>`).join("")}
               </ul>
               <p class="compass-meta">
-                ${motivation.length > 0 ? `<button type="button" id="compass-toggle-motivation" aria-expanded="false">Toon motivatie</button>` : ""}
+                ${verzoeken.length > 0 ? `<button type="button" id="compass-toggle-motivation" aria-expanded="false">Volledige tekst</button>` : ""}
                 ${motion.documentUrl ? `<a href="${escapeHTML(motion.documentUrl.replace(/\.xml$/, ".html"))}" target="_blank" rel="noopener">Bron</a>` : ""}
               </p>
             </div>
@@ -237,7 +337,7 @@
               </div>
               <div class="compass-nav">
                 <button type="button" data-step="-1" ${current === 0 ? "disabled" : ""}>← Vorige</button>
-                <button type="button" data-step="1">Volgende →</button>
+                <button type="button" data-step="1" ${seen.has(motion.motionKey) ? "" : "disabled"}>Volgende →</button>
               </div>
             </div>
           </article>
@@ -250,7 +350,7 @@
             const expanded = motivationNode.hidden;
             motivationNode.hidden = !expanded;
             motivationToggle.setAttribute("aria-expanded", String(expanded));
-            motivationToggle.textContent = expanded ? "Verberg motivatie" : "Toon motivatie";
+            motivationToggle.textContent = expanded ? "Verberg volledige tekst" : "Volledige tekst";
           });
         }
 
@@ -273,10 +373,14 @@
             }
             saveState();
             renderResults();
+            // A second click before the card moves on (a double-click, a key
+            // repeat) must not advance twice and pass over the next stelling.
+            const answeredIndex = motions.indexOf(motion);
             setTimeout(() => {
-              current += 1;
+              if (current !== answeredIndex) return;
+              current = answeredIndex + 1;
               renderCurrent();
-              const sameSpot = motionsNode.querySelector(`[data-answer="${answer}"]`) || motionsNode.querySelector("#compass-restart");
+              const sameSpot = motionsNode.querySelector(`[data-answer="${answer}"]`) || motionsNode.querySelector(".compass-done-actions .btn");
               if (sameSpot) sameSpot.focus({ preventScroll: true });
             }, 250);
           });
@@ -287,7 +391,7 @@
             const step = Number(button.dataset.step);
             current = Math.max(0, current + step);
             renderCurrent();
-            const sameSpot = motionsNode.querySelector(`[data-step="${step}"]:not(:disabled)`) || motionsNode.querySelector("#compass-restart");
+            const sameSpot = motionsNode.querySelector(`[data-step="${step}"]:not(:disabled)`) || motionsNode.querySelector("[data-answer]");
             if (sameSpot) sameSpot.focus({ preventScroll: true });
           });
         });
@@ -296,7 +400,10 @@
       const share = document.querySelector("#compass-share");
       const shareStatus = document.querySelector("#compass-share-status");
 
-      share.addEventListener("click", async () => {
+      // A saved result ends the run: the next visit, or coming back with the
+      // back button, starts a fresh stemwijzer instead of continuing this one.
+      let saved = false;
+      const saveResult = async () => {
         share.disabled = true;
         shareStatus.textContent = "Opslaan…";
         try {
@@ -310,19 +417,31 @@
           });
           if (!response.ok) throw new Error("failed to save session");
           const data = await response.json();
+          compassHistory.remember({ key: data.sessionKey, at: new Date().toISOString(), answers: answers.size });
+          saved = true;
+          try { sessionStorage.removeItem(STORAGE_KEY); } catch { /* nothing to clear */ }
           window.location.href = data.url;
         } catch {
           share.disabled = false;
           shareStatus.textContent = "Opslaan is niet gelukt.";
         }
-      });
+      };
+      share.addEventListener("click", saveResult);
+
+      // With no more stellingen to load, the target is what can still be
+      // answered: skipped stellingen do not count toward it.
+      const missingAnswers = () => {
+        const stillOpen = motions.filter((motion) => !seen.has(motion.motionKey) && !answers.has(motion.motionKey)).length;
+        const requiredAnswers = exhausted ? Math.max(1, Math.min(REQUIRED_ANSWERS, answers.size + stillOpen)) : REQUIRED_ANSWERS;
+        return Math.max(0, requiredAnswers - answers.size);
+      };
 
       const renderResults = () => {
         count.textContent = `${answers.size} beantwoord`;
-        const requiredAnswers = exhausted ? Math.max(1, Math.min(REQUIRED_ANSWERS, motions.length)) : REQUIRED_ANSWERS;
-        share.disabled = answers.size < requiredAnswers;
-        shareStatus.textContent = answers.size > 0 && answers.size < requiredAnswers
-          ? `Nog ${requiredAnswers - answers.size} antwoorden nodig.`
+        const missing = missingAnswers();
+        share.disabled = missing > 0;
+        shareStatus.textContent = answers.size > 0 && missing > 0
+          ? `Nog ${missing} ${missing === 1 ? "antwoord" : "antwoorden"} nodig.`
           : "";
         const overlapThreshold = Math.max(1, Math.min(profile.minOverlap, answers.size || 1));
         threshold.textContent = `Alleen partijen die over minstens ${overlapThreshold} van uw stellingen meestemden.`;
@@ -377,8 +496,9 @@
         `).join("");
       };
 
-      document.querySelector("#compass-reset").addEventListener("click", () => {
+      const resetCompass = () => {
         try { sessionStorage.removeItem(STORAGE_KEY); } catch { /* nothing to clear */ }
+        saved = false;
         answers.clear();
         seen.clear();
         motions = [];
@@ -386,6 +506,13 @@
         loadMotions().catch(() => {
           motionsNode.innerHTML = `<p class="muted">Moties laden is niet gelukt.</p>`;
         });
+      };
+      document.querySelector("#compass-reset").addEventListener("click", resetCompass);
+
+      // The back/forward cache restores this page with the saved run still in
+      // memory, so it is cleared here too.
+      window.addEventListener("pageshow", (event) => {
+        if (event.persisted && saved) resetCompass();
       });
 
       restoreState();

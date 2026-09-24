@@ -71,27 +71,42 @@
       {{ range .Results.Motions }}
         <article class="motion-row">
           <div>
-            <p class="eyebrow">{{ fallback .Motion.Number .Motion.MotionKey }} · {{ date .Motion.ProposedAt }}</p>
-            <a class="motion-title" href="/motions/{{ .Motion.MotionKey }}">{{ fallback .Motion.Subject .Motion.Title .Motion.MotionKey }}</a>
+            <p class="eyebrow">{{ date .Motion.ProposedAt }}</p>
+            <a class="motion-title" href="/motions/{{ .Motion.MotionKey }}">{{ stelling .Motion.Subject .Motion.Title .Motion.MotionKey }}</a>
             <p>
               U stemde
               <span class="position position-{{ .UserAnswer }}">{{ positie .UserAnswer }}</span>
             </p>
-            <div class="tags">
-              {{ range .Positions }}
-                <span class="tag {{ if .AgreesWithUser }}tag-agree{{ else }}tag-disagree{{ end }}" title="{{ .PartyName }}: {{ positie .Position }}">{{ .PartyName }}</span>
-              {{ else }}
-                <span class="muted">Geen duidelijke partijposities voor deze motie.</span>
-              {{ end }}
-            </div>
+            {{ if .Positions }}
+              {{/* Grouped rather than coloured, so the answer to "who voted like
+                   me?" reads as a list instead of a red/green pattern to decode. */}}
+              <dl class="answer-parties">
+                <dt>Zoals u</dt>
+                <dd class="tags">
+                  {{- range .Positions }}{{ if .AgreesWithUser }}<span class="tag tag-agree" title="{{ .PartyName }}: {{ positie .Position }}">{{ .PartyName }}</span>{{ end }}{{ end -}}
+                </dd>
+                <dt>Anders</dt>
+                <dd class="tags">
+                  {{- range .Positions }}{{ if not .AgreesWithUser }}<span class="tag tag-disagree" title="{{ .PartyName }}: {{ positie .Position }}">{{ .PartyName }}</span>{{ end }}{{ end -}}
+                </dd>
+              </dl>
+            {{ else }}
+              <p class="muted">Geen duidelijke partijposities voor deze motie.</p>
+            {{ end }}
           </div>
         </article>
       {{ end }}
     </div>
-    <p class="muted">Groen: de partij stemde zoals u. Rood: de partij stemde anders.</p>
   </section>
 
+  <script src="{{ static "compass-history.js" }}"></script>
   <script>
+    compassHistory.update({{ .Results.Session.SessionKey }}, {
+      at: {{ .Results.Session.CreatedAt }},
+      answers: {{ len .Results.Session.Answers }},
+      top: [{{ range $i, $match := .Results.Matches }}{{ if lt $i 3 }}{ party: {{ $match.PartyName }}, match: {{ $match.Match }} },{{ end }}{{ end }}]
+    });
+
     document.querySelector("#copy-link").addEventListener("click", async () => {
       await navigator.clipboard.writeText(window.location.href);
       document.querySelector("#copy-link").textContent = "Gekopieerd";

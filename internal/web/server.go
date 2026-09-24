@@ -3,17 +3,22 @@ package web
 import (
 	"bytes"
 	"context"
+	"crypto/sha256"
 	"embed"
+	"encoding/hex"
 	"fmt"
 	"html/template"
 	"io/fs"
 	"net/http"
 	"net/url"
 	"os"
+	"regexp"
 	"sort"
 	"strconv"
 	"strings"
 	"time"
+	"unicode"
+	"unicode/utf8"
 
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
@@ -32,6 +37,32 @@ var embedded embed.FS
 // relative to the repo root. Dev mode serves from here instead of the
 // embedded copies, so edits show up on browser refresh without a rebuild.
 const diskRoot = "internal/web"
+
+var staticVersions = func() map[string]string {
+	versions := make(map[string]string)
+	_ = fs.WalkDir(embedded, "static", func(path string, entry fs.DirEntry, err error) error {
+		if err != nil || entry.IsDir() {
+			return err
+		}
+		content, err := fs.ReadFile(embedded, path)
+		if err != nil {
+			return err
+		}
+		sum := sha256.Sum256(content)
+		versions[strings.TrimPrefix(path, "static/")] = hex.EncodeToString(sum[:6])
+		return nil
+	})
+	return versions
+}()
+
+func staticURL(dev bool) func(string) string {
+	return func(name string) string {
+		if version, ok := staticVersions[name]; ok && !dev {
+			return "/static/" + name + "?v=" + version
+		}
+		return "/static/" + name
+	}
+}
 
 type Server struct {
 	Pool      *pgxpool.Pool
@@ -84,29 +115,39 @@ func (server Server) Register(mux *http.ServeMux) {
 		staticFS = http.StripPrefix("/static/", http.FileServerFS(staticFiles))
 	}
 	mux.Handle("GET /static/", http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		w.Header().Set("Cache-Control", "public, max-age=31536000, immutable")
+		if server.dev {
+			w.Header().Set("Cache-Control", "no-cache")
+		} else {
+			w.Header().Set("Cache-Control", "public, max-age=31536000, immutable")
+		}
 		staticFS.ServeHTTP(w, r)
 	}))
 
-	c := cache.Global()
-	mux.HandleFunc("GET /", c.Middleware(cache.PolicyDynamic, server.home))
-	mux.HandleFunc("GET /about", c.Middleware(cache.PolicyDynamic, server.about))
+	mux.HandleFunc("GET /", server.cached(cache.PolicyDynamic, server.home))
+	mux.HandleFunc("GET /about", server.cached(cache.PolicyDynamic, server.about))
 	mux.HandleFunc("GET /parties/{sourceID}/logo", server.partyLogo)
-	mux.HandleFunc("GET /party-likeness", c.Middleware(cache.PolicyDynamic, server.partyLikeness))
-	mux.HandleFunc("GET /party-likeness/compare", c.Middleware(cache.PolicyDynamic, server.partyComparison))
-	mux.HandleFunc("GET /party-focus", c.Middleware(cache.PolicyDynamic, server.partyFocus))
-	mux.HandleFunc("GET /coalition-analysis", c.Middleware(cache.PolicyDynamic, server.coalitionAnalysis))
-	mux.HandleFunc("GET /coalition-analysis/motions", c.Middleware(cache.PolicyDynamic, server.coalitionMotions))
-	mux.HandleFunc("GET /voting-compass", c.Middleware(cache.PolicyDynamic, server.votingCompass))
-	mux.HandleFunc("GET /voting-compass/settings", c.Middleware(cache.PolicyDynamic, server.votingCompassSettings))
-	mux.HandleFunc("GET /compass/results/{sessionKey}", c.Middleware(cache.PolicyImmutable, server.compassResults))
+	mux.HandleFunc("GET /party-likeness", server.cached(cache.PolicyDynamic, server.partyLikeness))
+	mux.HandleFunc("GET /party-likeness/compare", server.cached(cache.PolicyDynamic, server.partyComparison))
+	mux.HandleFunc("GET /party-focus", server.cached(cache.PolicyDynamic, server.partyFocus))
+	mux.HandleFunc("GET /coalition-analysis", server.cached(cache.PolicyDynamic, server.coalitionAnalysis))
+	mux.HandleFunc("GET /coalition-analysis/motions", server.cached(cache.PolicyDynamic, server.coalitionMotions))
+	mux.HandleFunc("GET /voting-compass", server.cached(cache.PolicyDynamic, server.votingCompass))
+	mux.HandleFunc("GET /voting-compass/settings", server.cached(cache.PolicyDynamic, server.votingCompassSettings))
+	mux.HandleFunc("GET /compass/results/{sessionKey}", server.cached(cache.PolicyImmutable, server.compassResults))
 	// Internal ingestion diagnostics, including the CLI commands to run against
 	// the host. Nothing there is meaningful to a visitor, so it stays in dev.
 	if server.dev {
-		mux.HandleFunc("GET /data-quality", c.Middleware(cache.PolicyNoStore, server.dataQuality))
+		mux.HandleFunc("GET /data-quality", server.cached(cache.PolicyNoStore, server.dataQuality))
 	}
-	mux.HandleFunc("GET /motions", c.Middleware(cache.PolicyDynamic, server.motions))
-	mux.HandleFunc("GET /motions/{motionKey}", c.Middleware(cache.PolicyDynamic, server.motion))
+	mux.HandleFunc("GET /motions", server.cached(cache.PolicyDynamic, server.motions))
+	mux.HandleFunc("GET /motions/{motionKey}", server.cached(cache.PolicyDynamic, server.motion))
+}
+
+func (server Server) cached(policy cache.CachePolicy, next http.HandlerFunc) http.HandlerFunc {
+	if server.dev {
+		policy = cache.PolicyNoStore
+	}
+	return cache.Global().Middleware(policy, next)
 }
 
 func parseTemplate(source fs.FS, name string, dev bool) (*template.Template, error) {
@@ -128,6 +169,8 @@ func parseTemplate(source fs.FS, name string, dev bool) (*template.Template, err
 		"percent":  percentValue,
 		"positie":  positieLabel,
 		"share":    shareValue,
+		"static":   staticURL(dev),
+		"stelling": stellingValue,
 		"tint":     tintStyle,
 		"time":     timeValue,
 	})
@@ -1639,6 +1682,22 @@ func fallback(values ...any) string {
 		}
 	}
 	return ""
+}
+
+var (
+	motionPreamble = regexp.MustCompile(`(?i)^(nader )?(gewijzigde )?motie van (het lid|de leden) .*? over `)
+	motionReplaces = regexp.MustCompile(`(?i)\s*\(t\.v\.v\.[^)]*\)\s*$`)
+)
+
+func stellingValue(values ...any) string {
+	text := strings.TrimSpace(fallback(values...))
+	text = motionPreamble.ReplaceAllString(text, "")
+	text = strings.TrimSpace(motionReplaces.ReplaceAllString(text, ""))
+	if text == "" {
+		return ""
+	}
+	first, size := utf8.DecodeRuneInString(text)
+	return string(unicode.ToUpper(first)) + text[size:]
 }
 
 func dateValue(value *time.Time) string {

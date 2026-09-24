@@ -266,6 +266,25 @@ dd,
   font-weight: 500;
 }
 
+.link-button {
+  padding: 0;
+  border: 0;
+  background: none;
+  color: var(--kamer);
+  font: inherit;
+  font-size: 14px;
+  cursor: pointer;
+}
+
+.link-button:hover {
+  text-decoration: underline;
+}
+
+.compass-history-note {
+  margin: -10px 0 14px;
+  font-size: 13px;
+}
+
 /* ---------- sections ---------- */
 
 .section {
@@ -808,6 +827,35 @@ th.num {
   color: var(--tegen);
 }
 
+.answer-parties {
+  display: grid;
+  grid-template-columns: max-content 1fr;
+  gap: 6px 12px;
+  align-items: baseline;
+  margin: 10px 0 0;
+}
+
+.answer-parties dt {
+  font: 500 11px/1.4 var(--font-mono);
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+
+.answer-parties dd {
+  margin: 0;
+}
+
+.answer-parties .tags {
+  margin-top: 0;
+}
+
+.answer-parties dd:empty::after {
+  content: "Geen partij";
+  font-size: 13px;
+  color: var(--muted);
+}
+
 /* ---------- detail pages ---------- */
 
 .back-link {
@@ -924,18 +972,28 @@ th.num {
   background: var(--kamer);
 }
 
-.compass-actions-stack {
+.compass-actions-row {
   display: flex;
-  flex-direction: column;
-  align-items: start;
   gap: 10px;
-  margin-top: 18px;
+  margin: 12px 0 14px;
 }
 
-.compass-actions-stack p {
-  margin: 0;
+.compass-actions-row .btn {
+  flex: 1;
+  padding: 10px 12px;
+  font-size: 14px;
+  text-align: center;
+  white-space: nowrap;
+}
+
+.compass-share-status {
+  margin: -6px 0 14px;
   font-size: 13px;
   line-height: 1.45;
+}
+
+.compass-share-status:empty {
+  display: none;
 }
 
 .progress {
@@ -989,6 +1047,13 @@ th.num {
   color: var(--kamer);
 }
 
+.compass-done-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  margin-top: 18px;
+}
+
 /* The statement is the question being asked, so it gets headline weight and
    size; everything below it is supporting material at body size or smaller. */
 .compass-motion h2 {
@@ -1010,59 +1075,101 @@ th.num {
   font-size: 14px;
 }
 
-/* The debate this motion belongs to: orienting context, not the question.
    Scoped past `.compass-motion p` so the smaller sizes actually apply. */
 .compass-motion .compass-topic {
+  display: flex;
+  gap: 12px;
+  align-items: baseline;
   font-size: 13px;
   color: var(--muted);
   margin: 0 0 18px;
 }
 
+.compass-date {
+  flex: none;
+  font-family: var(--font-mono);
+  font-size: 12px;
+}
+
+.compass-dossier {
+  min-width: 0;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
+.compass-asks {
+  margin: 0 0 12px;
+  padding: 12px 16px;
+  background: var(--kamer-soft);
+  border-left: 2px solid var(--kamer);
+}
+
 .compass-motion .compass-ask-label {
-  font: 500 11px/1.4 var(--font-mono);
-  letter-spacing: 0.14em;
-  text-transform: uppercase;
-  color: var(--muted);
+  font-size: 13px;
+  color: var(--kamer-deep);
   margin: 0 0 6px;
 }
 
 .compass-bullets {
-  margin: 0 0 12px;
+  margin: 0;
   padding: 0;
   list-style: none;
 }
 
+.compass-bullets + .compass-ask-label {
+  margin-top: 12px;
+}
+
 .compass-bullets li {
   position: relative;
-  padding: 10px 14px 10px 32px;
-  margin: 0 0 8px;
-  font-size: 14px;
-  line-height: 1.6;
+  padding: 0 0 0 20px;
+  margin: 0 0 6px;
+  font-size: 15px;
+  line-height: 1.55;
   color: var(--kamer-deep);
-  background: var(--kamer-soft);
-  border-left: 2px solid var(--kamer);
+}
+
+.compass-bullets li.is-reporting {
+  font-size: 13px;
+  color: var(--muted);
+}
+
+.compass-bullets li:last-child {
+  margin-bottom: 0;
 }
 
 .compass-bullets li::before {
   content: "→";
   position: absolute;
-  left: 12px;
+  left: 0;
   color: var(--kamer);
   font-family: var(--font-mono);
 }
 
-.compass-motivation li {
-  padding: 0 0 0 22px;
-  font-weight: 400;
-  color: var(--muted);
-  background: none;
-  border-left: none;
+.compass-fulltext {
+  margin: 0 0 12px;
+  padding: 0;
+  list-style: none;
 }
 
-.compass-motivation li::before {
-  content: "•";
-  left: 0;
+.compass-fulltext li {
+  position: relative;
+  padding: 0 0 0 22px;
+  margin: 0 0 8px;
+  font-size: 14px;
+  line-height: 1.6;
   color: var(--muted);
+}
+
+.compass-fulltext li.is-verzoek {
+  color: var(--ink);
+}
+
+.compass-fulltext li::before {
+  content: "•";
+  position: absolute;
+  left: 0;
 }
 
 .compass-meta {

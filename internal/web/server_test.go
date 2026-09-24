@@ -3,9 +3,11 @@ package web
 import (
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"testing"
 
 	"partijgedrag/internal/analysis"
+	"partijgedrag/internal/cache"
 )
 
 func TestNewParsesTemplates(t *testing.T) {
@@ -134,5 +136,48 @@ func TestStaticCacheControl(t *testing.T) {
 	want := "public, max-age=31536000, immutable"
 	if got != want {
 		t.Fatalf("expected Cache-Control %q for static files, got %q", want, got)
+	}
+}
+
+func TestStaticURLVersionsEmbeddedFiles(t *testing.T) {
+	versioned := staticURL(false)("styles.css")
+	if !strings.HasPrefix(versioned, "/static/styles.css?v=") || len(versioned) == len("/static/styles.css?v=") {
+		t.Fatalf("expected a content-hashed URL, got %q", versioned)
+	}
+	if got := staticURL(true)("styles.css"); got != "/static/styles.css" {
+		t.Fatalf("expected a plain URL in dev, got %q", got)
+	}
+	if got := staticURL(false)("missing.js"); got != "/static/missing.js" {
+		t.Fatalf("expected a plain URL for unknown files, got %q", got)
+	}
+}
+
+func TestDevPagesAreNotCached(t *testing.T) {
+	server := Server{dev: true}
+	handler := server.cached(cache.PolicyDynamic, func(w http.ResponseWriter, r *http.Request) {})
+	rec := httptest.NewRecorder()
+	handler(rec, httptest.NewRequest("GET", "/", nil))
+	if got := rec.Header().Get("Cache-Control"); got != "no-store, no-cache" {
+		t.Fatalf("expected dev pages to be uncached, got %q", got)
+	}
+}
+
+func TestStellingValue(t *testing.T) {
+	subject := "Gewijzigde motie van het lid Van der Plas over zones beperken tot maximaal 250 meter (t.v.v. 35334-457)"
+	title := "Stikstofbeleid"
+	cases := []struct {
+		values []any
+		want   string
+	}{
+		{[]any{&subject, &title}, "Zones beperken tot maximaal 250 meter"},
+		{[]any{"Motie van de leden Dijk en Drost over het eigen risico niet verhogen "}, "Het eigen risico niet verhogen"},
+		{[]any{"Nader gewijzigde motie van het lid Klink c.s. over één loket"}, "Één loket"},
+		{[]any{(*string)(nil), &title}, "Stikstofbeleid"},
+		{[]any{(*string)(nil)}, ""},
+	}
+	for _, testCase := range cases {
+		if got := stellingValue(testCase.values...); got != testCase.want {
+			t.Errorf("stellingValue(%v) = %q, want %q", testCase.values, got, testCase.want)
+		}
 	}
 }

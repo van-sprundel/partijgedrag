@@ -41,6 +41,8 @@ type VotingCompassOptions struct {
 	PartySourceIDs []string
 }
 
+const longAskChars = 350
+
 func LoadVotingCompassMotions(ctx context.Context, pool *pgxpool.Pool, options VotingCompassOptions) ([]VotingCompassMotion, error) {
 	jurisdiction := options.Jurisdiction
 	if jurisdiction == "" {
@@ -83,7 +85,10 @@ func LoadVotingCompassMotions(ctx context.Context, pool *pgxpool.Pool, options V
 			       m.subject,
 			       m.proposed_at,
 			       m.bullet_points,
-			       m.document_url
+			       m.document_url,
+			       (SELECT COALESCE(SUM(length(bullet)), 0)
+			        FROM jsonb_array_elements_text(m.bullet_points) AS bullet
+			        WHERE bullet ILIKE 'verzoekt%') > $9 AS long_ask
 			FROM motions m
 			WHERE m.jurisdiction_key = $1
 			  AND m.source_deleted = false
@@ -142,12 +147,13 @@ func LoadVotingCompassMotions(ctx context.Context, pool *pgxpool.Pool, options V
 			       c.subject,
 			       c.proposed_at,
 			       c.bullet_points,
-			       c.document_url
+			       c.document_url,
+			       c.long_ask
 			FROM candidates c
 			JOIN party_positions pp ON pp.motion_key = c.motion_key
-			GROUP BY c.motion_key, c.number, c.title, c.subject, c.proposed_at, c.bullet_points, c.document_url
+			GROUP BY c.motion_key, c.number, c.title, c.subject, c.proposed_at, c.bullet_points, c.document_url, c.long_ask
 			HAVING COUNT(*) >= $4
-			ORDER BY c.proposed_at DESC NULLS LAST, c.motion_key
+			ORDER BY c.long_ask, c.proposed_at DESC NULLS LAST, c.motion_key
 			LIMIT $5
 		)
 		SELECT em.motion_key,
@@ -162,8 +168,8 @@ func LoadVotingCompassMotions(ctx context.Context, pool *pgxpool.Pool, options V
 		       pp.position
 		FROM eligible_motions em
 		JOIN party_positions pp ON pp.motion_key = em.motion_key
-		ORDER BY em.proposed_at DESC NULLS LAST, em.motion_key, pp.party_name
-	`, jurisdiction, options.DateFrom, options.DateTo, minParties, limit, excludeKeys, categoryKeys, partySourceIDs)
+		ORDER BY em.long_ask, em.proposed_at DESC NULLS LAST, em.motion_key, pp.party_name
+	`, jurisdiction, options.DateFrom, options.DateTo, minParties, limit, excludeKeys, categoryKeys, partySourceIDs, longAskChars)
 	if err != nil {
 		return nil, err
 	}
