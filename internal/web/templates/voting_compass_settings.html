@@ -6,72 +6,102 @@
       <a href="/voting-compass" id="settings-cancel" hidden>Terug naar de stellingen</a>
     </div>
     <p class="lead">
-      Stel eerst in waarover u wilt stemmen. Daarna legt de stemwijzer u echte moties
-      uit de Tweede Kamer voor. U kunt dit hierna aanpassen zonder uw antwoorden te
-      verliezen; na 20 antwoorden kunt u uw resultaat bewaren en delen.
+      Stem zelf op echte moties uit de Tweede Kamer en zie welke partijen net zo stemden als u.
+      Alle keuzes hieronder zijn optioneel en later aan te passen zonder uw antwoorden te verliezen.
     </p>
 
-    <form class="filters" id="settings-form" method="get" action="/voting-compass">
-      <div class="setting-grid">
-        <label class="setting">
-          <span class="setting-label">Kabinetsperiode</span>
-          <select name="period" id="settings-period">
-            <option value="">Alle beschikbare moties</option>
+    <form class="filters setup" id="settings-form" method="get" action="/voting-compass">
+      <div class="setup-step" role="group" aria-labelledby="settings-step-period">
+        <h2 class="setup-head" id="settings-step-period">
+          <span class="setup-num">1</span>
+          <span class="setup-title">Periode</span>
+        </h2>
+        <div class="setup-body">
+          <p class="setup-hint">Uit welke kabinetsperiode komen de moties?</p>
+          <div class="chips">
+            <label class="chip"><input type="radio" name="period" value="" checked><span>Alle periodes</span></label>
             {{ range .Periods }}
-              <option value="{{ .PeriodKey }}">{{ .Name }}</option>
+              <label class="chip">
+                <input type="radio" name="period" value="{{ .PeriodKey }}">
+                <span>{{ .Name }}</span>
+                <span class="chip-meta">{{ .StartedOn.Year }}–{{ if .EndedOn }}{{ .EndedOn.Year }}{{ else }}nu{{ end }}</span>
+              </label>
             {{ end }}
-          </select>
-          <span class="setting-hint">Beperkt de stellingen tot moties uit die regeerperiode.</span>
-        </label>
-        <label class="setting">
-          <span class="setting-label">Stellingen per ronde</span>
-          <input type="number" name="limit" id="settings-limit" value="20" min="1" max="50">
-          <span class="setting-hint">Hoeveel moties u achter elkaar krijgt. Daarna kunt u een nieuwe ronde laden.</span>
-        </label>
-        <label class="setting">
-          <span class="setting-label">Minimale overlap</span>
-          <input type="number" name="minOverlap" id="settings-min-overlap" value="5" min="1" max="50">
-          <span class="setting-hint">Een partij komt pas in uw uitslag als zij over zoveel van uw stellingen heeft meegestemd. Zo krijgt een partij die één keer met u meestemde geen 100%.</span>
-        </label>
+          </div>
+        </div>
       </div>
 
-      <details class="filter-group" open>
-        <summary>Onderwerpen <span id="settings-topics-count"></span></summary>
-        <p class="hint">Selecteer onderwerpen of laat leeg voor alle onderwerpen.</p>
-        <p class="eyebrow">Actueel</p>
-        <div class="chips">
-          {{ range .HotTopics }}
-            <label class="chip"><input type="checkbox" name="categories" value="{{ .CategoryKey }}"><span>{{ .Name }}</span></label>
-          {{ end }}
+      <div class="setup-step" role="group" aria-labelledby="settings-step-topics">
+        <h2 class="setup-head" id="settings-step-topics">
+          <span class="setup-num">2</span>
+          <span class="setup-title">Onderwerpen</span>
+        </h2>
+        <div class="setup-body">
+          <p class="setup-hint">
+            Over welke onderwerpen wilt u stemmen? Kies er geen om over alles te stemmen.
+            <button type="button" class="link-button" id="settings-topics-clear" hidden>Wis keuze</button>
+          </p>
+          <p class="eyebrow">Actueel</p>
+          <div class="chips">
+            {{ range .HotTopics }}
+              <label class="chip"><input type="checkbox" name="categories" value="{{ .CategoryKey }}"><span>{{ .Name }}</span></label>
+            {{ end }}
+          </div>
+          <p class="eyebrow">Beleidsagenda</p>
+          <div class="chips">
+            {{ range .Categories }}
+              <label class="chip"><input type="checkbox" name="categories" value="{{ .CategoryKey }}"><span>{{ .Name }}</span></label>
+            {{ end }}
+          </div>
         </div>
-        <p class="eyebrow">Beleidsagenda</p>
-        <div class="chips">
-          {{ range .Categories }}
-            <label class="chip"><input type="checkbox" name="categories" value="{{ .CategoryKey }}"><span>{{ .Name }}</span></label>
-          {{ end }}
+      </div>
+
+      <div class="setup-step" role="group" aria-labelledby="settings-step-parties">
+        <h2 class="setup-head" id="settings-step-parties">
+          <span class="setup-num">3</span>
+          <span class="setup-title">Partijen</span>
+        </h2>
+        <div class="setup-body">
+          <p class="setup-hint">
+            <span id="settings-parties-status">Twijfelt u tussen een paar partijen? Kies er minstens twee en u krijgt alleen moties waarover zij verschillend stemden.</span>
+            <button type="button" class="link-button" id="settings-parties-clear" hidden>Wis keuze</button>
+          </p>
+          <div class="chips" id="settings-party-chips">
+            {{ range .Parties }}
+              <label class="chip"{{ with .Name }} title="{{ . }}"{{ end }}><input type="checkbox" name="parties" value="{{ .SourceID }}"><span>{{ .ShortName }}</span></label>
+            {{ end }}
+          </div>
+        </div>
+      </div>
+
+      <details class="setup-advanced">
+        <summary>Meer instellingen</summary>
+        <div class="setting-grid">
+          <label class="setting">
+            <span class="setting-label">Stellingen per ronde</span>
+            <input type="number" name="limit" id="settings-limit" value="20" min="1" max="50">
+            <span class="setting-hint">Hoeveel moties u achter elkaar krijgt. Daarna kunt u een nieuwe ronde laden.</span>
+          </label>
+          <label class="setting">
+            <span class="setting-label">Minimale overlap</span>
+            <input type="number" name="minOverlap" id="settings-min-overlap" value="5" min="1" max="50">
+            <span class="setting-hint">Een partij komt pas in uw uitslag als zij over zoveel van uw stellingen heeft meegestemd. Zo krijgt een partij die één keer met u meestemde geen 100%.</span>
+          </label>
         </div>
       </details>
 
-      <details class="filter-group" open>
-        <summary>Partijen <span id="settings-parties-count"></span></summary>
-        <p class="hint">Kies minstens twee partijen om alleen stellingen te zien waarover zij verschillend stemden.</p>
-        <div class="chips" id="settings-party-chips">
-          {{ range .Parties }}
-            <label class="chip"><input type="checkbox" name="parties" value="{{ .SourceID }}"><span>{{ .ShortName }}</span></label>
-          {{ end }}
-        </div>
-      </details>
-
-      <button type="submit" class="btn" id="settings-submit">Start stemwijzer</button>
+      <div class="setup-submit">
+        <button type="submit" class="btn" id="settings-submit">Start stemwijzer</button>
+      </div>
     </form>
   </section>
 
   <script>
     (() => {
       const form = document.querySelector("#settings-form");
-      const period = document.querySelector("#settings-period");
       const limit = document.querySelector("#settings-limit");
       const minOverlap = document.querySelector("#settings-min-overlap");
+      const advanced = document.querySelector(".setup-advanced");
 
       const escapeHTML = (value) => String(value ?? "").replace(/[&<>"']/g, (character) => ({
         "&": "&amp;",
@@ -81,15 +111,20 @@
         "'": "&#39;"
       })[character]);
 
-      const checkedValues = (name) => Array.from(form.querySelectorAll(`input[name="${name}"]:checked`)).map((input) => input.value);
+      const checkedInputs = (name) => Array.from(form.querySelectorAll(`input[name="${name}"]:checked`));
+      const chipLabel = (input) => input.closest("label").querySelector("span").textContent.trim();
+      const selectedPeriod = () => form.querySelector('input[name="period"]:checked');
 
       // Pre-fill the form from the incoming query string so editing an existing
       // profile starts from the current selections.
       const query = new URLSearchParams(location.search);
       const splitAll = (name) => query.getAll(name).flatMap((value) => value.split(",")).map((value) => value.trim()).filter(Boolean);
-      if (query.get("period")) period.value = query.get("period");
+      const periodInput = form.querySelector(`input[name="period"][value="${CSS.escape(query.get("period") || "")}"]`);
+      if (periodInput) periodInput.checked = true;
       if (query.get("limit")) limit.value = query.get("limit");
       if (query.get("minOverlap")) minOverlap.value = query.get("minOverlap");
+      // Keep non-default advanced settings visible so they are not forgotten.
+      if (limit.value !== limit.defaultValue || minOverlap.value !== minOverlap.defaultValue) advanced.open = true;
       const applyChecks = (name, values) => {
         form.querySelectorAll(`input[name="${name}"]`).forEach((input) => {
           input.checked = values.has(input.value);
@@ -112,30 +147,48 @@
         }
       });
 
-      const topicsCount = document.querySelector("#settings-topics-count");
-      const partiesCount = document.querySelector("#settings-parties-count");
-      const renderFilterCounts = () => {
-        const categories = checkedValues("categories").length;
-        const parties = checkedValues("parties").length;
-        topicsCount.textContent = categories > 0 ? `(${categories})` : "";
-        partiesCount.textContent = parties > 0 ? `(${parties})` : "";
+      const topicsClear = document.querySelector("#settings-topics-clear");
+      const partiesStatus = document.querySelector("#settings-parties-status");
+      const partiesClear = document.querySelector("#settings-parties-clear");
+      const partiesDefault = partiesStatus.textContent;
+
+      const render = () => {
+        const topics = checkedInputs("categories");
+        const parties = checkedInputs("parties").map(chipLabel);
+        topicsClear.hidden = topics.length === 0;
+
+        // A single party filters nothing, so say so instead of silently
+        // ignoring the choice.
+        partiesStatus.textContent = parties.length === 1
+          ? `${parties[0]} gekozen. Kies nog minstens één partij om te filteren.`
+          : partiesDefault;
+        partiesClear.hidden = parties.length === 0;
       };
-      form.addEventListener("change", renderFilterCounts);
-      renderFilterCounts();
+      form.addEventListener("change", render);
+
+      const clearChecks = (name) => {
+        form.querySelectorAll(`input[name="${name}"]`).forEach((input) => { input.checked = false; });
+        if (name === "parties") selectedParties.clear();
+        render();
+      };
+      topicsClear.addEventListener("click", () => clearChecks("categories"));
+      partiesClear.addEventListener("click", () => clearChecks("parties"));
+      render();
 
       // The party list follows the selected period: Rutte IV offers different
       // fracties than today's Kamer. Selections that survive the switch stay checked.
       const partyChips = document.querySelector("#settings-party-chips");
       const renderPartyChips = (parties) => {
         partyChips.innerHTML = parties.map((party) =>
-          `<label class="chip"><input type="checkbox" name="parties" value="${escapeHTML(party.sourceId)}"${selectedParties.has(party.sourceId) ? " checked" : ""}><span>${escapeHTML(party.shortName)}</span></label>`
+          `<label class="chip"${party.name ? ` title="${escapeHTML(party.name)}"` : ""}><input type="checkbox" name="parties" value="${escapeHTML(party.sourceId)}"${selectedParties.has(party.sourceId) ? " checked" : ""}><span>${escapeHTML(party.shortName)}</span></label>`
         ).join("");
-        renderFilterCounts();
+        render();
       };
-      period.addEventListener("change", async () => {
+      const loadParties = async () => {
         try {
           const params = new URLSearchParams();
-          if (period.value) params.set("period", period.value);
+          const period = selectedPeriod();
+          if (period && period.value) params.set("period", period.value);
           const response = await fetch(`/api/parties?${params.toString()}`);
           if (!response.ok) return;
           const data = await response.json();
@@ -143,8 +196,11 @@
         } catch {
           /* keep the current list when the fetch fails */
         }
+      };
+      form.addEventListener("change", (event) => {
+        if (event.target.name === "period") loadParties();
       });
-      if (period.value) period.dispatchEvent(new Event("change"));
+      if (selectedPeriod()?.value) loadParties();
 
       // This page is both the way in and the way to adjust a profile mid-run. It
       // only offers a way back, and calls itself a continuation, once there is a

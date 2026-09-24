@@ -447,13 +447,75 @@ dd,
   margin: 4px 0 8px;
 }
 
-.filter-group {
-  width: 100%;
-  border-top: 1px solid var(--line);
-  padding: 10px 0 2px;
+.filters.setup {
+  display: block;
+  margin: 28px 0 0;
+  border-top: 2px solid var(--ink);
 }
 
-.filter-group summary {
+.setup-step {
+  display: grid;
+  grid-template-columns: 170px minmax(0, 1fr);
+  gap: 6px 32px;
+  padding: 20px 0 12px;
+  border-bottom: 1px solid var(--line);
+}
+
+.setup-head {
+  display: flex;
+  align-items: baseline;
+  gap: 10px;
+  margin: 0;
+  font-size: 22px;
+}
+
+.setup-num {
+  font: 500 13px/1 var(--font-mono);
+  color: var(--kamer);
+}
+
+.setup-hint {
+  font-size: 14px;
+  color: var(--muted);
+  margin: 2px 0 0;
+  max-width: 72ch;
+}
+
+.setup-body .chips {
+  margin: 10px 0 8px;
+}
+
+.setup-body .eyebrow {
+  margin: 14px 0 0;
+}
+
+.filters .chip .chip-meta {
+  margin-left: 8px;
+  font: 400 11px/1 var(--font-mono);
+  color: var(--muted);
+}
+
+.filters .link-button {
+  margin-left: 6px;
+  padding: 0;
+  border: 0;
+  background: none;
+  font: inherit;
+  color: var(--kamer);
+  text-decoration: underline;
+  cursor: pointer;
+}
+
+.filters .link-button:hover {
+  background: none;
+  color: var(--kamer-deep);
+}
+
+.setup-advanced {
+  padding: 14px 0;
+}
+
+.setup-advanced summary {
   cursor: pointer;
   font: 500 11px/1.4 var(--font-mono);
   letter-spacing: 0.1em;
@@ -461,8 +523,25 @@ dd,
   color: var(--muted);
 }
 
-.filter-group summary:hover {
+.setup-advanced summary:hover {
   color: var(--kamer);
+}
+
+.setup-advanced .setting-grid {
+  margin: 14px 0 4px;
+  max-width: 720px;
+}
+
+.setup-submit {
+  position: sticky;
+  bottom: 0;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px 18px;
+  padding: 16px 0;
+  border-top: 1px solid var(--line);
+  background: var(--paper);
 }
 
 .hint {
@@ -470,10 +549,6 @@ dd,
   color: var(--muted);
   margin: 10px 0 4px;
   max-width: 62ch;
-}
-
-.filter-group .eyebrow {
-  margin: 14px 0 0;
 }
 
 .chips {
@@ -487,6 +562,7 @@ dd,
   display: inline-flex;
   flex-direction: row;
   align-items: center;
+  gap: 0;
   padding: 6px 12px;
   border: 1px solid var(--line);
   border-radius: 2px;
@@ -1286,6 +1362,10 @@ code {
   }
 
   .motion-row {
+    grid-template-columns: 1fr;
+  }
+
+  .setup-step {
     grid-template-columns: 1fr;
   }
 
