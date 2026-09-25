@@ -1,6 +1,6 @@
 services:
   postgres:
-    image: postgres:18
+    image: postgres:16
     container_name: partijgedrag-db
     environment:
       POSTGRES_DB: partijgedrag

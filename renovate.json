@@ -5,5 +5,18 @@
   ],
   "minimumReleaseAge": "7 days",
   "automerge": true,
-  "platformAutomerge": false
+  "platformAutomerge": false,
+  "packageRules": [
+    {
+      "description": "Major updates need a human review",
+      "matchUpdateTypes": ["major"],
+      "automerge": false
+    },
+    {
+      "description": "Keep the dev database on the same major as production (PostgreSQL 16 on db21)",
+      "matchDatasources": ["docker"],
+      "matchPackageNames": ["postgres"],
+      "allowedVersions": "<17"
+    }
+  ]
 }
