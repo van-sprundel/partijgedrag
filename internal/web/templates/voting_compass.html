@@ -123,21 +123,23 @@
           .trim();
         return cleaned.charAt(0).toUpperCase() + cleaned.slice(1);
       };
-      const isVerzoek = (bullet) => bullet.trimStart().toLowerCase().startsWith("verzoekt");
+      const ASK_VERB = /^\s*(verzoekt|vraagt|draagt|roept|geeft)\b/i;
+      const isAsk = (bullet) => ASK_VERB.test(bullet);
+      const VERB_CHOICE = /^\s*(?:verzoekt|vraagt|draagt|roept|geeft)\b[^/]{0,60}\/\s*(?=(?:verzoekt|vraagt|draagt|roept|geeft)\b)/i;
+      const CLOSING = { draagt: "op", roept: "op", geeft: "opdracht" };
 
-      // Every request reads "verzoekt <addressee> [tevens] [om] … te <verb>".
-      // The card names the addressee once and lists only the requests, split
-      // where one sentence bundles several ("…, en …" or "…; …").
-      const ADDRESSEE = /^(de (?:demissionaire )?regering|het (?:demissionaire )?kabinet|de minister-president|de premier|de ministers?|de staatssecretaris(?:sen)?|het presidium|de voorzitter|de griffier|de kamer)\b/i;
+      const ADDRESSEE = /^(de (?:demissionaire )?regering|het (?:demissionaire )?kabinet|de minister-president|de premier|de ministers?|de staatssecretaris(?:sen)?|het presidium|de voorzitter|de griffier|de kamer|het college(?: van (?:burgemeester en wethouders|b\s*(?:&|en)\s*w))?|de burgemeester|de (?:gemeente)?raad|de wethouders?|de griffie)\b/i;
       const PORTFOLIO = /^ (?:van|voor) (?:de |het )?[A-Z][^\s,]*(?:(?:,| en| van| voor)? (?:de |het )?[A-Z][^\s,]*)*/;
       const LINKING = /^,?\s*(?:(?:tevens|voorts|daarnaast|eveneens|bovendien|verder|ook|ten slotte|tot slot|daarbij)\s+)*(?:om\s+)?/i;
       const tidy = (text) => text.replace(/\s*\(\s*\)/g, "").replace(/\s+/g, " ").replace(/[\s;,.:]+$/, "").trim();
       const parseAsk = (bullet) => {
-        let rest = bullet.trim().replace(/^verzoekt\s+/i, "");
+        let rest = bullet.trim().replace(VERB_CHOICE, "");
+        const verb = (rest.match(ASK_VERB) || ["", ""])[1].toLowerCase();
+        rest = rest.replace(ASK_VERB, "").trimStart();
         let addressee = "";
         const who = rest.match(ADDRESSEE);
         if (who) {
-          addressee = who[0].toLowerCase().replace("kamer", "Kamer");
+          addressee = who[0].toLowerCase().replace("kamer", "Kamer").replace(/\bb\s*(?:&|en)\s*w$/, "B&W");
           rest = rest.slice(who[0].length);
           const portfolio = /minister|staatssecretaris|voorzitter/.test(addressee) && rest.match(PORTFOLIO);
           if (portfolio) {
@@ -145,22 +147,24 @@
             rest = rest.slice(portfolio[0].length);
           }
         }
+        const closing = CLOSING[verb];
+        if (closing) {
+          const tail = rest.match(who
+            ? new RegExp(`^\\s*${closing}\\b`, "i")
+            : new RegExp(`^(.{1,60}?)\\s+${closing}\\b`, "i"));
+          if (tail) {
+            if (!who) addressee = tail[1].trim();
+            rest = rest.slice(tail[0].length);
+          }
+        }
         rest = tidy(rest.replace(LINKING, ""));
-        // Only split when every part is its own "te <verb>" request, so
-        // enumerations like "de VNG, de NLPO, en de WOS" stay intact.
         const parts = rest.split(/\s*;\s*(?:en\s+)?|,\s+en\s+/).map((part) => tidy(part.replace(LINKING, ""))).filter(Boolean);
         const items = parts.length > 1 && parts.every((part) => /\bte\s/.test(part)) ? parts : [rest];
         return { addressee, items };
       };
-      // Follow-up requests like "de Kamer hierover voor de zomer te
-      // informeren" are procedure, not a position; they stay visible but quiet.
-      const isReporting = (item) => /\b(kamer|hierover|daarover)\b/i.test(item)
+      const isReporting = (item) => /\b(kamer|raad|hierover|daarover)\b/i.test(item)
         && /\bte (informeren|rapporteren|sturen|delen)\b|op de hoogte te (houden|brengen)/i.test(item)
         && (item.match(/\bte\s/g) || []).length === 1;
-      // The headline is the Kamer's own paraphrase of the request and often
-      // repeats it nearly word for word. The request box is then only shown
-      // when it adds something: a detail the paraphrase drops, or a second
-      // request that is more than reporting back.
       const contentWords = (text) => new Set(text.toLowerCase().match(/[\p{L}\d-]{4,}/gu) || []);
       const repeatsHeadline = (headline, asks) => {
         const items = asks.flatMap((ask) => ask.items);
@@ -170,10 +174,8 @@
         const covered = [...headlineWords].filter((word) => askWords.has(word)).length;
         return headlineWords.size > 0 && covered / headlineWords.size >= 0.9 && items[0].length <= headline.length * 1.3;
       };
-      const groupAsks = (verzoeken) => verzoeken.map(parseAsk).reduce((groups, ask) => {
+      const groupAsks = (requests) => requests.map(parseAsk).reduce((groups, ask) => {
         const last = groups[groups.length - 1];
-        // A request without its own addressee ("verzoekt daarnaast …")
-        // continues the one before it.
         if (last && (!ask.addressee || last.addressee.toLowerCase() === ask.addressee.toLowerCase())) {
           last.items.push(...ask.items);
         } else {
@@ -296,14 +298,14 @@
         const motion = motions[current];
         const chosen = answers.get(motion.motionKey);
         const bullets = motion.bulletPoints || [];
-        const verzoeken = bullets.filter(isVerzoek);
-        const asks = verzoeken.length > 0 ? groupAsks(verzoeken) : [{ addressee: null, items: bullets.map(tidy) }];
+        const requests = bullets.filter(isAsk);
+        const asks = requests.length > 0 ? groupAsks(requests) : [{ addressee: null, items: bullets.map(tidy) }];
         const askLabel = (addressee) => addressee === null ? "" : addressee
           ? `<p class="compass-ask-label">De motie vraagt ${escapeHTML(addressee)} om:</p>`
           : `<p class="compass-ask-label">De motie verzoekt:</p>`;
         const proposed = formatDate(motion.proposedAt);
         const statement = formatTitle(motion.subject);
-        const showAsks = verzoeken.length === 0 || !statement || !repeatsHeadline(statement, asks);
+        const showAsks = requests.length === 0 || !statement || !repeatsHeadline(statement, asks);
         motionsNode.innerHTML = `
           <article class="compass-motion" data-motion-key="${escapeHTML(motion.motionKey)}">
             <div class="compass-question">
@@ -322,10 +324,10 @@
                 `).join("")}
               </div>` : ""}
               <ul class="compass-fulltext" id="compass-motivation" hidden>
-                ${bullets.map((bullet) => `<li${isVerzoek(bullet) ? ' class="is-verzoek"' : ""}>${escapeHTML(bullet)}</li>`).join("")}
+                ${bullets.map((bullet) => `<li${isAsk(bullet) ? ' class="is-verzoek"' : ""}>${escapeHTML(bullet)}</li>`).join("")}
               </ul>
               <p class="compass-meta">
-                ${verzoeken.length > 0 ? `<button type="button" id="compass-toggle-motivation" aria-expanded="false">Volledige tekst</button>` : ""}
+                ${requests.length > 0 ? `<button type="button" id="compass-toggle-motivation" aria-expanded="false">Volledige tekst</button>` : ""}
                 ${motion.documentUrl ? `<a href="${escapeHTML(motion.documentUrl.replace(/\.xml$/, ".html"))}" target="_blank" rel="noopener">Bron</a>` : ""}
               </p>
             </div>
