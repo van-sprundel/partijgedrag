@@ -5,6 +5,8 @@ import (
 	"time"
 
 	"github.com/jackc/pgx/v5/pgxpool"
+
+	"partijgedrag/internal/analysis"
 )
 
 type OBVReport struct {
@@ -74,7 +76,7 @@ func LoadOBVReport(ctx context.Context, pool *pgxpool.Pool, sourceKey string) (O
 			       COALESCE(jsonb_array_length(CASE WHEN jsonb_typeof(r.payload->'attachment') = 'array' THEN r.payload->'attachment' END), 0) > 0 AS has_document,
 			       EXISTS (SELECT 1 FROM raw_records t WHERE t.source_key = m.source_key AND t.collection = 'MotionText' AND t.source_id = m.source_id) AS has_text,
 			       EXISTS (SELECT 1 FROM jsonb_array_elements_text(COALESCE(m.bullet_points, '[]'::jsonb)) b
-			               WHERE b ~* '^(verzoekt|vraagt|draagt|roept|geeft)') AS has_ask,
+			               WHERE b ~* $2) AS has_ask,
 			       EXISTS (SELECT 1 FROM jsonb_array_elements_text(COALESCE(m.bullet_points, '[]'::jsonb)) b
 			               WHERE b ~* '^spreekt') AS has_statement,
 			       EXISTS (SELECT 1 FROM jsonb_array_elements_text(COALESCE(m.bullet_points, '[]'::jsonb)) b
@@ -97,7 +99,7 @@ func LoadOBVReport(ctx context.Context, pool *pgxpool.Pool, sourceKey string) (O
 		       min(proposed_at) FILTER (WHERE has_votes),
 		       max(proposed_at) FILTER (WHERE has_votes)
 		FROM m
-	`, sourceKey).Scan(
+	`, sourceKey, analysis.AskBulletPattern).Scan(
 		&report.Motions, &report.Moties, &report.Amendments,
 		&report.MotionsWithVotes, &report.MotiesWithVotes, &report.MotiesWithDocument,
 		&report.TextsFetched, &report.MotiesWithBullets, &report.MotiesWithAsk, &report.MotiesWithVerzoekt, &report.MotiesStatementOnly,

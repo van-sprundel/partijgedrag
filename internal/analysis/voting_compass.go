@@ -43,6 +43,8 @@ type VotingCompassOptions struct {
 
 const longAskChars = 350
 
+const AskBulletPattern = `^(verzoekt|vraagt|draagt|roept|geeft)\M`
+
 func LoadVotingCompassMotions(ctx context.Context, pool *pgxpool.Pool, options VotingCompassOptions) ([]VotingCompassMotion, error) {
 	jurisdiction := options.Jurisdiction
 	if jurisdiction == "" {
@@ -88,7 +90,7 @@ func LoadVotingCompassMotions(ctx context.Context, pool *pgxpool.Pool, options V
 			       m.document_url,
 			       (SELECT COALESCE(SUM(length(bullet)), 0)
 			        FROM jsonb_array_elements_text(m.bullet_points) AS bullet
-			        WHERE bullet ILIKE 'verzoekt%') > $9 AS long_ask
+			        WHERE bullet ~* $10) > $9 AS long_ask
 			FROM motions m
 			WHERE m.jurisdiction_key = $1
 			  AND m.source_deleted = false
@@ -97,10 +99,36 @@ func LoadVotingCompassMotions(ctx context.Context, pool *pgxpool.Pool, options V
 			  AND jsonb_array_length(m.bullet_points) > 0
 			  AND EXISTS (
 			      SELECT 1 FROM jsonb_array_elements_text(m.bullet_points) AS bullet
-			      WHERE bullet ILIKE 'verzoekt%'
+			      WHERE bullet ~* $10
 			  )
 			  AND ($2::timestamptz IS NULL OR m.proposed_at >= $2)
 			  AND ($3::timestamptz IS NULL OR m.proposed_at < $3)
+			  -- Open Besluitvorming can carry a council motion twice, each copy
+			  -- with its own document and the same votes. Keep the first copy.
+			  -- Not for the Kamer: there title is the dossier, shared by many motions.
+			  AND ($1 NOT LIKE 'nl-gemeente-%' OR NOT EXISTS (
+			      SELECT 1 FROM motions twin
+			      WHERE twin.jurisdiction_key = m.jurisdiction_key
+			        AND twin.title = m.title
+			        AND twin.proposed_at = m.proposed_at
+			        AND twin.motion_key < m.motion_key
+			        AND twin.source_deleted = false
+			        AND twin.votes_synced_at IS NOT NULL
+			        AND twin.bullet_points IS NOT NULL
+			        AND NOT EXISTS (
+			            (SELECT v.person_source_id, v.party_source_id, v.vote_type FROM votes v
+			             WHERE v.motion_key = m.motion_key AND v.source_deleted = false AND v.mistake = false
+			             EXCEPT
+			             SELECT v.person_source_id, v.party_source_id, v.vote_type FROM votes v
+			             WHERE v.motion_key = twin.motion_key AND v.source_deleted = false AND v.mistake = false)
+			            UNION ALL
+			            (SELECT v.person_source_id, v.party_source_id, v.vote_type FROM votes v
+			             WHERE v.motion_key = twin.motion_key AND v.source_deleted = false AND v.mistake = false
+			             EXCEPT
+			             SELECT v.person_source_id, v.party_source_id, v.vote_type FROM votes v
+			             WHERE v.motion_key = m.motion_key AND v.source_deleted = false AND v.mistake = false)
+			        )
+			  ))
 			  AND (cardinality($6::text[]) = 0 OR m.motion_key <> ALL($6))
 			  AND (cardinality($7::text[]) = 0 OR EXISTS (
 			      SELECT 1 FROM motion_categories mc
@@ -169,7 +197,7 @@ func LoadVotingCompassMotions(ctx context.Context, pool *pgxpool.Pool, options V
 		FROM eligible_motions em
 		JOIN party_positions pp ON pp.motion_key = em.motion_key
 		ORDER BY em.long_ask, em.proposed_at DESC NULLS LAST, em.motion_key, pp.party_name
-	`, jurisdiction, options.DateFrom, options.DateTo, minParties, limit, excludeKeys, categoryKeys, partySourceIDs, longAskChars)
+	`, jurisdiction, options.DateFrom, options.DateTo, minParties, limit, excludeKeys, categoryKeys, partySourceIDs, longAskChars, AskBulletPattern)
 	if err != nil {
 		return nil, err
 	}
