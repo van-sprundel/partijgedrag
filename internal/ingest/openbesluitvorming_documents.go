@@ -47,8 +47,13 @@ func (ingest OpenBesluitvormingMotionDocumentsIngest) Run(ctx context.Context) e
 	}
 	defer release()
 
+	signatures, err := loadOBVSignatures(ctx, ingest.Pool, source.SourceKey)
+	if err != nil {
+		return err
+	}
+
 	if ingest.Reparse {
-		return ingest.reparse(ctx, source)
+		return ingest.reparse(ctx, source, signatures)
 	}
 
 	candidates, err := ingest.loadCandidates(ctx, source)
@@ -92,7 +97,7 @@ func (ingest OpenBesluitvormingMotionDocumentsIngest) Run(ctx context.Context) e
 			DownloadURL:  entity.DownloadURL,
 			PDFEntityID:  entity.PDFEntityID,
 		}
-		bullets, recordChanged, err := ingest.storeText(ctx, source, motion, text)
+		bullets, recordChanged, err := ingest.storeText(ctx, source, motion, text, signatures)
 		if err != nil {
 			return obvFailDocuments(ctx, ingest.Pool, runID, seen, changed, err)
 		}
@@ -156,7 +161,22 @@ func (ingest OpenBesluitvormingMotionDocumentsIngest) loadCandidates(ctx context
 	return candidates, rows.Err()
 }
 
-func (ingest OpenBesluitvormingMotionDocumentsIngest) storeText(ctx context.Context, source obvSource, motion obvDocumentCandidate, text obvMotionText) (int, bool, error) {
+func loadOBVSignatures(ctx context.Context, pool *pgxpool.Pool, sourceKey string) (*openbesluitvorming.Signatures, error) {
+	rows, err := pool.Query(ctx, `
+		SELECT DISTINCT party_name FROM votes
+		WHERE source_key = $1 AND party_name IS NOT NULL AND source_deleted = false
+	`, sourceKey)
+	if err != nil {
+		return nil, err
+	}
+	names, err := pgx.CollectRows(rows, pgx.RowTo[string])
+	if err != nil {
+		return nil, fmt.Errorf("load party names for %s: %w", sourceKey, err)
+	}
+	return openbesluitvorming.NewSignatures(names), nil
+}
+
+func (ingest OpenBesluitvormingMotionDocumentsIngest) storeText(ctx context.Context, source obvSource, motion obvDocumentCandidate, text obvMotionText, signatures *openbesluitvorming.Signatures) (int, bool, error) {
 	payload, err := json.Marshal(text)
 	if err != nil {
 		return 0, false, err
@@ -172,15 +192,15 @@ func (ingest OpenBesluitvormingMotionDocumentsIngest) storeText(ctx context.Cont
 	if _, err := obvStoreRaw(ctx, tx, source.SourceKey, obvMotionTextCollection, motion.SourceID, &now, false, payload, hashBytes(payload)); err != nil {
 		return 0, false, err
 	}
-	bullets, changed, err := obvStoreBullets(ctx, tx, motion.MotionKey, text)
+	bullets, changed, err := obvStoreBullets(ctx, tx, motion.MotionKey, text, signatures)
 	if err != nil {
 		return 0, false, err
 	}
 	return bullets, changed, tx.Commit(ctx)
 }
 
-func obvStoreBullets(ctx context.Context, tx pgx.Tx, motionKey string, text obvMotionText) (int, bool, error) {
-	bullets := openbesluitvorming.ExtractBulletPoints(text.MarkdownText)
+func obvStoreBullets(ctx context.Context, tx pgx.Tx, motionKey string, text obvMotionText, signatures *openbesluitvorming.Signatures) (int, bool, error) {
+	bullets := signatures.Strip(openbesluitvorming.ExtractBulletPoints(text.MarkdownText))
 	var bulletJSON *string
 	if len(bullets) > 0 {
 		encoded, err := json.Marshal(bullets)
@@ -213,7 +233,7 @@ func obvStoreBullets(ctx context.Context, tx pgx.Tx, motionKey string, text obvM
 	return len(bullets), changed, nil
 }
 
-func (ingest OpenBesluitvormingMotionDocumentsIngest) reparse(ctx context.Context, source obvSource) error {
+func (ingest OpenBesluitvormingMotionDocumentsIngest) reparse(ctx context.Context, source obvSource, signatures *openbesluitvorming.Signatures) error {
 	rows, err := ingest.Pool.Query(ctx, `
 		SELECT m.motion_key, r.payload
 		FROM raw_records r
@@ -254,7 +274,7 @@ func (ingest OpenBesluitvormingMotionDocumentsIngest) reparse(ctx context.Contex
 
 	withBullets := 0
 	for _, item := range texts {
-		bullets, _, err := obvStoreBullets(ctx, tx, item.motionKey, item.text)
+		bullets, _, err := obvStoreBullets(ctx, tx, item.motionKey, item.text, signatures)
 		if err != nil {
 			return err
 		}
