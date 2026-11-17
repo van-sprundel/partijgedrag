@@ -81,6 +81,13 @@ go run ./cmd/partijgedrag sync tweedekamer
 
 The first full sync takes a while; rerunning it is incremental. See `go run ./cmd/partijgedrag` for all commands, including ingestion status and data-quality tooling.
 
+#### Municipal councils (pilot)
+
+```bash
+go run ./cmd/partijgedrag sync openbesluitvorming --source=utrecht,nijmegen --document-limit=200
+go run ./cmd/partijgedrag status openbesluitvorming --source=utrecht
+```
+
 ## Deployment
 
 The GitHub CI workflow builds a single container image; running it with `serve` (the default command) is all a server needs. On startup the server applies pending migrations and starts a built-in sync scheduler, so the data stays fresh without an external cron:

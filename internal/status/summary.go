@@ -64,12 +64,15 @@ func LoadSiteStats(ctx context.Context, pool *pgxpool.Pool) (SiteStats, error) {
 			       count(*) FILTER (WHERE votes_synced_at IS NOT NULL) AS motions_with_votes
 			FROM motions
 			WHERE source_deleted = false
+			  AND jurisdiction_key = 'nl-tweede-kamer'
 		)
 		SELECT
-		  (SELECT count(*) FROM parties WHERE source_deleted = false),
+		  (SELECT count(*) FROM parties WHERE source_deleted = false AND jurisdiction_key = 'nl-tweede-kamer'),
 		  motions,
 		  motions_with_votes,
-		  (SELECT count(*) FROM votes WHERE source_deleted = false)
+		  (SELECT count(*) FROM votes v
+		   JOIN motions m ON m.motion_key = v.motion_key
+		   WHERE v.source_deleted = false AND m.jurisdiction_key = 'nl-tweede-kamer')
 		FROM motion_stats
 	`).Scan(
 		&stats.Parties,

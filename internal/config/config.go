@@ -25,6 +25,8 @@ type Config struct {
 	TweedeKamerInitialSince time.Time
 	CursorOverlap           time.Duration
 
+	OpenBesluitvormingBaseURL string
+
 	// SyncInterval makes `serve` run a full tweedekamer sync on this interval,
 	// so a plain container deployment stays fresh without an external cron.
 	// Zero disables the built-in scheduler.
@@ -78,18 +80,19 @@ func Load() (Config, error) {
 	}
 
 	return Config{
-		DatabaseURL:             getEnv("DATABASE_URL", "postgres://etl_user:etl_password@localhost:5432/partijgedrag"),
-		HTTPHost:                getEnv("HTTP_HOST", "0.0.0.0"),
-		HTTPPort:                getEnvInt("HTTP_PORT", 3001),
-		Dev:                     getEnvBool("DEV", false),
-		TweedeKamerODataBaseURL: getEnv("TWEEDE_KAMER_ODATA_BASE_URL", "https://gegevensmagazijn.tweedekamer.nl/OData/v4/2.0"),
-		TweedeKamerBatchSize:    getEnvInt("TWEEDE_KAMER_BATCH_SIZE", 100),
-		TweedeKamerMaxPages:     getEnvInt("TWEEDE_KAMER_MAX_PAGES", 0),
-		TweedeKamerInitialSince: initialSince,
-		CursorOverlap:           time.Duration(getEnvInt("TWEEDE_KAMER_CURSOR_OVERLAP_MINUTES", 10)) * time.Minute,
-		SyncInterval:            syncInterval,
-		SyncMotionVoteLimit:     getEnvInt("SYNC_MOTION_VOTE_LIMIT", 250),
-		SyncMotionDocumentLimit: getEnvInt("SYNC_MOTION_DOCUMENT_LIMIT", 500),
+		DatabaseURL:               getEnv("DATABASE_URL", "postgres://etl_user:etl_password@localhost:5432/partijgedrag"),
+		HTTPHost:                  getEnv("HTTP_HOST", "0.0.0.0"),
+		HTTPPort:                  getEnvInt("HTTP_PORT", 3001),
+		Dev:                       getEnvBool("DEV", false),
+		TweedeKamerODataBaseURL:   getEnv("TWEEDE_KAMER_ODATA_BASE_URL", "https://gegevensmagazijn.tweedekamer.nl/OData/v4/2.0"),
+		TweedeKamerBatchSize:      getEnvInt("TWEEDE_KAMER_BATCH_SIZE", 100),
+		TweedeKamerMaxPages:       getEnvInt("TWEEDE_KAMER_MAX_PAGES", 0),
+		TweedeKamerInitialSince:   initialSince,
+		CursorOverlap:             time.Duration(getEnvInt("TWEEDE_KAMER_CURSOR_OVERLAP_MINUTES", 10)) * time.Minute,
+		OpenBesluitvormingBaseURL: getEnv("OPENBESLUITVORMING_BASE_URL", "https://openbesluitvorming.nl"),
+		SyncInterval:              syncInterval,
+		SyncMotionVoteLimit:       getEnvInt("SYNC_MOTION_VOTE_LIMIT", 250),
+		SyncMotionDocumentLimit:   getEnvInt("SYNC_MOTION_DOCUMENT_LIMIT", 500),
 
 		SyncMotionVoteResyncGrace:     voteResyncGrace,
 		SyncMotionDocumentResyncGrace: documentResyncGrace,

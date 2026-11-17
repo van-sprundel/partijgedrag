@@ -190,6 +190,9 @@ func runInspect(ctx context.Context, database *db.DB, args []string) error {
 }
 
 func runIngest(ctx context.Context, cfg config.Config, database *db.DB, args []string) error {
+	if len(args) >= 2 && args[0] == "openbesluitvorming" {
+		return runIngestOpenBesluitvorming(ctx, cfg, database, args[1:])
+	}
 	if len(args) < 2 || args[0] != "tweedekamer" {
 		return usage()
 	}
@@ -377,6 +380,9 @@ func runIngestMotionDocuments(ctx context.Context, cfg config.Config, database *
 }
 
 func runSync(ctx context.Context, cfg config.Config, database *db.DB, args []string) error {
+	if len(args) > 0 && args[0] == "openbesluitvorming" {
+		return runSyncOpenBesluitvorming(ctx, cfg, database, args[1:])
+	}
 	if len(args) == 0 || args[0] != "tweedekamer" {
 		return usage()
 	}
@@ -639,6 +645,8 @@ func runStatus(ctx context.Context, database *db.DB, args []string) error {
 		return runStatusSummary(ctx, database, args[1:])
 	case "vote-backfill":
 		return runStatusVoteBackfill(ctx, database, args[1:])
+	case "openbesluitvorming":
+		return runStatusOpenBesluitvorming(ctx, database, args[1:])
 	default:
 		return usage()
 	}
@@ -795,11 +803,15 @@ func usage() error {
   partijgedrag ingest tweedekamer motion-votes [--limit=N] [--concurrency=N] [--resync-after=168h]
   partijgedrag ingest tweedekamer motion-documents [--limit=N] [--concurrency=N] [--resync-after=168h]
   partijgedrag sync tweedekamer [--party-max-pages=N] [--party-batch-size=N] [--party-logo-concurrency=N] [--motion-max-pages=N] [--motion-batch-size=N] [--motion-vote-limit=N] [--motion-vote-concurrency=N] [--motion-vote-resync-after=168h] [--motion-document-limit=N] [--motion-document-concurrency=N] [--motion-document-resync-after=168h] [--skip-parties] [--skip-motions] [--skip-motion-votes] [--skip-motion-documents] [--skip-categorize]
+  partijgedrag ingest openbesluitvorming motions --source=KEY [--max-pages=N] [--page-size=N] [--reset-cursor]
+  partijgedrag ingest openbesluitvorming motion-documents --source=KEY [--limit=N] [--reparse]
+  partijgedrag sync openbesluitvorming --source=KEY[,KEY...] [--document-limit=N]
   partijgedrag maintenance fail-stale-runs [--older-than=1h] [--limit=N] [--apply]
   partijgedrag maintenance categorize [--batch-size=N] [--max-motions=N] [--recategorize]
   partijgedrag status ingestion-runs [--limit=N] [--pipeline=NAME] [--failed]
   partijgedrag status summary
   partijgedrag status vote-backfill [--resync-after=168h]
+  partijgedrag status openbesluitvorming --source=KEY [--spellings]
   partijgedrag inspect motion MOTION_KEY
   partijgedrag serve`)
 }
