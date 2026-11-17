@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"os"
 	"strconv"
+	"strings"
 	"time"
 
 	"github.com/joho/godotenv"
@@ -26,6 +27,7 @@ type Config struct {
 	CursorOverlap           time.Duration
 
 	OpenBesluitvormingBaseURL string
+	OpenBesluitvormingSources []string
 
 	// SyncInterval makes `serve` run a full tweedekamer sync on this interval,
 	// so a plain container deployment stays fresh without an external cron.
@@ -90,6 +92,7 @@ func Load() (Config, error) {
 		TweedeKamerInitialSince:   initialSince,
 		CursorOverlap:             time.Duration(getEnvInt("TWEEDE_KAMER_CURSOR_OVERLAP_MINUTES", 10)) * time.Minute,
 		OpenBesluitvormingBaseURL: getEnv("OPENBESLUITVORMING_BASE_URL", "https://openbesluitvorming.nl"),
+		OpenBesluitvormingSources: getEnvList("OPENBESLUITVORMING_SOURCES"),
 		SyncInterval:              syncInterval,
 		SyncMotionVoteLimit:       getEnvInt("SYNC_MOTION_VOTE_LIMIT", 250),
 		SyncMotionDocumentLimit:   getEnvInt("SYNC_MOTION_DOCUMENT_LIMIT", 500),
@@ -118,6 +121,16 @@ func getEnvBool(key string, fallback bool) bool {
 		return fallback
 	}
 	return parsed
+}
+
+func getEnvList(key string) []string {
+	var values []string
+	for _, value := range strings.Split(os.Getenv(key), ",") {
+		if value = strings.TrimSpace(value); value != "" {
+			values = append(values, value)
+		}
+	}
+	return values
 }
 
 func getEnvInt(key string, fallback int) int {

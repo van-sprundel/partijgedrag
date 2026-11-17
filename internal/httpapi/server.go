@@ -557,7 +557,19 @@ func (server Server) listVotingCompassMotions(response http.ResponseWriter, requ
 	var dateFrom *time.Time
 	var dateTo *time.Time
 	periodKey := query.Get("period")
-	if periodKey != "" {
+	if jurisdiction != "nl-tweede-kamer" {
+		council, err := analysis.LoadCouncil(request.Context(), server.Pool, jurisdiction)
+		if err != nil {
+			if analysis.IsNotFound(err) {
+				writeJSON(response, http.StatusBadRequest, map[string]string{"error": "invalid_jurisdiction"})
+				return
+			}
+			writeError(response, err)
+			return
+		}
+		dateFrom = council.Since
+		periodKey = ""
+	} else if periodKey != "" {
 		period, err := analysis.LoadCabinetPeriod(request.Context(), server.Pool, jurisdiction, periodKey)
 		if err != nil {
 			if analysis.IsNotFound(err) {

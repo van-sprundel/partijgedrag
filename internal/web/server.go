@@ -133,6 +133,7 @@ func (server Server) Register(mux *http.ServeMux) {
 	mux.HandleFunc("GET /coalition-analysis/motions", server.cached(cache.PolicyDynamic, server.coalitionMotions))
 	mux.HandleFunc("GET /voting-compass", server.cached(cache.PolicyDynamic, server.votingCompass))
 	mux.HandleFunc("GET /voting-compass/settings", server.cached(cache.PolicyDynamic, server.votingCompassSettings))
+	mux.HandleFunc("GET /gemeente/{council}/stemwijzer", server.cached(cache.PolicyDynamic, server.councilCompass))
 	mux.HandleFunc("GET /compass/results/{sessionKey}", server.cached(cache.PolicyImmutable, server.compassResults))
 	// Internal ingestion diagnostics, including the CLI commands to run against
 	// the host. Nothing there is meaningful to a visitor, so it stays in dev.
@@ -669,7 +670,27 @@ func (server Server) votingCompass(response http.ResponseWriter, request *http.R
 	}
 
 	server.render(response, "voting_compass", votingCompassPage{
-		Periods: periods,
+		Jurisdiction: "nl-tweede-kamer",
+		Chamber:      "de Kamer",
+		SettingsURL:  "/voting-compass/settings",
+		Periods:      periods,
+	})
+}
+
+func (server Server) councilCompass(response http.ResponseWriter, request *http.Request) {
+	council, err := analysis.LoadCouncil(request.Context(), server.Pool, "nl-gemeente-"+request.PathValue("council"))
+	if err != nil {
+		if analysis.IsNotFound(err) {
+			http.NotFound(response, request)
+			return
+		}
+		writeError(response, err)
+		return
+	}
+	server.render(response, "voting_compass", votingCompassPage{
+		Jurisdiction: council.JurisdictionKey,
+		Chamber:      "de raad",
+		Council:      &council,
 	})
 }
 
@@ -730,9 +751,19 @@ func (server Server) compassResults(response http.ResponseWriter, request *http.
 		return
 	}
 
-	server.render(response, "compass_results", compassResultsPage{
-		Results: results,
-	})
+	page := compassResultsPage{Results: results, Chamber: "de Kamer"}
+	if session.Jurisdiction != "nl-tweede-kamer" {
+		council, err := analysis.LoadCouncil(request.Context(), server.Pool, session.Jurisdiction)
+		if err != nil && !analysis.IsNotFound(err) {
+			writeError(response, err)
+			return
+		}
+		if err == nil {
+			page.Council = &council
+			page.Chamber = "de raad"
+		}
+	}
+	server.render(response, "compass_results", page)
 }
 
 func (server Server) dataQuality(response http.ResponseWriter, request *http.Request) {
@@ -1268,7 +1299,11 @@ type coalitionMotionsPage struct {
 }
 
 type votingCompassPage struct {
-	Periods []analysis.CabinetPeriod
+	Jurisdiction string
+	Chamber      string
+	SettingsURL  string
+	Council      *analysis.Council
+	Periods      []analysis.CabinetPeriod
 }
 
 type votingCompassSettingsPage struct {
@@ -1280,6 +1315,8 @@ type votingCompassSettingsPage struct {
 
 type compassResultsPage struct {
 	Results analysis.CompassResults
+	Chamber string
+	Council *analysis.Council
 }
 
 type dataQualityPage struct {

@@ -628,6 +628,11 @@ func runPeriodicSync(ctx context.Context, cfg config.Config, database *db.DB) {
 		if err := syncTweedeKamer(ctx, cfg, database, defaultSyncSettings(cfg)); err != nil && ctx.Err() == nil {
 			fmt.Fprintf(os.Stderr, "periodic sync failed: %v\n", err)
 		}
+		if len(cfg.OpenBesluitvormingSources) > 0 && ctx.Err() == nil {
+			if err := syncOpenBesluitvorming(ctx, cfg, database, cfg.OpenBesluitvormingSources, cfg.SyncMotionDocumentLimit); err != nil && ctx.Err() == nil {
+				fmt.Fprintf(os.Stderr, "periodic council sync failed: %v\n", err)
+			}
+		}
 
 		timer.Reset(cfg.SyncInterval)
 	}
@@ -805,7 +810,7 @@ func usage() error {
   partijgedrag sync tweedekamer [--party-max-pages=N] [--party-batch-size=N] [--party-logo-concurrency=N] [--motion-max-pages=N] [--motion-batch-size=N] [--motion-vote-limit=N] [--motion-vote-concurrency=N] [--motion-vote-resync-after=168h] [--motion-document-limit=N] [--motion-document-concurrency=N] [--motion-document-resync-after=168h] [--skip-parties] [--skip-motions] [--skip-motion-votes] [--skip-motion-documents] [--skip-categorize]
   partijgedrag ingest openbesluitvorming motions --source=KEY [--max-pages=N] [--page-size=N] [--reset-cursor]
   partijgedrag ingest openbesluitvorming motion-documents --source=KEY [--limit=N] [--reparse]
-  partijgedrag sync openbesluitvorming --source=KEY[,KEY...] [--document-limit=N]
+  partijgedrag sync openbesluitvorming [--source=KEY[,KEY...]] [--document-limit=N]
   partijgedrag maintenance fail-stale-runs [--older-than=1h] [--limit=N] [--apply]
   partijgedrag maintenance categorize [--batch-size=N] [--max-motions=N] [--recategorize]
   partijgedrag status ingestion-runs [--limit=N] [--pipeline=NAME] [--failed]

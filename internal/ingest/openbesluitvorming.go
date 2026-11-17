@@ -477,7 +477,7 @@ func deriveOBVParties(ctx context.Context, pool *pgxpool.Pool, source obvSource)
 			source_updated_at, source_deleted, raw_collection, updated_at
 		)
 		SELECT $1 || ':' || s.party_source_id, $1, $2, s.party_source_id,
-		       n.party_name, n.party_name, se.seats, s.first_at::date,
+		       regexp_replace(n.party_name, '^(fractie|raadsleden)\s+', '', 'i'), n.party_name, se.seats, s.first_at::date,
 		       CASE WHEN s.last_at < l.voted_at - interval '60 days' THEN s.last_at::date END,
 		       s.last_at, false, $3, now()
 		FROM spans s

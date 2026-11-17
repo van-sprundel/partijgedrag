@@ -9,6 +9,7 @@ import (
 	"strings"
 	"time"
 
+	"partijgedrag/internal/cache"
 	"partijgedrag/internal/config"
 	"partijgedrag/internal/db"
 	"partijgedrag/internal/ingest"
@@ -66,18 +67,29 @@ func runIngestOpenBesluitvorming(ctx context.Context, cfg config.Config, databas
 func runSyncOpenBesluitvorming(ctx context.Context, cfg config.Config, database *db.DB, args []string) error {
 	flags := flag.NewFlagSet("sync openbesluitvorming", flag.ContinueOnError)
 	flags.SetOutput(os.Stderr)
-	sources := flags.String("source", "", "source keys, comma-separated")
-	documentLimit := flags.Int("document-limit", 500, "maximum motion texts to fetch per source (0 to skip)")
+	sources := flags.String("source", "", "source keys, comma-separated (default OPENBESLUITVORMING_SOURCES)")
+	documentLimit := flags.Int("document-limit", cfg.SyncMotionDocumentLimit, "maximum motion texts to fetch per source (0 to skip)")
 	if err := flags.Parse(args); err != nil {
 		return err
 	}
-	if *sources == "" || flags.NArg() != 0 {
+	if flags.NArg() != 0 {
 		return usage()
 	}
+	keys := cfg.OpenBesluitvormingSources
+	if *sources != "" {
+		keys = strings.Split(*sources, ",")
+	}
+	if len(keys) == 0 {
+		fmt.Println("no councils configured: pass --source or set OPENBESLUITVORMING_SOURCES")
+		return nil
+	}
+	return syncOpenBesluitvorming(ctx, cfg, database, keys, *documentLimit)
+}
 
+func syncOpenBesluitvorming(ctx context.Context, cfg config.Config, database *db.DB, sources []string, documentLimit int) error {
 	client := openbesluitvorming.NewClient(cfg.OpenBesluitvormingBaseURL)
 	var failures []error
-	for _, source := range strings.Split(*sources, ",") {
+	for _, source := range sources {
 		source = strings.TrimSpace(source)
 		if source == "" {
 			continue
@@ -88,15 +100,16 @@ func runSyncOpenBesluitvorming(ctx context.Context, cfg config.Config, database 
 			failures = append(failures, fmt.Errorf("%s motions: %w", source, err))
 			continue
 		}
-		if *documentLimit <= 0 {
+		if documentLimit <= 0 {
 			continue
 		}
 		if err := (ingest.OpenBesluitvormingMotionDocumentsIngest{
-			Pool: database.Pool, Client: client, Source: source, Limit: *documentLimit,
+			Pool: database.Pool, Client: client, Source: source, Limit: documentLimit,
 		}).Run(ctx); err != nil {
 			failures = append(failures, fmt.Errorf("%s motion documents: %w", source, err))
 		}
 	}
+	cache.Global().Invalidate()
 	return errors.Join(failures...)
 }
 

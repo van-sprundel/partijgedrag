@@ -12,6 +12,7 @@ WorkingDirectory=/opt/partijgedrag
 EnvironmentFile=/etc/partijgedrag/partijgedrag.env
 Environment=PATH=/opt/partijgedrag/bin:/usr/local/bin:/usr/bin
 ExecStart=/usr/bin/env partijgedrag sync tweedekamer --motion-vote-limit=250
+ExecStart=/usr/bin/env partijgedrag sync openbesluitvorming
 TimeoutStartSec=2h
 Nice=5
 NoNewPrivileges=true

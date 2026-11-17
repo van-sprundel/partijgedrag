@@ -2,14 +2,18 @@
 {{ define "content" }}
   <section class="section">
     <div class="section-heading">
-      <h1>Stemwijzer</h1>
+      <h1>Stemwijzer{{ with .Council }} {{ .Name }}{{ end }}</h1>
       <span class="muted mono" id="compass-count">0 beantwoord</span>
     </div>
-    <p class="lead">Stem zelf op echte moties uit de Tweede Kamer. Na elke stem ziet u direct welke partijen het meest met u meestemden.</p>
+    {{ with .Council }}
+      <p class="lead">Stem zelf op echte moties uit de gemeenteraad van {{ .Name }}. Na elke stem ziet u direct welke fracties het meest met u meestemden.</p>
+    {{ else }}
+      <p class="lead">Stem zelf op echte moties uit de Tweede Kamer. Na elke stem ziet u direct welke partijen het meest met u meestemden.</p>
+    {{ end }}
 
     <div class="compass-profile">
       <span class="muted mono" id="compass-profile-summary"></span>
-      <a class="btn btn-secondary" id="compass-edit-profile" href="/voting-compass/settings">Profiel aanpassen</a>
+      {{ if .SettingsURL }}<a class="btn btn-secondary" id="compass-edit-profile" href="{{ .SettingsURL }}">Profiel aanpassen</a>{{ end }}
     </div>
   </section>
 
@@ -40,7 +44,7 @@
       </table>
       <details class="inconclusive" id="compass-inconclusive" hidden>
         <summary>Te weinig gedeelde stellingen</summary>
-        <p class="hint">Deze partijen zaten niet in de Kamer bij genoeg van uw stellingen om ze eerlijk te vergelijken.</p>
+        <p class="hint">Deze partijen zaten niet in {{ .Chamber }} bij genoeg van uw stellingen om ze eerlijk te vergelijken.</p>
         <table class="match-table">
           <thead>
             <tr>
@@ -87,14 +91,18 @@
         {{ range .Periods }}"{{ .PeriodKey }}": "{{ .Name }}",
         {{ end }}
       };
-      const summaryParts = [periodNames[profile.period] || "Alle beschikbare moties"];
+      const JURISDICTION = {{ .Jurisdiction }};
+      const SINCE = {{ with .Council }}{{ with .Since }}{{ .Format "2006-01-02" }}{{ else }}""{{ end }}{{ else }}""{{ end }};
+      const summaryParts = SINCE
+        ? [`Moties van de huidige raad, sinds ${new Date(SINCE).toLocaleDateString("nl-NL", { day: "numeric", month: "long", year: "numeric" })}`]
+        : [periodNames[profile.period] || "Alle beschikbare moties"];
       if (profile.categories.length > 0) summaryParts.push(`${profile.categories.length} onderwerpen`);
       if (profile.parties.length > 0) summaryParts.push(`${profile.parties.length} partijen`);
       document.querySelector("#compass-profile-summary").textContent = summaryParts.join(" · ");
-      document.querySelector("#compass-edit-profile").setAttribute("href", `/voting-compass/settings${location.search}`);
+      const editProfile = document.querySelector("#compass-edit-profile");
+      if (editProfile) editProfile.setAttribute("href", `${editProfile.getAttribute("href")}${location.search}`);
 
-      // Answers survive the round-trip to the settings page.
-      const STORAGE_KEY = "stemwijzer-state-v1";
+      const STORAGE_KEY = JURISDICTION === "nl-tweede-kamer" ? "stemwijzer-state-v1" : `stemwijzer-state-v1:${JURISDICTION}`;
       const saveState = () => {
         try {
           sessionStorage.setItem(STORAGE_KEY, JSON.stringify({
@@ -196,6 +204,7 @@
 
       const fetchMotions = async (excludeKeys) => {
         const params = new URLSearchParams();
+        params.set("jurisdiction", JURISDICTION);
         if (profile.period) params.set("period", profile.period);
         params.set("limit", String(profile.limit));
         if (profile.categories.length > 0) params.set("categories", profile.categories.join(","));
@@ -306,14 +315,15 @@
         const proposed = formatDate(motion.proposedAt);
         const statement = formatTitle(motion.subject);
         const showAsks = requests.length === 0 || !statement || !repeatsHeadline(statement, asks);
+        const dossier = motion.title && statement && formatTitle(motion.title) !== statement ? motion.title : "";
         motionsNode.innerHTML = `
           <article class="compass-motion" data-motion-key="${escapeHTML(motion.motionKey)}">
             <div class="compass-question">
               <p class="eyebrow">Stelling ${current + 1}</p>
               <h2><a href="/motions/${encodeURIComponent(motion.motionKey)}" target="_blank" rel="noopener">${escapeHTML(statement || label(motion.title) || motion.motionKey)}</a></h2>
-              ${proposed || motion.title ? `<p class="compass-topic">
+              ${proposed || dossier ? `<p class="compass-topic">
                 ${proposed ? `<span class="compass-date">${escapeHTML(proposed)}</span>` : ""}
-                ${motion.title ? `<span class="compass-dossier" title="${escapeHTML(motion.title)}">${escapeHTML(motion.title)}</span>` : ""}
+                ${dossier ? `<span class="compass-dossier" title="${escapeHTML(dossier)}">${escapeHTML(dossier)}</span>` : ""}
               </p>` : ""}
               ${showAsks ? `<div class="compass-asks">
                 ${asks.map((ask) => `
@@ -413,6 +423,7 @@
             method: "POST",
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify({
+              jurisdiction: JURISDICTION,
               answers: Array.from(answers, ([motionKey, answer]) => ({ motionKey, answer })),
               minOverlap: profile.minOverlap
             })

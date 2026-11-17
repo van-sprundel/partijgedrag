@@ -60,7 +60,7 @@ func (c *Cache) Init(ctx context.Context, pool *pgxpool.Pool) {
 	err := pool.QueryRow(ctx, `
 		SELECT max(finished_at)
 		FROM ingestion_runs
-		WHERE status = 'success' AND finished_at IS NOT NULL
+		WHERE status = 'succeeded' AND finished_at IS NOT NULL
 	`).Scan(&lastFinished)
 	if err == nil && lastFinished != nil {
 		c.lastSyncedAt = lastFinished.UTC()
