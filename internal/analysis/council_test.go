@@ -28,3 +28,12 @@ func TestCouncilSince(t *testing.T) {
 		t.Errorf("since without parties = %v, want nil", got)
 	}
 }
+
+func TestCouncilSlug(t *testing.T) {
+	if got := CouncilSlug("nl-gemeente-utrecht"); got != "utrecht" {
+		t.Errorf("CouncilSlug(utrecht) = %q, want utrecht", got)
+	}
+	if got := CouncilSlug("nl-gemeente-s-hertogenbosch"); got != "s-hertogenbosch" {
+		t.Errorf("CouncilSlug(s-hertogenbosch) = %q, want s-hertogenbosch", got)
+	}
+}

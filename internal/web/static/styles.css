@@ -1075,6 +1075,7 @@ th.num {
   font-size: 14px;
 }
 
+/* The debate this motion belongs to: orienting context, not the question.
    Scoped past `.compass-motion p` so the smaller sizes actually apply. */
 .compass-motion .compass-topic {
   display: flex;
@@ -1449,7 +1450,7 @@ code {
 
 @media (max-width: 860px) {
   .compass-layout {
-    grid-template-columns: 1fr;
+    grid-template-columns: minmax(0, 1fr);
   }
 
   .compass-results {

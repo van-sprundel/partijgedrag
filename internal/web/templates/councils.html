@@ -1,0 +1,36 @@
+{{ define "title" }}Gemeenten - Partijgedrag{{ end }}
+{{ define "description" }}Stemgedrag in de gemeenteraad: stem zelf op echte raadsmoties en zie welke fracties het meest met u meestemden.{{ end }}
+{{ define "content" }}
+  <section class="section">
+    <p class="eyebrow">Gemeenteraad · Stemgedrag</p>
+    <h1>Gemeenten</h1>
+    <p class="lead">
+      Ook in de gemeenteraad stemmen fracties over moties. Kies uw gemeente en stem
+      zelf op echte moties uit de raad. Na elke stem ziet u welke fracties het meest
+      met u meestemden.
+    </p>
+  </section>
+
+  <section class="section">
+    <div class="motion-list">
+      {{ range .Councils }}
+        <article class="motion-row">
+          <div>
+            <p class="eyebrow">Gemeenteraad{{ with .LastVote }} · laatste stemming {{ date . }}{{ end }}</p>
+            <a class="motion-title" href="/gemeente/{{ .Slug }}/stemwijzer">{{ .Name }}</a>
+            <p><span class="mono">{{ .MotionsWithVotes }}</span> moties met stemuitslag · <span class="mono">{{ .Fracties }}</span> fracties</p>
+          </div>
+          <div class="motion-meta">
+            <a class="btn btn-secondary" href="/gemeente/{{ .Slug }}/stemwijzer">Start de stemwijzer</a>
+          </div>
+        </article>
+      {{ else }}
+        <p class="muted">Nog geen gemeenten geladen.</p>
+      {{ end }}
+    </div>
+    <p class="muted">
+      Raadsinformatie komt van <a href="https://openbesluitvorming.nl" target="_blank" rel="noopener noreferrer">Open Besluitvorming</a>
+      en wordt elk uur bijgewerkt.
+    </p>
+  </section>
+{{ end }}

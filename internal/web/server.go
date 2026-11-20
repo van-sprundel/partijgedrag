@@ -88,7 +88,7 @@ func New(pool *pgxpool.Pool, dev bool) (Server, error) {
 	}
 
 	templates := make(map[string]*template.Template)
-	for _, name := range []string{"home", "about", "motions", "motion", "party_likeness", "party_comparison", "party_focus", "coalition_analysis", "coalition_motions", "voting_compass", "voting_compass_settings", "compass_results", "data_quality"} {
+	for _, name := range []string{"home", "about", "motions", "motion", "party_likeness", "party_comparison", "party_focus", "coalition_analysis", "coalition_motions", "voting_compass", "voting_compass_settings", "compass_results", "councils", "data_quality"} {
 		parsed, err := parseTemplate(source, name, dev)
 		if err != nil {
 			return Server{}, err
@@ -133,6 +133,8 @@ func (server Server) Register(mux *http.ServeMux) {
 	mux.HandleFunc("GET /coalition-analysis/motions", server.cached(cache.PolicyDynamic, server.coalitionMotions))
 	mux.HandleFunc("GET /voting-compass", server.cached(cache.PolicyDynamic, server.votingCompass))
 	mux.HandleFunc("GET /voting-compass/settings", server.cached(cache.PolicyDynamic, server.votingCompassSettings))
+	mux.HandleFunc("GET /gemeente", server.cached(cache.PolicyDynamic, server.councils))
+	mux.Handle("GET /gemeente/{$}", http.RedirectHandler("/gemeente", http.StatusMovedPermanently))
 	mux.HandleFunc("GET /gemeente/{council}/stemwijzer", server.cached(cache.PolicyDynamic, server.councilCompass))
 	mux.HandleFunc("GET /compass/results/{sessionKey}", server.cached(cache.PolicyImmutable, server.compassResults))
 	// Internal ingestion diagnostics, including the CLI commands to run against
@@ -678,6 +680,15 @@ func (server Server) votingCompass(response http.ResponseWriter, request *http.R
 		SettingsURL:  "/voting-compass/settings",
 		Periods:      periods,
 	})
+}
+
+func (server Server) councils(response http.ResponseWriter, request *http.Request) {
+	councils, err := analysis.ListCouncils(request.Context(), server.Pool)
+	if err != nil {
+		writeError(response, err)
+		return
+	}
+	server.render(response, "councils", councilsPage{Councils: councils})
 }
 
 func (server Server) councilCompass(response http.ResponseWriter, request *http.Request) {
@@ -1299,6 +1310,10 @@ type coalitionMotionsPage struct {
 	Limit     int
 	Offset    int
 	MinCommon int
+}
+
+type councilsPage struct {
+	Councils []analysis.CouncilSummary
 }
 
 type votingCompassPage struct {
