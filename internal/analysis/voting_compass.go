@@ -144,6 +144,22 @@ func LoadVotingCompassMotions(ctx context.Context, pool *pgxpool.Pool, options V
 			        AND v.source_deleted = false
 			        AND v.mistake = false
 			  ) > 1)
+			  -- Enough parties with a clear position, checked before the LIMIT:
+			  -- the newest motions are often not voted on yet and would
+			  -- otherwise fill the pool and starve the result.
+			  AND (
+			      SELECT COUNT(*) FROM (
+			          SELECT 1
+			          FROM votes v
+			          WHERE v.motion_key = m.motion_key
+			            AND v.vote_type IN ('Voor', 'Tegen')
+			            AND v.source_deleted = false
+			            AND v.mistake = false
+			          GROUP BY v.party_source_id
+			          HAVING SUM(CASE WHEN v.vote_type = 'Voor' THEN 1 ELSE 0 END)
+			              <> SUM(CASE WHEN v.vote_type = 'Tegen' THEN 1 ELSE 0 END)
+			      ) AS clear_parties
+			  ) >= $4
 			ORDER BY m.proposed_at DESC NULLS LAST, m.motion_key
 			LIMIT $5 * 5
 		),
