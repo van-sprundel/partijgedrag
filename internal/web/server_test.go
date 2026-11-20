@@ -181,3 +181,56 @@ func TestStellingValue(t *testing.T) {
 		}
 	}
 }
+
+func TestSharePreviewMeta(t *testing.T) {
+	server, err := New(nil, false)
+	if err != nil {
+		t.Fatalf("New() error: %v", err)
+	}
+	render := func(name string, data any) string {
+		var buffer strings.Builder
+		if err := server.templates[name].ExecuteTemplate(&buffer, "base", data); err != nil {
+			t.Fatalf("render %s: %v", name, err)
+		}
+		return buffer.String()
+	}
+	expect := func(html string, want ...string) {
+		t.Helper()
+		for _, tag := range want {
+			if !strings.Contains(html, tag) {
+				t.Errorf("missing %s", tag)
+			}
+		}
+	}
+
+	subject := "Motie van het lid Dijk over het eigen risico & de zorg"
+	status := "Aangenomen"
+	html := render("motion", motionPage{Motion: motion{Subject: &subject, Status: &status, VoteCount: 150, VotesFor: 88, VotesAgainst: 62}})
+	expect(html,
+		`<meta property="og:title" content="Motie van het lid Dijk over het eigen risico &amp; de zorg">`,
+		`<meta property="og:description" content="Aangenomen · 88 voor, 62 tegen">`,
+	)
+
+	html = render("motion", motionPage{Motion: motion{Subject: &subject}})
+	expect(html, `<meta property="og:description" content="nog geen stemuitslag">`)
+
+	html = render("compass_results", compassResultsPage{Results: analysis.CompassResults{
+		Session: analysis.CompassSession{Answers: make([]analysis.CompassAnswer, 24)},
+		Matches: []analysis.CompassMatch{
+			{PartyName: "D66", Match: 82.4},
+			{PartyName: "GL-PvdA", Match: 78},
+			{PartyName: "Volt", Match: 75},
+			{PartyName: "CDA", Match: 60},
+		},
+	}})
+	expect(html,
+		`<meta property="og:title" content="Stemwijzer: D66 past het best (82%)">`,
+		`<meta property="og:description" content="D66 82%, GL-PvdA 78%, Volt 75% · 24 stellingen beantwoord">`,
+	)
+
+	html = render("about", nil)
+	expect(html,
+		`<meta property="og:title" content="Over - Partijgedrag">`,
+		`<meta property="og:description" content="Geen woorden, maar daden:`,
+	)
+}

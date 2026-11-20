@@ -36,11 +36,15 @@ type Config struct {
 	SyncMotionVoteLimit     int
 	SyncMotionDocumentLimit int
 
-	// SyncMotionVoteResyncGrace re-polls votes for motions that are not settled
-	// yet, and for settled ones until this long after their terminating
-	// decision. Without it a motion is vote-synced once and never revisited, so
-	// a motion ingested before its vote keeps zero votes forever. Zero disables.
+	// SyncMotionVoteResyncGrace re-polls votes for settled motions until this
+	// long after their terminating decision, to pick up late amendments. Zero
+	// disables.
 	SyncMotionVoteResyncGrace time.Duration
+
+	// SyncMotionVoteUnsettledGrace re-polls votes for motions without a
+	// terminating decision until this long after they were proposed. Without it
+	// a motion ingested before its vote keeps zero votes forever. Zero disables.
+	SyncMotionVoteUnsettledGrace time.Duration
 
 	// SyncMotionDocumentResyncGrace retries motions that still have no bullet
 	// points, until this long after they were proposed. Published documents are
@@ -73,6 +77,14 @@ func Load() (Config, error) {
 		return Config{}, fmt.Errorf("SYNC_MOTION_VOTE_RESYNC_GRACE must be 0 or greater")
 	}
 
+	voteUnsettledGrace, err := time.ParseDuration(getEnv("SYNC_MOTION_VOTE_UNSETTLED_GRACE", "4320h"))
+	if err != nil {
+		return Config{}, fmt.Errorf("parse SYNC_MOTION_VOTE_UNSETTLED_GRACE: %w", err)
+	}
+	if voteUnsettledGrace < 0 {
+		return Config{}, fmt.Errorf("SYNC_MOTION_VOTE_UNSETTLED_GRACE must be 0 or greater")
+	}
+
 	documentResyncGrace, err := time.ParseDuration(getEnv("SYNC_MOTION_DOCUMENT_RESYNC_GRACE", "2160h"))
 	if err != nil {
 		return Config{}, fmt.Errorf("parse SYNC_MOTION_DOCUMENT_RESYNC_GRACE: %w", err)
@@ -98,6 +110,7 @@ func Load() (Config, error) {
 		SyncMotionDocumentLimit:   getEnvInt("SYNC_MOTION_DOCUMENT_LIMIT", 500),
 
 		SyncMotionVoteResyncGrace:     voteResyncGrace,
+		SyncMotionVoteUnsettledGrace:  voteUnsettledGrace,
 		SyncMotionDocumentResyncGrace: documentResyncGrace,
 	}, nil
 }

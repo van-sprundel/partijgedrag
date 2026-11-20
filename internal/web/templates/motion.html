@@ -1,4 +1,6 @@
 {{ define "title" }}{{ fallback .Motion.Subject .Motion.Title }} - Partijgedrag{{ end }}
+{{ define "share-title" }}{{ fallback .Motion.Subject .Motion.Title }}{{ end }}
+{{ define "description" }}{{ with fallback .Motion.Status }}{{ . }} · {{ end }}{{ if .Motion.VoteCount }}{{ .Motion.VotesFor }} voor, {{ .Motion.VotesAgainst }} tegen{{ else }}nog geen stemuitslag{{ end }}{{ end }}
 {{ define "content" }}
   <section class="section">
     <a class="back-link" href="/motions">← Alle moties</a>

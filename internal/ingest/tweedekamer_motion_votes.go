@@ -25,11 +25,16 @@ type TweedeKamerMotionVotesIngest struct {
 	Limit       int
 	Concurrency int
 	ResyncAfter time.Duration
-	// ResyncGrace re-polls motions whose outcome is not settled, and settled
-	// ones until this long after they were settled. Votes can still be amended
-	// after a motion is decided; a vergissing is typically filed a week later.
-	// Zero disables outcome-scoped resync.
+	// ResyncGrace re-polls settled motions until this long after they were
+	// settled. Votes can still be amended after a motion is decided; a
+	// vergissing is typically filed a week later. Zero disables.
 	ResyncGrace time.Duration
+	// UnsettledGrace re-polls motions without a terminating decision until this
+	// long after they were proposed. A motion is usually ingested before it is
+	// voted on, so this is what picks up its votes. Motions that are never voted
+	// on stay unsettled forever; the window keeps them from crowding recent
+	// motions out of the batch. Zero disables.
+	UnsettledGrace time.Duration
 }
 
 // settledDecisionTypes are the Besluit types that terminate a motion. These key
@@ -58,13 +63,14 @@ func (ingest TweedeKamerMotionVotesIngest) Run(ctx context.Context) error {
 
 	resyncBefore := ingest.resyncBefore()
 	settledBefore := ingest.settledBefore()
-	pendingBefore, err := ingest.pendingCount(ctx, resyncBefore, settledBefore)
+	proposedAfter := ingest.proposedAfter()
+	pendingBefore, err := ingest.pendingCount(ctx, resyncBefore, settledBefore, proposedAfter)
 	if err != nil {
 		_ = finishPipelineRun(ctx, ingest.Pool, runID, motionVotesPipeline, "failed", 0, 0, false, "error", err.Error())
 		return err
 	}
 
-	motions, err := ingest.motionCandidates(ctx, resyncBefore, settledBefore)
+	motions, err := ingest.motionCandidates(ctx, resyncBefore, settledBefore, proposedAfter)
 	if err != nil {
 		_ = finishPipelineRun(ctx, ingest.Pool, runID, motionVotesPipeline, "failed", 0, 0, false, "error", err.Error())
 		return err
@@ -76,7 +82,7 @@ func (ingest TweedeKamerMotionVotesIngest) Run(ctx context.Context) error {
 		return err
 	}
 
-	pendingAfter, err := ingest.pendingCount(ctx, resyncBefore, settledBefore)
+	pendingAfter, err := ingest.pendingCount(ctx, resyncBefore, settledBefore, proposedAfter)
 	if err != nil {
 		_ = finishPipelineRun(ctx, ingest.Pool, runID, motionVotesPipeline, "failed", recordsSeen, recordsChanged, false, "error", err.Error())
 		return err
@@ -206,7 +212,7 @@ type motionCandidate struct {
 	SourceID  string
 }
 
-func (ingest TweedeKamerMotionVotesIngest) motionCandidates(ctx context.Context, resyncBefore, settledBefore *time.Time) ([]motionCandidate, error) {
+func (ingest TweedeKamerMotionVotesIngest) motionCandidates(ctx context.Context, resyncBefore, settledBefore, proposedAfter *time.Time) ([]motionCandidate, error) {
 	rows, err := ingest.Pool.Query(ctx, `
 		SELECT m.motion_key, m.source_id
 		FROM motions m
@@ -214,15 +220,28 @@ func (ingest TweedeKamerMotionVotesIngest) motionCandidates(ctx context.Context,
 		  AND m.source_deleted = false
 		  AND (m.votes_synced_at IS NULL
 		       OR ($3::timestamptz IS NOT NULL AND m.votes_synced_at < $3)
-		       OR ($4::timestamptz IS NOT NULL AND NOT EXISTS (
+		       OR ($4::timestamptz IS NOT NULL
+		           AND EXISTS (
+		             SELECT 1 FROM decisions d
+		             WHERE d.motion_key = m.motion_key
+		               AND d.source_deleted = false
+		               AND d.decision_type = ANY($5::text[]))
+		           AND NOT EXISTS (
 		             SELECT 1 FROM decisions d
 		             WHERE d.motion_key = m.motion_key
 		               AND d.source_deleted = false
 		               AND d.decision_type = ANY($5::text[])
-		               AND d.source_updated_at <= $4)))
+		               AND d.source_updated_at <= $4))
+		       OR ($6::timestamptz IS NOT NULL
+		           AND m.proposed_at > $6
+		           AND NOT EXISTS (
+		             SELECT 1 FROM decisions d
+		             WHERE d.motion_key = m.motion_key
+		               AND d.source_deleted = false
+		               AND d.decision_type = ANY($5::text[]))))
 		ORDER BY m.votes_synced_at ASC NULLS FIRST, m.proposed_at DESC NULLS LAST
 		LIMIT $2
-	`, tweedeKamerSourceKey, ingest.Limit, resyncBefore, settledBefore, settledDecisionTypes)
+	`, tweedeKamerSourceKey, ingest.Limit, resyncBefore, settledBefore, settledDecisionTypes, proposedAfter)
 	if err != nil {
 		return nil, err
 	}
@@ -239,7 +258,7 @@ func (ingest TweedeKamerMotionVotesIngest) motionCandidates(ctx context.Context,
 	return motions, rows.Err()
 }
 
-func (ingest TweedeKamerMotionVotesIngest) pendingCount(ctx context.Context, resyncBefore, settledBefore *time.Time) (int, error) {
+func (ingest TweedeKamerMotionVotesIngest) pendingCount(ctx context.Context, resyncBefore, settledBefore, proposedAfter *time.Time) (int, error) {
 	var count int
 	err := ingest.Pool.QueryRow(ctx, `
 		SELECT count(*)::int
@@ -248,13 +267,26 @@ func (ingest TweedeKamerMotionVotesIngest) pendingCount(ctx context.Context, res
 		  AND m.source_deleted = false
 		  AND (m.votes_synced_at IS NULL
 		       OR ($2::timestamptz IS NOT NULL AND m.votes_synced_at < $2)
-		       OR ($3::timestamptz IS NOT NULL AND NOT EXISTS (
+		       OR ($3::timestamptz IS NOT NULL
+		           AND EXISTS (
+		             SELECT 1 FROM decisions d
+		             WHERE d.motion_key = m.motion_key
+		               AND d.source_deleted = false
+		               AND d.decision_type = ANY($4::text[]))
+		           AND NOT EXISTS (
 		             SELECT 1 FROM decisions d
 		             WHERE d.motion_key = m.motion_key
 		               AND d.source_deleted = false
 		               AND d.decision_type = ANY($4::text[])
-		               AND d.source_updated_at <= $3)))
-	`, tweedeKamerSourceKey, resyncBefore, settledBefore, settledDecisionTypes).Scan(&count)
+		               AND d.source_updated_at <= $3))
+		       OR ($5::timestamptz IS NOT NULL
+		           AND m.proposed_at > $5
+		           AND NOT EXISTS (
+		             SELECT 1 FROM decisions d
+		             WHERE d.motion_key = m.motion_key
+		               AND d.source_deleted = false
+		               AND d.decision_type = ANY($4::text[]))))
+	`, tweedeKamerSourceKey, resyncBefore, settledBefore, settledDecisionTypes, proposedAfter).Scan(&count)
 	return count, err
 }
 
@@ -274,6 +306,16 @@ func (ingest TweedeKamerMotionVotesIngest) settledBefore() *time.Time {
 		return nil
 	}
 	value := time.Now().Add(-ingest.ResyncGrace)
+	return &value
+}
+
+// proposedAfter is the earliest proposal date for which an unsettled motion is
+// still re-polled. Past it the motion counts as never getting a vote.
+func (ingest TweedeKamerMotionVotesIngest) proposedAfter() *time.Time {
+	if ingest.UnsettledGrace <= 0 {
+		return nil
+	}
+	value := time.Now().Add(-ingest.UnsettledGrace)
 	return &value
 }
 

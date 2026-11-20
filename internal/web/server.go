@@ -175,7 +175,10 @@ func parseTemplate(source fs.FS, name string, dev bool) (*template.Template, err
 		"tint":     tintStyle,
 		"time":     timeValue,
 	})
-	return tmpl.Parse(string(base) + "\n" + string(page))
+	if _, err := tmpl.Parse(string(base)); err != nil {
+		return nil, err
+	}
+	return tmpl.Parse(string(page))
 }
 
 func (server Server) home(response http.ResponseWriter, request *http.Request) {

@@ -1,4 +1,6 @@
 {{ define "title" }}Uw stemwijzerresultaat - Partijgedrag{{ end }}
+{{ define "share-title" }}{{ with .Results.Matches }}Stemwijzer: {{ (index . 0).PartyName }} past het best ({{ printf "%.0f%%" (index . 0).Match }}){{ else }}Stemwijzerresultaat{{ end }}{{ end }}
+{{ define "description" }}{{ range $i, $match := .Results.Matches }}{{ if lt $i 3 }}{{ if $i }}, {{ end }}{{ $match.PartyName }} {{ printf "%.0f%%" $match.Match }}{{ end }}{{ end }}{{ if .Results.Matches }} · {{ end }}{{ len .Results.Session.Answers }} stellingen beantwoord{{ end }}
 {{ define "content" }}
   <section class="section">
     <p class="eyebrow">Stemwijzer{{ with .Council }} gemeenteraad {{ .Name }}{{ end }} · {{ time .Results.Session.CreatedAt }}</p>

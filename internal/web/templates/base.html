@@ -5,6 +5,13 @@
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <title>{{ template "title" . }}</title>
+    <meta name="description" content="{{ block "description" . }}Geen woorden, maar daden: hoe stemmen partijen in de Tweede Kamer? Elke motie en elke stem, uit de open data van de Kamer.{{ end }}">
+    <meta property="og:site_name" content="Partijgedrag">
+    <meta property="og:type" content="website">
+    <meta property="og:locale" content="nl_NL">
+    <meta property="og:title" content="{{ block "share-title" . }}{{ template "title" . }}{{ end }}">
+    <meta property="og:description" content="{{ template "description" . }}">
+    <meta name="twitter:card" content="summary">
     <link rel="stylesheet" href="{{ static "styles.css" }}">
     <link rel="icon" href="{{ static "favicon.ico" }}">
   </head>

@@ -397,7 +397,8 @@ func runSync(ctx context.Context, cfg config.Config, database *db.DB, args []str
 	motionVoteLimit := flags.Int("motion-vote-limit", 100, "number of known motions to sync votes for")
 	motionVoteConcurrency := flags.Int("motion-vote-concurrency", 4, "number of motions to sync votes for in parallel")
 	motionVoteResyncAfter := flags.Duration("motion-vote-resync-after", 0, "also resync motions whose votes were synced before this duration, e.g. 168h; 0 means only unsynced")
-	motionVoteResyncGrace := flags.Duration("motion-vote-resync-grace", cfg.SyncMotionVoteResyncGrace, "keep resyncing votes for unsettled motions, and for settled ones until this long after their decision; 0 disables")
+	motionVoteResyncGrace := flags.Duration("motion-vote-resync-grace", cfg.SyncMotionVoteResyncGrace, "keep resyncing votes for settled motions until this long after their decision; 0 disables")
+	motionVoteUnsettledGrace := flags.Duration("motion-vote-unsettled-grace", cfg.SyncMotionVoteUnsettledGrace, "keep resyncing votes for unsettled motions until this long after they were proposed; 0 disables")
 	motionDocumentLimit := flags.Int("motion-document-limit", 100, "number of known motions to sync documents for")
 	motionDocumentConcurrency := flags.Int("motion-document-concurrency", 4, "number of motions to sync documents for in parallel")
 	motionDocumentResyncAfter := flags.Duration("motion-document-resync-after", 0, "also resync motions whose documents were synced before this duration, e.g. 168h; 0 means only unsynced")
@@ -440,6 +441,9 @@ func runSync(ctx context.Context, cfg config.Config, database *db.DB, args []str
 	if *motionVoteResyncGrace < 0 {
 		return fmt.Errorf("--motion-vote-resync-grace must be 0 or greater")
 	}
+	if *motionVoteUnsettledGrace < 0 {
+		return fmt.Errorf("--motion-vote-unsettled-grace must be 0 or greater")
+	}
 	if *motionDocumentLimit <= 0 {
 		return fmt.Errorf("--motion-document-limit must be greater than 0")
 	}
@@ -466,6 +470,7 @@ func runSync(ctx context.Context, cfg config.Config, database *db.DB, args []str
 		MotionVoteConcurrency:     *motionVoteConcurrency,
 		MotionVoteResyncAfter:     *motionVoteResyncAfter,
 		MotionVoteResyncGrace:     *motionVoteResyncGrace,
+		MotionVoteUnsettledGrace:  *motionVoteUnsettledGrace,
 		MotionDocumentLimit:       *motionDocumentLimit,
 		MotionDocumentConcurrency: *motionDocumentConcurrency,
 		MotionDocumentResyncAfter: *motionDocumentResyncAfter,
@@ -488,6 +493,7 @@ type tweedeKamerSyncSettings struct {
 	MotionVoteConcurrency     int
 	MotionVoteResyncAfter     time.Duration
 	MotionVoteResyncGrace     time.Duration
+	MotionVoteUnsettledGrace  time.Duration
 	MotionDocumentLimit       int
 	MotionDocumentConcurrency int
 	MotionDocumentResyncAfter time.Duration
@@ -509,6 +515,7 @@ func defaultSyncSettings(cfg config.Config) tweedeKamerSyncSettings {
 		MotionVoteLimit:           cfg.SyncMotionVoteLimit,
 		MotionVoteConcurrency:     4,
 		MotionVoteResyncGrace:     cfg.SyncMotionVoteResyncGrace,
+		MotionVoteUnsettledGrace:  cfg.SyncMotionVoteUnsettledGrace,
 		MotionDocumentLimit:       cfg.SyncMotionDocumentLimit,
 		MotionDocumentConcurrency: 4,
 		MotionDocumentResyncGrace: cfg.SyncMotionDocumentResyncGrace,
@@ -567,12 +574,13 @@ func syncTweedeKamer(ctx context.Context, cfg config.Config, database *db.DB, se
 	if !settings.SkipMotionVotes {
 		fmt.Println("sync step=motion-votes")
 		job := ingest.TweedeKamerMotionVotesIngest{
-			Pool:        database.Pool,
-			Client:      client,
-			Limit:       settings.MotionVoteLimit,
-			Concurrency: settings.MotionVoteConcurrency,
-			ResyncAfter: settings.MotionVoteResyncAfter,
-			ResyncGrace: settings.MotionVoteResyncGrace,
+			Pool:           database.Pool,
+			Client:         client,
+			Limit:          settings.MotionVoteLimit,
+			Concurrency:    settings.MotionVoteConcurrency,
+			ResyncAfter:    settings.MotionVoteResyncAfter,
+			ResyncGrace:    settings.MotionVoteResyncGrace,
+			UnsettledGrace: settings.MotionVoteUnsettledGrace,
 		}
 		if err := job.Run(ctx); err != nil {
 			return err
