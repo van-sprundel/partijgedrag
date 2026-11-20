@@ -3,7 +3,7 @@
   <section class="section">
     <div class="section-heading">
       <h1>Moties</h1>
-      <span class="muted mono">{{ .Total }} resultaten</span>
+      <span class="muted">{{ .Total }} resultaten</span>
     </div>
 
     <form class="filters" method="get" action="/motions">
@@ -47,7 +47,7 @@
                 <span class="tegen-count">{{ .VotesAgainst }} tegen</span>
               </div>
             {{ else }}
-              <span class="muted mono">nog geen stemuitslag</span>
+              <span class="muted">nog geen stemuitslag</span>
             {{ end }}
           </div>
         </article>

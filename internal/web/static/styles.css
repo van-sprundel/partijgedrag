@@ -161,6 +161,14 @@ h1 {
   line-height: 1.05;
 }
 
+h1.reading-title {
+  font-family: var(--font-sans);
+  font-weight: 600;
+  font-size: 30px;
+  line-height: 1.25;
+  max-width: 38ch;
+}
+
 h2 {
   font-size: 24px;
   line-height: 1.15;
@@ -177,9 +185,7 @@ h3 + p {
 }
 
 .eyebrow {
-  font: 500 11px/1.4 var(--font-mono);
-  letter-spacing: 0.14em;
-  text-transform: uppercase;
+  font: 500 13px/1.4 var(--font-sans);
   color: var(--muted);
   margin: 0 0 10px;
 }
@@ -389,9 +395,7 @@ dd,
   display: flex;
   flex-direction: column;
   gap: 5px;
-  font: 500 11px/1.4 var(--font-mono);
-  letter-spacing: 0.1em;
-  text-transform: uppercase;
+  font: 500 13px/1.4 var(--font-sans);
   color: var(--muted);
 }
 
@@ -415,8 +419,6 @@ dd,
   align-items: center;
   gap: 7px;
   padding-bottom: 9px;
-  text-transform: none;
-  letter-spacing: 0;
   font: 400 14px/1.4 var(--font-sans);
   color: var(--ink);
 }
@@ -439,9 +441,7 @@ dd,
 }
 
 .filters .setting-label {
-  font: 500 11px/1.4 var(--font-mono);
-  letter-spacing: 0.1em;
-  text-transform: uppercase;
+  font: 500 13px/1.4 var(--font-sans);
   color: var(--muted);
 }
 
@@ -536,9 +536,7 @@ dd,
 
 .setup-advanced summary {
   cursor: pointer;
-  font: 500 11px/1.4 var(--font-mono);
-  letter-spacing: 0.1em;
-  text-transform: uppercase;
+  font: 500 13px/1.4 var(--font-sans);
   color: var(--muted);
 }
 
@@ -655,9 +653,7 @@ table {
 }
 
 th {
-  font: 500 11px/1.4 var(--font-mono);
-  letter-spacing: 0.1em;
-  text-transform: uppercase;
+  font: 500 13px/1.4 var(--font-sans);
   color: var(--muted);
   text-align: left;
   padding: 8px 14px 8px 0;
@@ -676,7 +672,16 @@ th.num {
   font-variant-numeric: tabular-nums;
 }
 
+th.num {
+  font-family: var(--font-sans);
+  font-size: 13px;
+}
+
 /* ---------- matrix ---------- */
+
+.matrix td[colspan] {
+  font: 400 14px/1.4 var(--font-sans);
+}
 
 .matrix-scroll {
   overflow-x: auto;
@@ -762,8 +767,7 @@ th.num {
 .position {
   border-radius: 2px;
   display: inline-block;
-  font: 500 11px/1.4 var(--font-mono);
-  letter-spacing: 0.06em;
+  font: 500 12px/1.4 var(--font-sans);
   padding: 2px 8px;
 }
 
@@ -836,9 +840,7 @@ th.num {
 }
 
 .answer-parties dt {
-  font: 500 11px/1.4 var(--font-mono);
-  letter-spacing: 0.1em;
-  text-transform: uppercase;
+  font: 500 13px/1.4 var(--font-sans);
   color: var(--muted);
 }
 
@@ -879,9 +881,7 @@ th.num {
 }
 
 .detail-grid dt {
-  font: 500 11px/1.4 var(--font-mono);
-  letter-spacing: 0.1em;
-  text-transform: uppercase;
+  font: 500 13px/1.4 var(--font-sans);
   color: var(--muted);
   margin-bottom: 3px;
 }
@@ -934,6 +934,7 @@ th.num {
 
 .match-table th {
   padding-right: 10px;
+  white-space: nowrap;
 }
 
 .match-table td {
@@ -986,6 +987,12 @@ th.num {
   white-space: nowrap;
 }
 
+.compass-progress-label {
+  font-size: 13px;
+  color: var(--muted);
+  margin: 6px 0 16px;
+}
+
 .compass-share-status {
   margin: -6px 0 14px;
   font-size: 13px;
@@ -1034,7 +1041,7 @@ th.num {
 
 .compass-nav button {
   font: 500 13px/1.2 var(--font-sans);
-  padding: 7px 14px;
+  padding: 8px 16px;
   border: 1px solid var(--line);
   border-radius: 2px;
   background: var(--surface);
@@ -1047,6 +1054,19 @@ th.num {
   color: var(--kamer);
 }
 
+.compass-nav button[data-step="1"]:not(:disabled) {
+  background: var(--ink);
+  color: #fff;
+  border-color: var(--ink);
+  font-weight: 600;
+}
+
+.compass-nav button[data-step="1"]:hover:not(:disabled) {
+  background: var(--kamer);
+  border-color: var(--kamer);
+  color: #fff;
+}
+
 .compass-done-actions {
   display: flex;
   flex-wrap: wrap;
@@ -1055,14 +1075,16 @@ th.num {
 }
 
 /* The statement is the question being asked, so it gets headline weight and
-   size; everything below it is supporting material at body size or smaller. */
+   size; everything below it is supporting material at body size or smaller.
+   Regular Plex Sans, not the condensed display face: a statement is read word
+   for word, and narrow letters with tight lines make that harder. */
 .compass-motion h2 {
-  font-family: var(--font-display);
-  font-weight: 700;
-  font-size: 25px;
-  line-height: 1.15;
+  font-family: var(--font-sans);
+  font-weight: 600;
+  font-size: 23px;
+  line-height: 1.3;
   margin: 2px 0 8px;
-  max-width: 34ch;
+  max-width: 38ch;
 }
 
 .compass-motion h2 a {
@@ -1088,8 +1110,6 @@ th.num {
 
 .compass-date {
   flex: none;
-  font-family: var(--font-mono);
-  font-size: 12px;
 }
 
 .compass-dossier {
@@ -1173,10 +1193,16 @@ th.num {
   left: 0;
 }
 
+/* Links wrap as whole links: a label broken over two lines reads as two. */
 .compass-meta {
   display: flex;
-  gap: 16px;
+  flex-wrap: wrap;
+  gap: 6px 16px;
   align-items: baseline;
+}
+
+.compass-meta > * {
+  white-space: nowrap;
 }
 
 .compass-meta button {
@@ -1226,6 +1252,11 @@ th.num {
 
 .segmented button.active[data-answer="AGAINST"] {
   background: var(--tegen);
+  color: #fff;
+}
+
+.segmented button.active[data-answer="SKIP"] {
+  background: var(--ink);
   color: #fff;
 }
 
@@ -1309,9 +1340,7 @@ code {
 }
 
 .versus-vs {
-  font: 400 13px/1.4 var(--font-mono);
-  letter-spacing: 0.1em;
-  text-transform: uppercase;
+  font: 400 14px/1.4 var(--font-sans);
   color: var(--muted);
 }
 
@@ -1424,7 +1453,7 @@ code {
 }
 
 .stance-party {
-  font: 500 12px/1.4 var(--font-mono);
+  font: 500 13px/1.4 var(--font-sans);
   color: var(--muted);
   overflow: hidden;
   text-overflow: ellipsis;
@@ -1498,7 +1527,7 @@ code {
     bottom: 0;
     background: var(--paper);
     border-top: 1px solid var(--line);
-    padding: 12px 0 16px;
+    padding: 10px 0 12px;
     margin-top: 16px;
   }
 
@@ -1509,17 +1538,17 @@ code {
 
   .segmented button {
     flex: 1;
-    padding: 14px 0;
+    padding: 11px 0;
     font-size: 15px;
   }
 
   .compass-nav {
-    margin-top: 12px;
+    margin-top: 8px;
   }
 
   .compass-nav button {
     flex: 1;
-    padding: 12px 0;
+    padding: 10px 0;
     font-size: 14px;
   }
 

@@ -5,7 +5,7 @@
   <section class="section">
     <a class="back-link" href="/motions">← Alle moties</a>
     <p class="eyebrow">{{ fallback .Motion.Number .Motion.SourceID }} · {{ date .Motion.ProposedAt }}{{ if .Motion.ParliamentaryYear }} · {{ .Motion.ParliamentaryYear }}{{ end }}</p>
-    <h1>{{ fallback .Motion.Subject .Motion.Title }}</h1>
+    <h1 class="reading-title">{{ fallback .Motion.Subject .Motion.Title }}</h1>
     {{ if .Motion.Title }}<p class="lead">Onderdeel van: {{ .Motion.Title }}</p>{{ end }}
     {{ if .Categories }}
       <div class="tags">

@@ -3,27 +3,28 @@
   <section class="section">
     <div class="section-heading">
       <h1>Stemwijzer{{ with .Council }} {{ .Name }}{{ end }}</h1>
-      <span class="muted mono" id="compass-count">0 beantwoord</span>
     </div>
+    {{/* The 20 matches REQUIRED_ANSWERS in the script below. */}}
     {{ with .Council }}
-      <p class="lead">Stem zelf op echte moties uit de gemeenteraad van {{ .Name }}. Na elke stem ziet u direct welke fracties het meest met u meestemden.</p>
+      <p class="lead">Elke stelling is een echte motie waarover de gemeenteraad van {{ .Name }} heeft gestemd. U kiest steeds: vóór, tegen of overslaan. Na 20 antwoorden ziet u welke fracties het vaakst hetzelfde stemden als u.</p>
     {{ else }}
-      <p class="lead">Stem zelf op echte moties uit de Tweede Kamer. Na elke stem ziet u direct welke partijen het meest met u meestemden.</p>
+      <p class="lead">Elke stelling is een echte motie waarover de Tweede Kamer heeft gestemd. U kiest steeds: vóór, tegen of overslaan. Na 20 antwoorden ziet u welke partijen het vaakst hetzelfde stemden als u.</p>
     {{ end }}
 
     <div class="compass-profile">
-      <span class="muted mono" id="compass-profile-summary"></span>
-      {{ if .SettingsURL }}<a class="btn btn-secondary" id="compass-edit-profile" href="{{ .SettingsURL }}">Profiel aanpassen</a>{{ end }}
+      <span class="muted" id="compass-profile-summary"></span>
+      {{ if .SettingsURL }}<a class="btn btn-secondary" id="compass-edit-profile" href="{{ .SettingsURL }}">Keuzes aanpassen</a>{{ end }}
     </div>
   </section>
 
   <section class="section compass-layout">
     <div>
       <div class="progress" aria-hidden="true"><span id="compass-progress"></span></div>
+      <p class="compass-progress-label" id="compass-count"></p>
       <div id="compass-motions" class="compass-motion-list" aria-live="polite"></div>
     </div>
     <aside class="compass-results">
-      <h2>Uw matches</h2>
+      <h2>Tussenstand</h2>
       <div class="compass-actions-row">
         <button type="button" class="btn" id="compass-share" disabled>Bekijk resultaat</button>
         <button type="button" class="btn btn-secondary" id="compass-reset">Opnieuw beginnen</button>
@@ -39,12 +40,12 @@
           </tr>
         </thead>
         <tbody id="compass-results">
-          <tr><td colspan="3">Nog geen antwoorden.</td></tr>
+          <tr><td colspan="3">Hier verschijnen partijen zodra u een stelling beantwoordt.</td></tr>
         </tbody>
       </table>
       <details class="inconclusive" id="compass-inconclusive" hidden>
         <summary>Te weinig gedeelde stellingen</summary>
-        <p class="hint">Deze partijen zaten niet in {{ .Chamber }} bij genoeg van uw stellingen om ze eerlijk te vergelijken.</p>
+        <p class="hint">Deze partijen zaten bij te weinig van uw stellingen in {{ .Chamber }}.</p>
         <table class="match-table">
           <thead>
             <tr>
@@ -95,10 +96,11 @@
       const SINCE = {{ with .Council }}{{ with .Since }}{{ .Format "2006-01-02" }}{{ else }}""{{ end }}{{ else }}""{{ end }};
       const summaryParts = SINCE
         ? [`Moties van de huidige raad, sinds ${new Date(SINCE).toLocaleDateString("nl-NL", { day: "numeric", month: "long", year: "numeric" })}`]
-        : [periodNames[profile.period] || "Alle beschikbare moties"];
-      if (profile.categories.length > 0) summaryParts.push(`${profile.categories.length} onderwerpen`);
-      if (profile.parties.length > 0) summaryParts.push(`${profile.parties.length} partijen`);
-      document.querySelector("#compass-profile-summary").textContent = summaryParts.join(" · ");
+        : [periodNames[profile.period] || "Alle periodes"];
+      const categoryCount = profile.categories.length;
+      summaryParts.push(categoryCount === 0 ? "alle onderwerpen" : `${categoryCount} ${categoryCount === 1 ? "onderwerp" : "onderwerpen"}`);
+      if (profile.parties.length > 0) summaryParts.push(`${profile.parties.length} partijen vergeleken`);
+      document.querySelector("#compass-profile-summary").textContent = `Uw keuzes: ${summaryParts.join(" · ")}`;
       const editProfile = document.querySelector("#compass-edit-profile");
       if (editProfile) editProfile.setAttribute("href", `${editProfile.getAttribute("href")}${location.search}`);
 
@@ -258,8 +260,6 @@
       };
 
       const renderCurrent = () => {
-        // Progress toward the answers needed to share; the queue itself is open-ended.
-        progressNode.style.width = `${Math.min(answers.size / REQUIRED_ANSWERS, 1) * 100}%`;
         if (!exhausted && motions.length > 0 && motions.length - current <= PREFETCH_AHEAD) {
           loadMore().catch(() => { /* the done card offers a retry */ });
         }
@@ -275,14 +275,14 @@
           motionsNode.innerHTML = `
             <article class="compass-motion compass-done">
               <p class="eyebrow">${exhausted ? "Klaar" : "Even geduld"}</p>
-              <h2>${exhausted ? "U heeft alle stellingen voor dit profiel gehad." : "Nieuwe stellingen laden…"}</h2>
+              <h2>${exhausted ? "Er zijn geen stellingen meer met uw keuzes." : "Nieuwe stellingen worden geladen…"}</h2>
               <p>${missing > 0
-                ? `Nog ${missing} ${missing === 1 ? "antwoord" : "antwoorden"} nodig voor een resultaat${exhausted ? "; pas uw profiel aan voor andere stellingen" : ""}.`
-                : "Bekijk uw resultaat, of beantwoord meer stellingen voor een preciezere match."}</p>
+                ? `U heeft nog ${missing} ${missing === 1 ? "antwoord" : "antwoorden"} nodig voor een resultaat.${exhausted ? " Kies bij ‘Keuzes aanpassen’ een andere periode of meer onderwerpen om nieuwe stellingen te krijgen." : ""}`
+                : "U heeft genoeg antwoorden. Bekijk uw resultaat, of beantwoord meer stellingen: hoe meer antwoorden, hoe betrouwbaarder de uitslag."}</p>
               <div class="compass-done-actions">
                 ${missing > 0 ? "" : `<button type="button" id="compass-done-results" class="btn">Bekijk resultaat</button>`}
                 ${exhausted ? "" : `<button type="button" id="compass-more" class="btn btn-secondary">Meer stellingen</button>`}
-                <button type="button" id="compass-back" class="btn btn-secondary">← Vorige stelling</button>
+                <button type="button" id="compass-back" class="btn btn-secondary">← Vorige</button>
               </div>
             </article>
           `;
@@ -306,12 +306,14 @@
 
         const motion = motions[current];
         const chosen = answers.get(motion.motionKey);
+        const isSkipped = !chosen && seen.has(motion.motionKey);
+        const hasChoice = chosen !== undefined || isSkipped;
         const bullets = motion.bulletPoints || [];
         const requests = bullets.filter(isAsk);
         const asks = requests.length > 0 ? groupAsks(requests) : [{ addressee: null, items: bullets.map(tidy) }];
         const askLabel = (addressee) => addressee === null ? "" : addressee
           ? `<p class="compass-ask-label">De motie vraagt ${escapeHTML(addressee)} om:</p>`
-          : `<p class="compass-ask-label">De motie verzoekt:</p>`;
+          : `<p class="compass-ask-label">De motie vraagt:</p>`;
         const proposed = formatDate(motion.proposedAt);
         const statement = formatTitle(motion.subject);
         const showAsks = requests.length === 0 || !statement || !repeatsHeadline(statement, asks);
@@ -320,7 +322,7 @@
           <article class="compass-motion" data-motion-key="${escapeHTML(motion.motionKey)}">
             <div class="compass-question">
               <p class="eyebrow">Stelling ${current + 1}</p>
-              <h2><a href="/motions/${encodeURIComponent(motion.motionKey)}" target="_blank" rel="noopener">${escapeHTML(statement || label(motion.title) || motion.motionKey)}</a></h2>
+              <h2>${escapeHTML(statement || label(motion.title) || motion.motionKey)}</h2>
               ${proposed || dossier ? `<p class="compass-topic">
                 ${proposed ? `<span class="compass-date">${escapeHTML(proposed)}</span>` : ""}
                 ${dossier ? `<span class="compass-dossier" title="${escapeHTML(dossier)}">${escapeHTML(dossier)}</span>` : ""}
@@ -337,19 +339,20 @@
                 ${bullets.map((bullet) => `<li${isAsk(bullet) ? ' class="is-verzoek"' : ""}>${escapeHTML(bullet)}</li>`).join("")}
               </ul>
               <p class="compass-meta">
-                ${requests.length > 0 ? `<button type="button" id="compass-toggle-motivation" aria-expanded="false">Volledige tekst</button>` : ""}
-                ${motion.documentUrl ? `<a href="${escapeHTML(motion.documentUrl.replace(/\.xml$/, ".html"))}" target="_blank" rel="noopener">Bron</a>` : ""}
+                ${requests.length > 0 ? `<button type="button" id="compass-toggle-motivation" aria-expanded="false">Toon volledige tekst</button>` : ""}
+                <a href="/motions/${encodeURIComponent(motion.motionKey)}" target="_blank" rel="noopener">Over deze motie <span aria-hidden="true">↗</span><span class="visually-hidden"> (opent in nieuw tabblad)</span></a>
+                ${motion.documentUrl ? `<a href="${escapeHTML(motion.documentUrl.replace(/\.xml$/, ".html"))}" target="_blank" rel="noopener">Officiële tekst <span aria-hidden="true">↗</span><span class="visually-hidden"> (opent in nieuw tabblad)</span></a>` : ""}
               </p>
             </div>
             <div class="compass-actions">
-              <div class="segmented" role="group" aria-label="Uw stem">
-                <button type="button" data-answer="FOR" aria-pressed="${chosen === "FOR"}" ${chosen === "FOR" ? 'class="active"' : ""}>Voor</button>
+              <div class="segmented" role="group" aria-label="Stemkeuze">
+                <button type="button" data-answer="FOR" aria-pressed="${chosen === "FOR"}" ${chosen === "FOR" ? 'class="active"' : ""}>Vóór</button>
                 <button type="button" data-answer="AGAINST" aria-pressed="${chosen === "AGAINST"}" ${chosen === "AGAINST" ? 'class="active"' : ""}>Tegen</button>
-                <button type="button" data-answer="SKIP">Sla over</button>
+                <button type="button" data-answer="SKIP" title="Telt niet mee voor uw resultaat" aria-pressed="${isSkipped}" ${isSkipped ? 'class="active"' : ""}>Overslaan</button>
               </div>
               <div class="compass-nav">
                 <button type="button" data-step="-1" ${current === 0 ? "disabled" : ""}>← Vorige</button>
-                <button type="button" data-step="1" ${seen.has(motion.motionKey) ? "" : "disabled"}>Volgende →</button>
+                <button type="button" data-step="1" ${hasChoice ? "" : "disabled"}>Volgende →</button>
               </div>
             </div>
           </article>
@@ -362,7 +365,7 @@
             const expanded = motivationNode.hidden;
             motivationNode.hidden = !expanded;
             motivationToggle.setAttribute("aria-expanded", String(expanded));
-            motivationToggle.textContent = expanded ? "Verberg volledige tekst" : "Volledige tekst";
+            motivationToggle.textContent = expanded ? "Verberg volledige tekst" : "Toon volledige tekst";
           });
         }
 
@@ -377,24 +380,16 @@
             seen.add(motion.motionKey);
             motionsNode.querySelectorAll("[data-answer]").forEach((candidate) => {
               candidate.classList.remove("active");
-              if (candidate.dataset.answer !== "SKIP") candidate.setAttribute("aria-pressed", "false");
+              candidate.setAttribute("aria-pressed", "false");
             });
-            if (answer !== "SKIP") {
-              button.classList.add("active");
-              button.setAttribute("aria-pressed", "true");
-            }
+            button.classList.add("active");
+            button.setAttribute("aria-pressed", "true");
+
+            const nextButton = motionsNode.querySelector('[data-step="1"]');
+            if (nextButton) nextButton.disabled = false;
+
             saveState();
             renderResults();
-            // A second click before the card moves on (a double-click, a key
-            // repeat) must not advance twice and pass over the next stelling.
-            const answeredIndex = motions.indexOf(motion);
-            setTimeout(() => {
-              if (current !== answeredIndex) return;
-              current = answeredIndex + 1;
-              renderCurrent();
-              const sameSpot = motionsNode.querySelector(`[data-answer="${answer}"]`) || motionsNode.querySelector(".compass-done-actions .btn");
-              if (sameSpot) sameSpot.focus({ preventScroll: true });
-            }, 250);
           });
         });
 
@@ -450,14 +445,21 @@
       };
 
       const renderResults = () => {
-        count.textContent = `${answers.size} beantwoord`;
         const missing = missingAnswers();
+        // Progress toward the answers needed to share, updated on every answer
+        // together with the label under it, so the two never disagree.
+        progressNode.style.width = `${(answers.size / (answers.size + missing || 1)) * 100}%`;
+        count.textContent = missing > 0
+          ? `${answers.size} van ${answers.size + missing} antwoorden gegeven`
+          : `${answers.size} antwoorden gegeven: genoeg voor een resultaat`;
         share.disabled = missing > 0;
-        shareStatus.textContent = answers.size > 0 && missing > 0
+        shareStatus.textContent = missing > 0
           ? `Nog ${missing} ${missing === 1 ? "antwoord" : "antwoorden"} nodig.`
           : "";
         const overlapThreshold = Math.max(1, Math.min(profile.minOverlap, answers.size || 1));
-        threshold.textContent = `Alleen partijen die over minstens ${overlapThreshold} van uw stellingen meestemden.`;
+        threshold.textContent = answers.size > 0
+          ? `Alleen partijen met minstens ${overlapThreshold} ${overlapThreshold === 1 ? "gedeelde stelling" : "gedeelde stellingen"}.`
+          : "";
         const scores = new Map();
         for (const motion of motions) {
           const answer = answers.get(motion.motionKey);
@@ -484,7 +486,7 @@
           .sort((a, b) => b.overlap - a.overlap || a.party.localeCompare(b.party));
 
         if (rows.length === 0) {
-          resultsNode.innerHTML = `<tr><td colspan="3">${answers.size === 0 ? "Nog geen antwoorden." : "Nog geen partijen die genoeg van uw stellingen meestemden."}</td></tr>`;
+          resultsNode.innerHTML = `<tr><td colspan="3">${answers.size === 0 ? "Hier verschijnen partijen zodra u een stelling beantwoordt." : "Nog geen partij heeft over genoeg van uw stellingen gestemd."}</td></tr>`;
         } else {
           // A short bar next to each percentage makes the ranking scannable, and
           // reuses the voor/tegen bar language from the rest of the site.
@@ -498,14 +500,14 @@
                   ${Math.round(match)}%
                 </span>
               </td>
-              <td class="num muted" title="${score.same} van ${score.overlap} gedeelde stellingen">${score.same}/${score.overlap}</td>
+              <td class="num muted" title="${score.same} van de ${score.overlap} keer hetzelfde gestemd als u">${score.same}/${score.overlap}</td>
             </tr>`;
           }).join("");
         }
 
         inconclusive.hidden = inconclusiveRows.length === 0;
         inconclusiveResults.innerHTML = inconclusiveRows.map((score) => `
-          <tr><td>${escapeHTML(score.party)}</td><td class="num muted" title="${score.same} van ${score.overlap} gedeelde stellingen">${score.same}/${score.overlap}</td></tr>
+          <tr><td>${escapeHTML(score.party)}</td><td class="num muted" title="${score.same} van de ${score.overlap} keer hetzelfde gestemd als u">${score.same}/${score.overlap}</td></tr>
         `).join("");
       };
 
@@ -520,7 +522,10 @@
           motionsNode.innerHTML = `<p class="muted">Moties laden is niet gelukt.</p>`;
         });
       };
-      document.querySelector("#compass-reset").addEventListener("click", resetCompass);
+      document.querySelector("#compass-reset").addEventListener("click", () => {
+        if (answers.size > 0 && !window.confirm(`Opnieuw beginnen? Uw ${answers.size} ${answers.size === 1 ? "antwoord wordt" : "antwoorden worden"} gewist.`)) return;
+        resetCompass();
+      });
 
       // The back/forward cache restores this page with the saved run still in
       // memory, so it is cleared here too.
